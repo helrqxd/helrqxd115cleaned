@@ -1997,7 +1997,13 @@ document.addEventListener('DOMContentLoaded', async () => {
      */
     window.parseAiResponse = parseAiResponse; // Expose to global
     function parseAiResponse(content) {
-        const trimmedContent = content.trim();
+        // 预处理：去除可能存在的 Markdown 代码块标记（```json 或 ```）
+        let trimmedContent = content.trim();
+        // 移除开头的 ```json 或 ``` (忽略大小写)
+        trimmedContent = trimmedContent.replace(/^```(?:json)?\s*/i, '');
+        // 移除结尾的 ```
+        trimmedContent = trimmedContent.replace(/\s*```$/, '');
+        trimmedContent = trimmedContent.trim();
 
         // 方案1：【最优先】尝试作为标准的、单一的JSON数组解析
         // 这是最理想、最高效的情况
@@ -11899,6 +11905,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         window.renderApiSettingsProxy = window.renderApiSettings;
         window.renderWallpaperScreenProxy = renderWallpaperScreen;
         window.renderWorldBookScreenProxy = () => { if (window.WorldBookModule) window.WorldBookModule.renderWorldBookScreen(); };
+
+        // --- 修复：初始化QQ底部导航栏点击事件 ---
+        const bottomNavItems = document.querySelectorAll('#chat-list-bottom-nav .nav-item');
+        bottomNavItems.forEach((item) => {
+            // 移除可能存在的旧监听器（如果是克隆节点的方式则需要，这里直接绑定即可，因为init只运行一次）
+            item.onclick = () => {
+                const viewId = item.dataset.view;
+                if (viewId && window.switchToChatListView) {
+                    window.switchToChatListView(viewId);
+                }
+            };
+        });
+
+        // --- 修复：初始化各子模块的事件监听 ---
+        // 动态(QZone)模块
+        if (window.initQzoneEventListeners) {
+            window.initQzoneEventListeners();
+        }
+        // 收藏模块
+        if (window.initFavoritesModule) {
+            window.initFavoritesModule();
+        }
+        // 补充收藏页面的返回按钮逻辑(如果模块内未定义)
+        const favoritesBackBtn = document.getElementById('favorites-back-btn');
+        if (favoritesBackBtn) {
+            favoritesBackBtn.onclick = () => {
+                if (window.switchToChatListView) window.switchToChatListView('messages-view');
+            };
+        }
+        // 回忆模块
+        if (window.initMemoriesEventListeners) {
+            window.initMemoriesEventListeners();
+        }
+        // ------------------------------------
 
         await loadAllDataFromDB();
         // 添加启动时加载CSS的逻辑
