@@ -1865,7 +1865,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             linkedWorldBooks: [], // 绑定的世界书ID列表
             enableChatMemory: true, // 读取聊天记忆
             enableAutoPost: false, // 角色自动发笔记
-            enableAutoRefresh: true, // 发现页自动更新
+            enableAutoRefresh: false, // 发现页自动更新
             enableFansFluctuation: true, // 粉丝数浮动
             enableDMs: true, // 私信开关
         };
@@ -3973,9 +3973,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // 满足条件：
                     // 1. 设置对象存在
                     // 2. backgroundActivity 对象存在
-                    // 3. interval 存在且有效
-                    // 注意：已移除对 enabled 的检查，现在只看 interval
+                    // 3. enabled 为 true (开启了)
+                    // 4. interval 存在
                     if (chat.settings && chat.settings.backgroundActivity && chat.settings.backgroundActivity.interval) {
+                        // 既然已经设置了单独的 backgroundActivity，那么我们应该检查 enabled
+                        // 如果用户明确把 enabled 设为 false，即使全局频率是开启的，也不应该跑
+                        if (typeof chat.settings.backgroundActivity.enabled !== 'undefined' && chat.settings.backgroundActivity.enabled === false) {
+                            return; // 明确关闭了，跳过
+                        }
+
                         minInterval = chat.settings.backgroundActivity.interval * 1000;
                     }
 
@@ -6770,43 +6776,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    let groupSimulationIntervalId = null; // 用于存储群聊主时钟的ID
     /**
-     * 启动群聊的后台“主时钟”。这个时钟会一直运行，定期检查所有群聊。
+     * 群聊的后台活动逻辑已合并到 runBackgroundSimulationTick 中
      */
-    function startGroupSimulation() {
-        if (groupSimulationIntervalId) return; // 如果已经启动，则不重复启动
-
-        // 我们设置一个相对较短的间隔（比如30秒）来作为“主时钟”的频率
-        // 它不是具体某个群聊的活动间隔，而是检查所有群聊的频率
-
-        // updated by lrq 251028
-        // 加长检查间隔，防止已经触发自动回复但api未返回时重复触发导致多次回复。60秒间隔大于一般API返回数据时间的平均值，且不会过长影响使用体验。
-        groupSimulationIntervalId = setInterval(runGroupSimulationTick, 120000); // 120秒检查一次
-        console.log('群聊后台活动主时钟已启动，每120秒检查一次所有群聊。');
-    }
-
-    /**
-     * 停止群聊的后台“主时钟”。
-     */
-    function stopGroupSimulation() {
-        if (groupSimulationIntervalId) {
-            clearInterval(groupSimulationIntervalId);
-            groupSimulationIntervalId = null;
-            console.log('群聊后台活动主时钟已停止。');
-        }
-    }
-
-    /**
-     * 群聊“主时钟”的每一次心跳执行的函数
-     */
-    function runGroupSimulationTick() {
-        const allGroupChats = Object.values(state.chats).filter((chat) => chat.isGroup);
-
-        allGroupChats.forEach((chat) => {
-            const bgSettings = chat.settings.backgroundActivity;
-            // 检查1：该群聊自己的开关是否开启
-            if (bgSettings && bgSettings.enabled) {
+    /*
+    let groupSimulationIntervalId = null;
+    // ... 原有的群聊时钟逻辑已移除 ...
+    */
+    /*
                 const now = Date.now();
 
                 // 检查2：使用该群聊自己设置的间隔期
@@ -6827,7 +6804,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     }
-
+    */
     /**
      * 将保存的图标URL应用到主屏幕的App图标上
      */
@@ -12896,7 +12873,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
 
 
-        startGroupSimulation(); // 启动群聊专属的后台时钟
+        // startGroupSimulation(); // 移除旧的群聊时钟，改用统一的后台循环
         handleAutoBackupTimer();
         // 使用事件委托，监听整个动态列表的“焦点移出”事件
         document.getElementById('qzone-posts-list').addEventListener('focusout', (e) => {

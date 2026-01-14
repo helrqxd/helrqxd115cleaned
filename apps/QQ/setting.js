@@ -769,9 +769,13 @@ window.initQQSettings = function (dependencies) {
             // 确保 lastActivityTimestamp 字段存在
             const lastTimestamp = chat.settings.backgroundActivity ? chat.settings.backgroundActivity.lastActivityTimestamp : 0;
 
-            // 移除 enabled 字段，只保留 interval
+            // 如果存在开关元素，读取其状态；否则默认为true（或者根据旧逻辑）
+            // 但用户撤销了index.html的修改，所以应该是有开关的 id="group-background-activity-switch"
+            const groupActivitySwitch = document.getElementById('group-background-activity-switch');
+            const groupActivityEnabled = groupActivitySwitch ? groupActivitySwitch.checked : false;
+
             chat.settings.backgroundActivity = {
-                // enabled: true, // 不再需要，由总频率控制
+                enabled: groupActivityEnabled,
                 interval: groupActivityInterval,
                 lastActivityTimestamp: lastTimestamp,
             };
