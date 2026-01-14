@@ -3994,7 +3994,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 // 如果这个角色设置了频率，并且随机数小于它的行动概率，就触发行动
                 if (probability && Math.random() < probability) {
                     console.log(`角色 "${chat.name}" (频率: ${frequency}) 被唤醒，准备独立行动...`);
-                    triggerInactiveAiAction(chat.id);
+                    // 修复：区分群聊和单聊，分别执行不同的逻辑
+                    if (chat.isGroup) {
+                        triggerGroupAiAction(chat.id);
+                    } else {
+                        triggerInactiveAiAction(chat.id);
+                    }
                 }
                 // 如果没有设置频率，或者随机数没达到概率，就不会行动。
                 // 这就完美地实现了“分组设置”和“不会同时行动”的需求！
@@ -4287,7 +4292,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         // add by lrq 251029 添加聊天间隔时间
         const lastMessage = chat.history.slice(-1)[0];
-        const timeSinceLastMessage = lastMessage ? Math.floor((Date.now() - lastMessage.timestamp) / 60000) : infinity;
+        const timeSinceLastMessage = lastMessage ? Math.floor((Date.now() - lastMessage.timestamp) / 60000) : Infinity;
         const systemPrompt = `
 			# 任务
 			你现在【就是】角色 "${chat.name}"。这是一个秘密的、后台的独立行动。你的所有思考和决策都必须以 "${chat.name}" 的第一人称视角进行。
