@@ -30,7 +30,7 @@ window.activePostId = null;
 // Core Render Functions
 
 function updateUnreadIndicator(count) {
-    unreadPostsCount = count;
+    window.unreadPostsCount = count;
     localStorage.setItem('unreadPostsCount', count);
     const navItem = document.querySelector('.nav-item[data-view="qzone-screen"]');
     if (navItem) {
@@ -5070,7 +5070,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
                     }
 
                     await window.db.qzonePosts.add(newPost);
-                    updateUnreadIndicator(unreadPostsCount + 1);
+                    updateUnreadIndicator(window.unreadPostsCount + 1);
                     if (isViewingThisChat && document.getElementById('qzone-screen').classList.contains('active')) {
                         await renderQzonePosts();
                     }
@@ -5094,7 +5094,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
 
                         postToComment.comments.push(newAiComment);
                         await window.db.qzonePosts.update(postToComment.id, { comments: postToComment.comments });
-                        updateUnreadIndicator(unreadPostsCount + 1);
+                        updateUnreadIndicator(window.unreadPostsCount + 1);
                         if (isViewingThisChat && document.getElementById('qzone-screen').classList.contains('active')) {
                             await renderQzonePosts();
                         }
@@ -5430,7 +5430,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
                         if (!postToLike.likes.includes(chat.name)) {
                             postToLike.likes.push(chat.name);
                             await window.db.qzonePosts.update(postToLike.id, { likes: postToLike.likes });
-                            updateUnreadIndicator(unreadPostsCount + 1);
+                            updateUnreadIndicator(window.unreadPostsCount + 1);
                             if (isViewingThisChat && document.getElementById('qzone-screen').classList.contains('active')) {
                                 await renderQzonePosts();
                             }

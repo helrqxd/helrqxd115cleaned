@@ -593,7 +593,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         currentIndex: -1, // 当前正在查看的照片索引
     };
 
-    let unreadPostsCount = 0;
+    window.unreadPostsCount = 0;
 
     /* favorites variables moved to favorites.js */
 
@@ -845,8 +845,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (isCurrentlyExpanded) {
             // 如果是展开的，就直接收起来
             transcriptEl.style.display = 'none';
+            bubble.dataset.state = 'collapsed'; // 更新状态标记
         } else {
             // 如果是收起的，就执行展开流程
+            bubble.dataset.state = 'expanded'; // 更新状态标记
 
             // 1. 先显示一个“正在转写”的提示，给用户即时反馈
             transcriptEl.textContent = '正在转文字...';
@@ -2005,6 +2007,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         trimmedContent = trimmedContent.replace(/\s*```$/, '');
         trimmedContent = trimmedContent.trim();
 
+        let initialResult = null;
+
         // 方案1：【最优先】尝试作为标准的、单一的JSON数组解析
         // 这是最理想、最高效的情况
         if (trimmedContent.startsWith('[') && trimmedContent.endsWith(']')) {
@@ -2012,7 +2016,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 const parsed = JSON.parse(trimmedContent);
                 if (Array.isArray(parsed)) {
                     console.log('解析成功：标准JSON数组格式。');
-                    return parsed;
+                    initialResult = parsed;
                 }
             } catch (e) {
                 // 如果解析失败，说明它虽然看起来像个数组，但内部格式有问题。
@@ -2022,27 +2026,62 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
 
         // 方案2：【强力解析】使用正则表达式，从混乱的字符串中提取出所有独立的JSON对象
-        // 这能完美解决您遇到的 "(Timestamp: ...)[{...}](Timestamp: ...)[{...}]" 这种格式
-        const jsonMatches = trimmedContent.match(/{[^{}]*}/g);
+        // 如果方案1失败了（或者根本不像数组），即使 initialResult 为空，我们也尝试这个
+        if (!initialResult) {
+            // 这能完美解决您遇到的 "(Timestamp: ...)[{...}](Timestamp: ...)[{...}]" 这种格式
+            const jsonMatches = trimmedContent.match(/{[^{}]*}/g);
 
-        if (jsonMatches) {
-            const results = [];
-            for (const match of jsonMatches) {
-                try {
-                    // 尝试解析每一个被我们“揪”出来的JSON字符串
-                    const parsedObject = JSON.parse(match);
-                    results.push(parsedObject);
-                } catch (e) {
-                    // 如果某个片段不是有效的JSON，就忽略它，继续处理下一个
-                    console.warn('跳过一个无效的JSON片段:', match);
+            if (jsonMatches) {
+                const results = [];
+                for (const match of jsonMatches) {
+                    try {
+                        // 尝试解析每一个被我们“揪”出来的JSON字符串
+                        const parsedObject = JSON.parse(match);
+                        results.push(parsedObject);
+                    } catch (e) {
+                        // 如果某个片段不是有效的JSON，就忽略它，继续处理下一个
+                        console.warn('跳过一个无效的JSON片段:', match);
+                    }
+                }
+
+                // 如果我们成功提取出了至少一个有效的JSON对象
+                if (results.length > 0) {
+                    console.log('解析成功：通过强力提取模式。');
+                    initialResult = results;
                 }
             }
+        }
 
-            // 如果我们成功提取出了至少一个有效的JSON对象，就返回这个结果
-            if (results.length > 0) {
-                console.log('解析成功：通过强力提取模式。');
-                return results;
+        // --- 统一后处理：展平嵌套结构 (Flattening) ---
+        // 某些提示词可能会导致AI返回 { chatResponse: [...] } 这样的嵌套结构（即使在数组中）
+        // 我们在这里统一处理，确保返回给业务层的是扁平的 actions 数组，同时保留 innerVoice
+        if (initialResult) {
+            const flattened = [];
+            for (const item of initialResult) {
+                if (!item || typeof item !== 'object') continue;
+
+                // 1. 如果包含 chatResponse 数组，说明是嵌套结构，提取出来
+                if (item.chatResponse && Array.isArray(item.chatResponse)) {
+                    flattened.push(...item.chatResponse);
+                }
+
+                // 2. 如果包含 innerVoice 对象，也将其保留在 flattened 数组中
+                if (item.innerVoice && typeof item.innerVoice === 'object' && item.innerVoice.type === 'innervoice') {
+                    flattened.push(item.innerVoice);
+                }
+
+                // 3. 兼容单层结构：如果 item 本身就是 action 对象(有type且不是chatResponse那种大包)，保留它
+                // 注意：如果 item 是那个包含 chatResponse 的大包，我们已经在上面处理了它的内容，
+                // 但如果这个大包本身也有 type 属性怎么办？目前的 Prompt 结构中大包通常没有 type。
+                // 为了安全，如果它没有 chatResponse 列，或者它明确有 type 属性，我们就认为它是一个独立的 action
+                if (!item.chatResponse && !item.innerVoice) {
+                    flattened.push(item);
+                } else if (item.type && item.type !== 'innervoice') {
+                    // 即使它有 innerVoice 字段，如果它自己也是一个 action (例如 type='text')，也应该保留
+                    flattened.push(item);
+                }
             }
+            return flattened;
         }
 
         // 方案3：【最终备用】如果以上所有方法都失败了，说明AI返回的可能就是纯文本
@@ -2129,6 +2168,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             container.appendChild(item);
         });
     }
+    window.renderBackgroundFrequencySelector = renderBackgroundFrequencySelector;
 
     window.renderApiSettingsProxy = window.renderApiSettings;
 
@@ -3803,7 +3843,7 @@ document.addEventListener('DOMContentLoaded', async () => {
      * @param {number} count - 未读动态的数量
      */
     function updateUnreadIndicator(count) {
-        unreadPostsCount = count;
+        window.unreadPostsCount = count;
         localStorage.setItem('unreadPostsCount', count); // 持久化存储
 
         // --- 更新底部导航栏的“动态”按钮 ---
@@ -4124,6 +4164,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         return { contextString: context, visibilityFlag: visibilityFlag };
     }
+    window.buildCommentsContextForAI = buildCommentsContextForAI;
+    window.filterVisiblePostsForAI = filterVisiblePostsForAI;
 
     /**
      * 获取一条动态的可见观众列表，用于告知AI
@@ -4427,8 +4469,34 @@ document.addEventListener('DOMContentLoaded', async () => {
             console.log(`【后台角色实时活动 - AI 原始输出】\n角色 "${chat.name}" 的原始回复:\n`, aiResponseContent);
 
             const responseArray = parseAiResponse(aiResponseContent);
+            console.log('解析后的 Action 列表:', responseArray); // Debug log
+
             for (const action of responseArray) {
                 if (!action) continue;
+
+                // --- 处理 innerVoice (心声) ---
+                if (action.type === 'innervoice') {
+                    // 确保所有字段都存在
+                    const innerVoiceData = {
+                        type: 'innervoice',
+                        clothing: action.clothing || '...',
+                        behavior: action.behavior || '...',
+                        thoughts: action.thoughts || '...',
+                        naughtyThoughts: action.naughtyThoughts || '...',
+                        timestamp: Date.now()
+                    };
+
+                    chat.latestInnerVoice = innerVoiceData;
+                    if (!chat.innerVoiceHistory) chat.innerVoiceHistory = [];
+                    chat.innerVoiceHistory.push(innerVoiceData);
+
+                    // 保存到数据库
+                    await db.chats.put(chat);
+                    console.log(`后台活动: 捕获到角色 "${chat.name}" 的心声:`, innerVoiceData);
+                    continue; // 心声处理完后跳过，不作为普通消息渲染
+                }
+                // ------------------------------
+
                 if (action.type === 'update_status' && action.status_text) {
                     chat.status.text = action.status_text;
                     chat.status.isBusy = action.is_busy || false;
@@ -4460,7 +4528,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         baseCommentsCount: action.baseCommentsCount || 0,
                     };
                     await db.weiboPosts.add(newPost);
-                    updateUnreadIndicator(unreadPostsCount + 1);
+                    updateUnreadIndicator(window.unreadPostsCount + 1);
                     console.log(`后台活动: 角色 "${chat.name}" 发布了微博`);
                 } else if (action.type === 'weibo_comment') {
                     const postToComment = await db.weiboPosts.get(parseInt(action.postId));
@@ -4507,7 +4575,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         visibleGroupIds: null,
                     };
                     await db.qzonePosts.add(newPost);
-                    updateUnreadIndicator(unreadPostsCount + 1);
+                    updateUnreadIndicator(window.unreadPostsCount + 1);
                     console.log(`后台活动: 角色 "${chat.name}" 发布了动态`);
                 } else if (action.type === 'qzone_comment') {
                     const post = await db.qzonePosts.get(parseInt(action.postId));
@@ -4523,7 +4591,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         }
                         post.comments.push(newAiComment);
                         await db.qzonePosts.update(post.id, { comments: post.comments });
-                        updateUnreadIndicator(unreadPostsCount + 1);
+                        updateUnreadIndicator(window.unreadPostsCount + 1);
                         console.log(`后台活动: 角色 "${chat.name}" 评论了动态 #${post.id}`);
                     }
                 } else if (action.type === 'qzone_like') {
@@ -4533,7 +4601,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (!post.likes.includes(chat.name)) {
                             post.likes.push(chat.name);
                             await db.qzonePosts.update(post.id, { likes: post.likes });
-                            updateUnreadIndicator(unreadPostsCount + 1);
+                            updateUnreadIndicator(window.unreadPostsCount + 1);
                             console.log(`后台活动: 角色 "${chat.name}" 点赞了动态 #${post.id}`);
                         }
                     }
@@ -6881,104 +6949,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
 
-    /**
-     * 根据AI视角和动态设置，构建给AI看的评论区上下文
-     * @param {object} post - 正在处理的动态对象
-     * @param {object} viewerChat - 正在“看”动态的AI角色
-     * @param {string} userNickname - 用户的昵称
-     * @returns {{contextString: string, visibilityFlag: string}} - 返回包含上下文文本和可见性标志的对象
-     */
-    function buildCommentsContextForAI(post, viewerChat, userNickname) {
-        // 1. 安全检查，如果post.comments不存在或不是数组，直接返回空
-        if (!post.comments || !Array.isArray(post.comments) || post.comments.length === 0) {
-            return { contextString: '', visibilityFlag: '[评论区可见]' };
-        }
-
-        const viewerName = viewerChat.name;
-        let commentsForAI;
-        let visibilityFlag;
-
-        // 2. 根据帖子的评论可见性设置，决定AI能看到哪些评论
-        if (post.areCommentsVisible !== false) {
-            commentsForAI = post.comments; // 如果可见性为true或未设置，则AI能看到所有评论
-            visibilityFlag = '[评论区可见]';
-        } else {
-            // 如果设置为“部分可见”，则AI只能看到自己、用户以及回复自己的评论
-            commentsForAI = post.comments.filter((comment) => {
-                return (
-                    comment.commenterName === viewerName || // AI自己的评论
-                    comment.commenterName === userNickname || // 用户的评论
-                    comment.replyTo === viewerName
-                ); // 回复AI的评论
-            });
-            visibilityFlag = '[评论区部分可见]';
-        }
-
-        if (commentsForAI.length === 0) {
-            return { contextString: '', visibilityFlag: visibilityFlag };
-        }
-
-        // 3. 构建对AI清晰易懂的评论字符串
-        let context = `  └ 评论区:\n`;
-        commentsForAI.slice(-5).forEach((c) => {
-            // 只展示最近的5条评论以节省token
-            // a. 确定评论者的身份标签
-            const commenterLabel =
-                c.commenterName === viewerName
-                    ? '你' // 如果是AI自己，直接标记为“你”
-                    : c.commenterName === userNickname
-                        ? '用户'
-                        : c.commenterName;
-
-            // b. 如果是回复，同样确定被回复者的身份标签
-            let replyPart = '';
-            if (c.replyTo) {
-                const replyToLabel = c.replyTo === viewerName ? '你' : c.replyTo === userNickname ? '用户' : c.replyTo;
-                replyPart = ` 回复 ${replyToLabel}`;
-            }
-
-            // c. 拼接成最终的、无歧义的字符串
-            context += `    - ${commenterLabel}${replyPart}: ${c.text}\n`;
-        });
-
-        return { contextString: context, visibilityFlag: visibilityFlag };
-    }
-
-    /**
-     * 根据AI的视角，过滤出它能看到的动态
-     * @param {Array} allPosts - 所有待检查的动态帖子
-     * @param {object} viewerChat - 正在“看”动态的那个AI的chat对象
-     * @returns {Array} - 过滤后该AI可见的动态帖子
-     */
-    function filterVisiblePostsForAI(allPosts, viewerChat) {
-        if (!viewerChat || !viewerChat.id) return []; // 安全检查
-
-        const viewerGroupId = viewerChat.groupId; // 查看者所在的分组ID
-
-        return allPosts.filter((post) => {
-            // 规则1：如果是用户发的动态
-            if (post.authorId === 'user') {
-                // 如果用户设置了“部分可见”
-                if (post.visibleGroupIds && post.visibleGroupIds.length > 0) {
-                    // 只有当查看者AI的分组ID在用户的可见列表里时，才可见
-                    return viewerGroupId && post.visibleGroupIds.includes(viewerGroupId);
-                }
-                // 如果用户没设置，说明是公开的，所有AI都可见
-                return true;
-            }
-
-            // 规则2：如果是其他AI发的动态
-            const authorGroupId = post.authorGroupId; // 发帖AI所在的分组ID
-
-            // 如果发帖的AI没有分组，那它的动态就是公开的
-            if (!authorGroupId) {
-                return true;
-            }
-
-            // 如果发帖的AI有分组，那么只有在同一个分组的AI才能看到
-            return authorGroupId === viewerGroupId;
-        });
-    }
+    // buildCommentsContextForAI and filterVisiblePostsForAI were redundant here.
+    // They are defined around line 4094 and exposed to window there.
+    // Removed duplicate definitions from here.
 
     /**
      * 应用指定的主题（'light' 或 'dark'）
@@ -11941,6 +11914,13 @@ document.addEventListener('DOMContentLoaded', async () => {
         // ------------------------------------
 
         await loadAllDataFromDB();
+
+        // 自动启动后台活动模拟（如果已开启）
+        if (state.globalSettings && state.globalSettings.enableBackgroundActivity) {
+            console.log('检测到后台活动设置为开启，正在自动启动后台模拟...');
+            startBackgroundSimulation();
+        }
+
         // 添加启动时加载CSS的逻辑
         // 优先应用保存在 activeCustomCss 里的代码
         if (state.globalSettings.activeCustomCss) {

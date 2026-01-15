@@ -493,10 +493,36 @@ window.fetchMinimaxSpeechModels = function () {
 }
 
 window.loadNovelAISettings = function () {
+    // 1. 加载基础开关和凭证 (从localStorage)
+    const storedEnabled = localStorage.getItem('novelai-enabled');
+    const enabled = storedEnabled === 'true'; //只有明确为'true'才是开启
+    const model = localStorage.getItem('novelai-model') || 'nai-diffusion-3';
+    const apiKey = localStorage.getItem('novelai-api-key') || '';
+
+    const naiSwitch = document.getElementById('novelai-switch');
+    if (naiSwitch) {
+        naiSwitch.checked = enabled;
+        // 触发change事件以更新UI显示，或者手动更新
+        const detailsDiv = document.getElementById('novelai-details');
+        if (detailsDiv) detailsDiv.style.display = enabled ? 'block' : 'none';
+    }
+
+    const modelSelect = document.getElementById('novelai-model');
+    if (modelSelect) modelSelect.value = model;
+
+    const apiKeyInput = document.getElementById('novelai-api-key');
+    if (apiKeyInput) apiKeyInput.value = apiKey;
+
+    // 2. 加载高级参数 (从localStorage的JSON对象)
     const settings = getNovelAISettings();
-    document.getElementById('nai-resolution').value = settings.resolution;
-    document.getElementById('nai-steps').value = settings.steps;
-    document.getElementById('nai-cfg-scale').value = settings.cfg_scale;
+    const resolutionInput = document.getElementById('nai-resolution');
+    if (resolutionInput) resolutionInput.value = settings.resolution;
+
+    const stepsInput = document.getElementById('nai-steps');
+    if (stepsInput) stepsInput.value = settings.steps;
+
+    const cfgInput = document.getElementById('nai-cfg-scale');
+    if (cfgInput) cfgInput.value = settings.cfg_scale;
     document.getElementById('nai-sampler').value = settings.sampler;
     document.getElementById('nai-seed').value = settings.seed;
     document.getElementById('nai-uc-preset').value = settings.uc_preset;
@@ -2253,7 +2279,13 @@ window.renderApiSettings = function () {
 
         // 5. 后台活动模拟
         const bgSwitch = document.getElementById('background-activity-switch');
-        if (bgSwitch) bgSwitch.checked = !!state.globalSettings.enableBackgroundActivity;
+        if (bgSwitch) {
+            bgSwitch.checked = !!state.globalSettings.enableBackgroundActivity;
+            // 初始化时同步显示状态
+            if (typeof window.renderBackgroundFrequencySelector === 'function') {
+                window.renderBackgroundFrequencySelector();
+            }
+        }
 
         const bgInterval = document.getElementById('background-interval-input');
         if (bgInterval) bgInterval.value = state.globalSettings.backgroundActivityInterval || 60;
