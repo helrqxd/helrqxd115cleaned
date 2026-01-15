@@ -176,17 +176,24 @@ document.addEventListener('DOMContentLoaded', () => {
     function bindLongPress(element, onLongPress, onClick, enableEffect = true) {
         let timer;
         let isLongPress = false;
+        let isScrolling = false;
         let startX, startY;
 
         const start = (e) => {
             isLongPress = false;
+            isScrolling = false;
             // 记录触摸起始位置，用于判断滑动
             if (e.touches) {
                 startX = e.touches[0].clientX;
                 startY = e.touches[0].clientY;
+            } else {
+                startX = e.clientX;
+                startY = e.clientY;
             }
 
             timer = setTimeout(() => {
+                if (isScrolling) return;
+
                 isLongPress = true;
                 if (enableEffect) {
                     if (navigator.vibrate) navigator.vibrate(50); // 震动反馈
@@ -215,10 +222,18 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const move = (e) => {
             if (!startX) return;
-            const x = e.touches[0].clientX;
-            const y = e.touches[0].clientY;
+            let x, y;
+            if (e.touches) {
+                x = e.touches[0].clientX;
+                y = e.touches[0].clientY;
+            } else {
+                x = e.clientX;
+                y = e.clientY;
+            }
+
             // 如果移动超过 10px，视为滑动，取消长按
             if (Math.abs(x - startX) > 10 || Math.abs(y - startY) > 10) {
+                isScrolling = true;
                 cancel();
             }
         };
@@ -227,7 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
         element.addEventListener('touchstart', start, { passive: true });
         element.addEventListener('touchend', (e) => {
             cancel();
-            if (!isLongPress && onClick) {
+            if (!isLongPress && !isScrolling && onClick) {
                 onClick(e); // 如果不是长按，触发点击
             }
         });
@@ -235,9 +250,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 鼠标事件 (PC调试用)
         element.addEventListener('mousedown', start);
+        element.addEventListener('mousemove', (e) => {
+            if (e.buttons === 1) move(e);
+        });
         element.addEventListener('mouseup', (e) => {
             cancel();
-            if (!isLongPress && onClick) {
+            if (!isLongPress && !isScrolling && onClick) {
                 onClick(e);
             }
         });
