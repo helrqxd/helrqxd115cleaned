@@ -813,6 +813,23 @@ window.initSettingsListeners = function () {
         });
     }
 
+    // --- 新增：滑块数值实时显示监听器 ---
+    const tempSlider = document.getElementById('temperature-slider');
+    const tempValue = document.getElementById('temperature-value');
+    if (tempSlider && tempValue) {
+        tempSlider.addEventListener('input', () => {
+            tempValue.textContent = tempSlider.value;
+        });
+    }
+
+    const qualitySlider = document.getElementById('image-quality-slider');
+    const qualityValue = document.getElementById('image-quality-value');
+    if (qualitySlider && qualityValue) {
+        qualitySlider.addEventListener('input', () => {
+            qualityValue.textContent = qualitySlider.value;
+        });
+    }
+
     // 3. 其他 API 相关监听器
     const fetchModelsBtn = document.getElementById('fetch-models-btn');
     if (fetchModelsBtn) {

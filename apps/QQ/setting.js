@@ -498,9 +498,10 @@ window.initQQSettings = function (dependencies) {
         if (groupActivityGroup && groupIntervalInput) {
             groupActivityGroup.style.display = 'block'; // 显示设置区域
 
-            // 兼容旧数据，如果没有设置，默认为120秒
-            const bgSettings = chat.settings.backgroundActivity || { interval: 120 };
-            groupIntervalInput.value = bgSettings.interval || 120;
+            const bgSettings = chat.settings.backgroundActivity || {};
+            groupIntervalInput.value = bgSettings.interval || '';
+            const globalInterval = state.globalSettings.backgroundActivityInterval || 10;
+            groupIntervalInput.placeholder = `Global Default: ${globalInterval}`;
         }
 
         const worldBookCheckboxesContainer = document.getElementById('world-book-checkboxes-container');
@@ -764,7 +765,8 @@ window.initQQSettings = function (dependencies) {
         const groupIntervalInput = document.getElementById('group-background-interval-input');
 
         if (groupIntervalInput) {
-            const groupActivityInterval = parseInt(groupIntervalInput.value) || 120;
+            const rawVal = groupIntervalInput.value.trim();
+            const groupActivityInterval = rawVal ? parseInt(rawVal) : null;
 
             // 确保 lastActivityTimestamp 字段存在
             const lastTimestamp = chat.settings.backgroundActivity ? chat.settings.backgroundActivity.lastActivityTimestamp : 0;

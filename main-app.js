@@ -1539,7 +1539,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 if (!chat.settings) chat.settings = {}; // 以防万一连settings都没有
                 chat.settings.backgroundActivity = {
                     enabled: false,
-                    interval: 120, // 默认120秒
+                    interval: null, // 默认使用全局设置
                     lastActivityTimestamp: 0,
                 };
             }
@@ -4015,20 +4015,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                     // 默认使用全局设置
                     let minInterval = (state.globalSettings.backgroundActivityInterval || 10) * 1000;
 
-                    // 如果该聊天单独设置了后台活动间隔，则优先使用单独设置
-                    // 满足条件：
-                    // 1. 设置对象存在
-                    // 2. backgroundActivity 对象存在
-                    // 3. enabled 为 true (开启了)
-                    // 4. interval 存在
-                    if (chat.settings && chat.settings.backgroundActivity && chat.settings.backgroundActivity.interval) {
-                        // 既然已经设置了单独的 backgroundActivity，那么我们应该检查 enabled
-                        // 如果用户明确把 enabled 设为 false，即使全局频率是开启的，也不应该跑
-                        if (typeof chat.settings.backgroundActivity.enabled !== 'undefined' && chat.settings.backgroundActivity.enabled === false) {
-                            return; // 明确关闭了，跳过
-                        }
+                    // 如果该聊天单独设置了后台活动配置
+                    if (chat.settings && chat.settings.backgroundActivity) {
+                        // 1. 检查开关：如果用户明确把 enabled 设为 false，即使全局频率是开启的，也不应该跑
+                        // if (typeof chat.settings.backgroundActivity.enabled !== 'undefined' && chat.settings.backgroundActivity.enabled === false) {
+                        //     return; // 明确关闭了，跳过
+                        // }
 
-                        minInterval = chat.settings.backgroundActivity.interval * 1000;
+                        // 2. 检查间隔：如果设置了有效的 interval，则使用单独设置
+                        if (chat.settings.backgroundActivity.interval) {
+                            minInterval = chat.settings.backgroundActivity.interval * 1000;
+                        }
                     }
 
                     if (timeSinceLastMessage < minInterval) {
