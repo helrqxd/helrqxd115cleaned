@@ -7372,8 +7372,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         updateActiveLyric(audioPlayer.currentTime);
     }
 
-    /**
     window.handleRecallClick = handleRecallClick; // Expose to global
+    /**
      * 处理用户点击“撤回”按钮的入口函数
      */
     async function handleRecallClick() {
