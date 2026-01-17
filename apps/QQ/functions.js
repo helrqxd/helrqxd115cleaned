@@ -3617,7 +3617,7 @@ async function restartChatBranch() {
         chat.latestInnerVoice = null;
 
         // 4. 重置角色状态
-        chat.status = null;
+        chat.status = '在线';
 
         // 5. 重置自动总结计数器
         if (!chat.settings.summary) chat.settings.summary = {};
