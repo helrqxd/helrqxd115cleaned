@@ -6630,7 +6630,7 @@ function setupChatListeners() {
 
             // 如果是用户自己的语音，只切换文字显示，不播放
             if (bubble.classList.contains('user')) {
-                toggleVoiceTranscript(bubble);
+                window.toggleVoiceTranscript(bubble);
                 return;
             }
 
@@ -6641,14 +6641,14 @@ function setupChatListeners() {
             // --- 核心逻辑开始 ---
 
             // 1. 检查是否点击了正在播放的语音条
-            if (isTtsPlaying && currentTtsAudioBubble === bubble) {
+            if (window.isTtsPlaying && window.currentTtsAudioBubble === bubble) {
                 // 如果是，则停止播放并收起所有关联的文字
-                stopMinimaxAudio();
+                window.stopMinimaxAudio();
             }
             // 2. 检查点击的是否是已经展开了文字但没有播放的语音条
             else if (bubble.dataset.state === 'expanded') {
                 // 如果是，则只收起文字，不影响其他
-                toggleVoiceTranscript(bubble);
+                window.toggleVoiceTranscript(bubble);
             }
             // 3. 如果以上都不是，说明是想开始播放或只展开文字
             else {
@@ -6657,7 +6657,7 @@ function setupChatListeners() {
                 if (startIndex === -1) return;
 
                 // 查找连续的语音消息
-                const messagesToPlay = findConsecutiveAiVoiceMessages(chat.history, startIndex);
+                const messagesToPlay = window.findConsecutiveAiVoiceMessages(chat.history, startIndex);
                 if (messagesToPlay.length > 0) {
                     const bubblesToAnimate = messagesToPlay.map((m) => document.querySelector(`.message-bubble[data-timestamp="${m.timestamp}"]`)).filter(Boolean);
 
@@ -6671,16 +6671,16 @@ function setupChatListeners() {
                         // 先展开所有文字
                         bubblesToAnimate.forEach((b) => {
                             if (b.dataset.state !== 'expanded') {
-                                toggleVoiceTranscript(b);
+                                window.toggleVoiceTranscript(b);
                             }
                         });
                         // 然后调用播放器
                         const combinedText = messagesToPlay.map((m) => m.content.trim()).join('，');
-                        playMinimaxAudio(combinedText, voiceId, bubblesToAnimate);
+                        window.playMinimaxAudio(combinedText, voiceId, bubblesToAnimate);
                     } else {
                         // 【只显示文字分支】
                         // 只展开当前点击的这一个语音条的文字
-                        toggleVoiceTranscript(bubble);
+                        window.toggleVoiceTranscript(bubble);
                     }
                 }
             }

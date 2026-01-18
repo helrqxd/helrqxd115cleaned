@@ -833,6 +833,7 @@ document.addEventListener('DOMContentLoaded', async () => {
      * 切换语音消息的文字显示/隐藏
      * @param {HTMLElement} bubble - 被点击的语音消息的 .message-bubble 元素
      */
+    window.toggleVoiceTranscript = toggleVoiceTranscript; // Expose to global
     function toggleVoiceTranscript(bubble) {
         if (!bubble) return;
 
@@ -10078,8 +10079,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     let isIntentionalStop = false;
-    let isTtsPlaying = false;
-    let currentTtsAudioBubble = null;
+    window.isTtsPlaying = false;
+    window.currentTtsAudioBubble = null;
 
     /**
      * 查找从指定位置开始的所有连续AI语音消息
@@ -10087,6 +10088,7 @@ document.addEventListener('DOMContentLoaded', async () => {
      * @param {number} startIndex - 开始查找的索引位置
      * @returns {Array} - 一个包含所有连续AI语音消息对象的数组
      */
+    window.findConsecutiveAiVoiceMessages = findConsecutiveAiVoiceMessages; // Expose to global
     function findConsecutiveAiVoiceMessages(history, startIndex) {
         const messagesToPlay = [];
         if (startIndex < 0 || startIndex >= history.length) {
@@ -10109,8 +10111,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     /**
      * 停止当前正在播放的Minimax TTS语音
      */
+    window.stopMinimaxAudio = stopMinimaxAudio; // Expose
     function stopMinimaxAudio() {
-        if (!isTtsPlaying) return;
+        if (!window.isTtsPlaying) return;
 
         isIntentionalStop = true;
         const ttsPlayer = document.getElementById('tts-audio-player');
@@ -10125,8 +10128,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         }
 
-        isTtsPlaying = false;
-        currentTtsAudioBubble = null;
+        window.isTtsPlaying = false;
+        window.currentTtsAudioBubble = null;
         window.currentAnimatingBubbles = null;
 
         setTimeout(() => {
@@ -10162,6 +10165,7 @@ document.addEventListener('DOMContentLoaded', async () => {
      * @param {string} voiceId - Minimax 的语音 ID
      * @param {Array<HTMLElement>} bubblesToAnimate - 需要播放动画的所有语音气泡元素的数组
      */
+    window.playMinimaxAudio = playMinimaxAudio; // Expose
     async function playMinimaxAudio(text, voiceId, bubblesToAnimate) {
         stopMinimaxAudio();
         await new Promise((resolve) => setTimeout(resolve, 50));
@@ -10170,8 +10174,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         const firstBubble = bubblesToAnimate[0];
         if (!firstBubble) return;
 
-        isTtsPlaying = true;
-        currentTtsAudioBubble = firstBubble;
+        window.isTtsPlaying = true;
+        window.currentTtsAudioBubble = firstBubble;
         window.currentAnimatingBubbles = bubblesToAnimate;
         bubblesToAnimate.forEach((b) => {
             const spinner = b.querySelector('.loading-spinner');
@@ -10260,8 +10264,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             ttsPlayer.src = audioUrl;
 
             const cleanupAndReset = () => {
-                if (isTtsPlaying) {
-                    isTtsPlaying = false;
+                if (window.isTtsPlaying) {
+                    window.isTtsPlaying = false;
                     URL.revokeObjectURL(audioUrl);
                     if (window.currentAnimatingBubbles) {
                         window.currentAnimatingBubbles.forEach((b) => b.classList.remove('playing'));
@@ -12166,47 +12170,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             document.getElementById('call-transcript-modal').classList.remove('visible');
         });
 
-        document.getElementById('chat-messages').addEventListener('click', (e) => {
-            // 1. 检查点击的是否是语音条
-            const voiceBody = e.target.closest('.voice-message-body');
-            if (!voiceBody) return;
 
-            // 2. 找到相关的DOM元素
-            const bubble = voiceBody.closest('.message-bubble');
-            if (!bubble) return;
-
-            const spinner = voiceBody.querySelector('.loading-spinner');
-            const transcriptEl = bubble.querySelector('.voice-transcript');
-
-            // 如果正在加载中，则不响应点击
-            if (bubble.dataset.state === 'loading') {
-                return;
-            }
-
-            // 3. 如果文字已经展开，则收起
-            if (bubble.dataset.state === 'expanded') {
-                transcriptEl.style.display = 'none';
-                bubble.dataset.state = 'collapsed';
-            }
-            // 4. 如果是收起状态，则开始“转录”流程
-            else {
-                bubble.dataset.state = 'loading'; // 进入加载状态
-                spinner.style.display = 'block'; // 显示加载动画
-
-                // 模拟1.5秒的语音识别过程
-                setTimeout(() => {
-                    // 检查此时元素是否还存在（可能用户已经切换了聊天）
-                    if (document.body.contains(bubble)) {
-                        const voiceText = bubble.dataset.voiceText || '(无法识别)';
-                        transcriptEl.textContent = voiceText; // 填充文字
-
-                        spinner.style.display = 'none'; // 隐藏加载动画
-                        transcriptEl.style.display = 'block'; // 显示文字
-                        bubble.dataset.state = 'expanded'; // 进入展开状态
-                    }
-                }, 500);
-            }
-        });
 
         document.getElementById('chat-header-status').addEventListener('click', handleEditStatusClick);
 
