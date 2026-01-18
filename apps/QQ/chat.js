@@ -3836,7 +3836,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
                         if (msgData.status === 'paid') {
                             originalMsg.paidBy = msgData.name;
                             // 角色扣款逻辑
-                            await updateCharacterBankBalance(chatId, -originalMsg.amount, `代付外卖: ${originalMsg.productInfo}`);
+                            await window.updateCharacterBankBalance(chatId, -originalMsg.amount, `代付外卖: ${originalMsg.productInfo}`);
                         } else {
                             originalMsg.paidBy = null;
                         }
@@ -3904,7 +3904,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
                         };
                     } else {
                         // 3. 余额充足！执行扣款和下单逻辑
-                        await updateCharacterBankBalance(chatId, -price, `为你点外卖: ${foodName}`);
+                        await window.updateCharacterBankBalance(chatId, -price, `为你点外卖: ${foodName}`);
 
                         const foodItem = await window.db.elemeFoods.where({ name: foodName, restaurant: restaurant || '私房小厨' }).first();
                         const imageUrl = foodItem ? foodItem.imageUrl : getRandomWaimaiImage();
@@ -5658,7 +5658,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
 
                     // 同步到角色钱包（支出）
                     const rpDescription = `发出红包 - ${msgData.greeting || '恭喜发财'}`;
-                    await updateCharacterBankBalance(chatId, -msgData.amount, rpDescription);
+                    await window.updateCharacterBankBalance(chatId, -msgData.amount, rpDescription);
 
                     break;
 
@@ -5804,7 +5804,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
 
                         // 【全新】同步到角色钱包（收入）
                         const acceptDescription = `收到来自 ${originalMsg.senderName} 的转账`;
-                        await updateCharacterBankBalance(chatId, originalMsg.amount, acceptDescription);
+                        await window.updateCharacterBankBalance(chatId, originalMsg.amount, acceptDescription);
                     }
                     continue; // 接受指令只修改状态，不产生新消息
                 }
@@ -6138,7 +6138,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
 
                     // 【全新】同步到角色钱包（支出）
                     const transferDescription = `转账给 ${msgData.receiver || '我'}`;
-                    await updateCharacterBankBalance(chatId, -msgData.amount, transferDescription);
+                    await window.updateCharacterBankBalance(chatId, -msgData.amount, transferDescription);
 
                     break;
 
@@ -6796,48 +6796,7 @@ function setupChatListeners() {
         }
     });
 
-    // Voice/Loading Logic
-    document.getElementById('chat-messages').addEventListener('click', (e) => {
-        // 1. 检查点击的是否是语音条
-        const voiceBody = e.target.closest('.voice-message-body');
-        if (!voiceBody) return;
 
-        // 2. 找到相关的DOM元素
-        const bubble = voiceBody.closest('.message-bubble');
-        if (!bubble) return;
-
-        const spinner = voiceBody.querySelector('.loading-spinner');
-        const transcriptEl = bubble.querySelector('.voice-transcript');
-
-        // 如果正在加载中，则不响应点击
-        if (bubble.dataset.state === 'loading') {
-            return;
-        }
-
-        // 3. 如果文字已经展开，则收起
-        if (bubble.dataset.state === 'expanded') {
-            transcriptEl.style.display = 'none';
-            bubble.dataset.state = 'collapsed';
-        }
-        // 4. 如果是收起状态，则开始“转录”流程
-        else {
-            bubble.dataset.state = 'loading'; // 进入加载状态
-            spinner.style.display = 'block'; // 显示加载动画
-
-            // 模拟1.5秒的语音识别过程
-            setTimeout(() => {
-                // 检查此时元素是否还存在（可能用户已经切换了聊天）
-                if (document.body.contains(bubble)) {
-                    const voiceText = bubble.dataset.voiceText || '(无法识别)';
-                    transcriptEl.textContent = voiceText; // 填充文字
-
-                    spinner.style.display = 'none'; // 隐藏加载动画
-                    transcriptEl.style.display = 'block'; // 显示文字
-                    bubble.dataset.state = 'expanded'; // 进入展开状态
-                }
-            }, 500);
-        }
-    });
 
     document.getElementById('open-persona-library-btn').addEventListener('click', () => window.openPersonaLibrary && window.openPersonaLibrary());
     document.getElementById('close-persona-library-btn').addEventListener('click', () => window.closePersonaLibrary && window.closePersonaLibrary());

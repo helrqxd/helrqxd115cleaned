@@ -10015,6 +10015,7 @@ document.addEventListener('DOMContentLoaded', async () => {
      * @param {number} amount - 交易金额 (正数为收入, 负数为支出)
      * @param {string} description - 交易描述 (例如: "转账给 XX", "收到 XX 的红包")
      */
+    window.updateCharacterBankBalance = updateCharacterBankBalance; // Expose to global
     async function updateCharacterBankBalance(charId, amount, description) {
         // 安全检查：如果缺少关键信息，则直接返回
         if (!charId || !amount || isNaN(amount)) {

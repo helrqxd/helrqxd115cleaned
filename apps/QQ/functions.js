@@ -3533,7 +3533,11 @@ async function createBranchCheckpoint() {
             // 3. 保存当前心声
             latestInnerVoice: chat.latestInnerVoice ? JSON.parse(JSON.stringify(chat.latestInnerVoice)) : null,
             // 4. 保存角色状态
-            status: chat.status ? JSON.parse(JSON.stringify(chat.status)) : null,
+            status: chat.status ? JSON.parse(JSON.stringify(chat.status)) : {
+                text: '在线',
+                lastUpdate: Date.now(),
+                isBusy: false,
+            },
         };
 
         if (!chat.checkpoints) chat.checkpoints = [];
@@ -3566,7 +3570,11 @@ window.loadBranchCheckpoint = async function (checkpointId) {
         chat.latestInnerVoice = checkpoint.latestInnerVoice ? JSON.parse(JSON.stringify(checkpoint.latestInnerVoice)) : null;
 
         // 4. 恢复角色状态
-        chat.status = checkpoint.status ? JSON.parse(JSON.stringify(checkpoint.status)) : null;
+        chat.status = checkpoint.status ? JSON.parse(JSON.stringify(checkpoint.status)) : {
+            text: '在线',
+            lastUpdate: Date.now(),
+            isBusy: false,
+        };
 
         // 5. 重置自动总结计数器，防止因时间线回溯导致总结不再触发
         if (!chat.settings.summary) chat.settings.summary = {};
@@ -3617,7 +3625,11 @@ async function restartChatBranch() {
         chat.latestInnerVoice = null;
 
         // 4. 重置角色状态
-        chat.status = '在线';
+        chat.status = {
+            text: '在线',
+            lastUpdate: Date.now(),
+            isBusy: false,
+        };
 
         // 5. 重置自动总结计数器
         if (!chat.settings.summary) chat.settings.summary = {};
