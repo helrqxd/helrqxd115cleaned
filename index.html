@@ -61,6 +61,8 @@
 		<script src="cphone.js" defer></script>
 		<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
 		<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.6.0/mammoth.browser.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+		<script src="avatar-frames.js"></script>
 
 		<style></style>
 
@@ -970,6 +972,16 @@
 									</label>
 								</label>
 							</div>
+							<div class="form-group" style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #eee; display: flex; justify-content: space-between; align-items: center">
+								<div>
+									<span class="toggle-switch-text" style="font-weight: bold">开启系统弹窗</span>
+									<div style="font-size: 12px; color: #888; margin-top: 4px">iOS需添加到主屏幕，安卓需授权</div>
+								</div>
+								<label class="toggle-switch">
+									<input type="checkbox" id="system-notification-switch" />
+									<span class="slider"></span>
+								</label>
+							</div>
 							<div id="background-activity-details" style="display: none; margin-top: 10px">
 								<div class="form-group">
 									<label>检测间隔 (秒)</label>
@@ -1683,7 +1695,7 @@
 						<label>锁屏壁纸</label>
 						<div class="preview-upload-box">
 							<div id="lockscreen-wallpaper-preview" class="mini-preview">预览</div>
-							<button class="upload-btn-pill" onclick="document.getElementById('lockscreen-wallpaper-upload-input').click();">更换壁纸</button>
+							<button class="upload-btn-pill" onclick="document.getElementById('lockscreen-wallpaper-upload-input').click()">更换壁纸</button>
 						</div>
 						<input type="file" id="lockscreen-wallpaper-upload-input" accept="image/*" hidden />
 					</div>
@@ -1744,7 +1756,7 @@
 						<label>主屏幕壁纸</label>
 						<div class="preview-upload-box">
 							<div id="wallpaper-preview" class="mini-preview">预览</div>
-							<button class="upload-btn-pill" onclick="document.getElementById('wallpaper-upload-input').click();">更换壁纸</button>
+							<button class="upload-btn-pill" onclick="document.getElementById('wallpaper-upload-input').click()">更换壁纸</button>
 						</div>
 						<input type="file" id="wallpaper-upload-input" accept="image/*" hidden />
 					</div>
@@ -1820,7 +1832,7 @@
 							<!-- ★★★ 修改点：删除了 landscape 类名，现在它是竖屏的了 ★★★ -->
 							<div id="global-bg-preview" class="mini-preview">预览</div>
 							<div class="btn-col">
-								<button class="upload-btn-pill" onclick="document.getElementById('global-bg-upload-input').click();">上传背景</button>
+								<button class="upload-btn-pill" onclick="document.getElementById('global-bg-upload-input').click()">上传背景</button>
 								<button class="upload-btn-pill danger" id="remove-global-bg-btn">移除背景</button>
 							</div>
 						</div>
@@ -2526,10 +2538,12 @@
 					<!-- 大图容器 -->
 					<div id="video-main-view" class="video-container">
 						<img src="" alt="主视频画面" />
+						<video id="video-main-stream" autoplay playsinline muted style="display: none; width: 100%; height: 100%; object-fit: cover"></video>
 					</div>
 					<!-- 小图容器 (画中画) -->
 					<div id="video-pip-view" class="video-container pip">
 						<img src="" alt="小窗视频画面" />
+						<video id="video-pip-stream" autoplay playsinline muted style="display: none; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1)"></video>
 					</div>
 				</div>
 
@@ -2553,6 +2567,7 @@
 				<div class="video-call-controls">
 					<!-- 重-roll按钮 -->
 					<button id="reroll-call-btn" class="control-btn reroll-btn" title="重新生成"></button>
+					<button id="flip-real-camera-btn" class="control-btn" style="display: none; background-image: url('https://api.iconify.design/ion:camera-reverse-outline.svg?color=white'); background-size: 60%; background-repeat: no-repeat; background-position: center" title="翻转前后镜头"></button>
 					<!-- 【核心新增】发言按钮 -->
 					<button id="user-speak-btn-visual" class="control-btn speak-btn" title="发言"></button>
 					<!-- 切换镜头按钮 -->
@@ -2832,7 +2847,10 @@
 							<div id="pomodoro-current-task"></div>
 							<div id="pomodoro-time">25:00</div>
 						</div>
-						<button id="pomodoro-end-btn">结束专注</button>
+						<div class="pomodoro-controls" style="display: flex; gap: 15px; margin-top: 20px">
+							<button id="pomodoro-pause-btn" style="background-color: #ffca28; color: #fff">暂停 / 休息</button>
+							<button id="pomodoro-end-btn">结束专注</button>
+						</div>
 					</div>
 				</div>
 				<div id="ls-activity-view" class="ls-view">
@@ -2921,14 +2939,20 @@
 
 						<div class="form-group" id="couple-avatar-group">
 							<div class="moe-divider"></div>
-							<label class="toggle-switch-label">
-								<span class="toggle-switch-text">情侣头像模式</span>
-								<input type="checkbox" id="couple-avatar-toggle" />
-								<span class="toggle-switch-slider"></span>
-							</label>
-							<div id="couple-avatar-desc-container" style="display: none; margin-top: 10px">
-								<label style="font-size: 12px; color: #aaa">情侣头像描述</label>
-								<input type="text" id="couple-avatar-description" class="moe-input" placeholder="例如：一只小猫在看月亮" />
+							<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+								<label class="toggle-switch-label" style="margin: 0">
+									<span class="toggle-switch-text" style="font-weight: 600; color: #ff6b81">❤️ 情侣头像模式</span>
+									<input type="checkbox" id="couple-avatar-toggle" />
+									<span class="toggle-switch-slider"></span>
+								</label>
+
+								<!-- 修改后的按钮样式 -->
+								<button id="manage-couple-avatar-library-btn" class="moe-btn-secondary" style="margin: 0; padding: 4px 12px; font-size: 12px; background-color: #fff0f3; color: #ff6b81; border: 1px solid #ffc2d1; border-radius: 15px">📂 管理情头库</button>
+							</div>
+
+							<div id="couple-avatar-desc-container" style="display: none; margin-top: 10px; background: #fff0f3; padding: 8px; border-radius: 8px">
+								<label style="font-size: 12px; color: #ff8fa3; display: block; margin-bottom: 4px">当前情头描述 (AI依据)</label>
+								<input type="text" id="couple-avatar-description" class="moe-input" style="background: #fff; border-color: #ffc2d1" placeholder="例如：一只小猫在看月亮" />
 							</div>
 						</div>
 					</div>
@@ -3245,6 +3269,11 @@
 									</div>
 								</div>
 							</div>
+							<label class="toggle-switch-label" style="margin-top: 10px; border-top: 1px dashed #eee; padding-top: 10px">
+								<span class="toggle-switch-text">我的画面使用真实摄像头</span>
+								<input type="checkbox" id="user-real-camera-switch" />
+								<span class="toggle-switch-slider"></span>
+							</label>
 
 							<label class="toggle-switch-label" style="margin-top: 10px">
 								<span class="toggle-switch-text">开启语音接入</span>
@@ -4156,6 +4185,16 @@
 							<polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
 						</svg>
 					</span>
+					<span class="action-btn" id="open-forum-bookshelf-btn" title="书架">
+						<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+							<path d="M4 3h12.5a1.5 1.5 0 0 1 1.5 1.5V21" />
+							<path d="M4 21V4.5A1.5 1.5 0 0 1 5.5 3H18" />
+							<path d="M9 7h6" />
+							<path d="M9 11h6" />
+							<path d="M9 15h6" />
+							<path d="M4 21h16" />
+						</svg>
+					</span>
 
 					<span class="action-btn" id="create-group-btn" style="font-size: 28px; font-weight: 300">+</span>
 				</div>
@@ -4220,6 +4259,13 @@
 							<label>文章类型</label>
 							<input type="text" id="fanfic-type-input" placeholder="例: 甜文/ABO" />
 						</div>
+						<div class="input-group">
+							<label>篇幅</label>
+							<select id="fanfic-length-select">
+								<option value="short">短篇</option>
+								<option value="long">长篇连载</option>
+							</select>
+						</div>
 					</div>
 
 					<!-- 写作规范 -->
@@ -4260,6 +4306,27 @@
 					<button id="send-post-comment-btn" class="action-button">发送</button>
 				</div>
 			</div>
+		</div>
+		<div id="forum-bookshelf-screen" class="screen">
+			<div class="header">
+				<span class="back-btn" id="back-from-forum-bookshelf">?</span>
+				<span>圈子书架</span>
+			</div>
+			<div id="forum-bookshelf-list" class="list-container forum-bookshelf-list" style="padding-top: 0">
+				<!-- 追更的长篇会在这里展示 -->
+			</div>
+		</div>
+
+		<div id="forum-series-detail-screen" class="screen">
+			<div class="header">
+				<span class="back-btn" id="back-from-series-detail">?</span>
+				<span id="forum-series-detail-title">连载详情</span>
+				<div class="header-actions">
+					<span class="action-btn" id="series-next-chapter-btn">追更</span>
+				</div>
+			</div>
+			<div id="forum-series-meta" class="list-container" style="padding-top: 0"></div>
+			<div id="forum-series-chapter-list" class="list-container forum-series-chapter-list" style="padding-top: 0"></div>
 		</div>
 
 		<div id="forum-filter-modal" class="modal">
@@ -4962,7 +5029,24 @@
 				<!-- 自定义音画播放器 -->
 				<div id="aurora-custom-viewer" style="display: none; width: 100%; height: 100%; position: relative">
 					<img id="aurora-custom-bg-img" style="width: 100%; height: 100%; display: block; object-fit: cover" />
-					<div id="aurora-custom-subtitle-display" style="position: absolute; bottom: 10%; left: 0; width: 100%; text-align: center; color: white; text-shadow: 0 2px 4px black, 0 0 4px black; font-size: 16px; padding: 0 10px; pointer-events: none; font-weight: 500; z-index: 20"></div>
+					<div
+						id="aurora-custom-subtitle-display"
+						style="
+							position: absolute;
+							bottom: 10%;
+							left: 0;
+							width: 100%;
+							text-align: center;
+							color: white;
+							text-shadow:
+								0 2px 4px black,
+								0 0 4px black;
+							font-size: 16px;
+							padding: 0 10px;
+							pointer-events: none;
+							font-weight: 500;
+							z-index: 20;
+						"></div>
 					<audio id="aurora-custom-audio-element" controls style="width: 100%; height: 40px; opacity: 0; position: absolute; bottom: 0; left: 0; z-index: 30"></audio>
 				</div>
 			</div>
@@ -6519,6 +6603,40 @@
 					<span>编辑心声面板样式</span>
 				</div>
 				<div class="modal-body">
+					<!-- === 替换开始：自定义心声字段 === -->
+					<div class="form-group">
+						<label>自定义心声字段 (标签名 + AI生成指令)</label>
+						<div style="font-size: 12px; color: #666; margin-bottom: 10px">左边填显示的标题，右边填给AI的具体要求。</div>
+
+						<!-- 字段 1: clothing -->
+						<div style="display: flex; gap: 5px; margin-bottom: 8px">
+							<input type="text" id="iv-label-clothing" placeholder="标题 (如: 服装)" class="moe-input" style="flex: 1" />
+							<textarea id="iv-prompt-clothing" rows="1" placeholder="指令 (如: 描述你现在的穿着)" class="moe-input" style="flex: 2; resize: vertical"></textarea>
+						</div>
+
+						<!-- 字段 2: behavior -->
+						<div style="display: flex; gap: 5px; margin-bottom: 8px">
+							<input type="text" id="iv-label-behavior" placeholder="标题 (如: 行为)" class="moe-input" style="flex: 1" />
+							<textarea id="iv-prompt-behavior" rows="1" placeholder="指令 (如: 描述你的动作神态)" class="moe-input" style="flex: 2; resize: vertical"></textarea>
+						</div>
+
+						<!-- 字段 3: thoughts -->
+						<div style="display: flex; gap: 5px; margin-bottom: 8px">
+							<input type="text" id="iv-label-thoughts" placeholder="标题 (如: 心声)" class="moe-input" style="flex: 1" />
+							<textarea id="iv-prompt-thoughts" rows="1" placeholder="指令 (如: 描述你的内心想法)" class="moe-input" style="flex: 2; resize: vertical"></textarea>
+						</div>
+
+						<!-- 字段 4: naughty -->
+						<div style="display: flex; gap: 5px; margin-bottom: 8px">
+							<input type="text" id="iv-label-naughty" placeholder="标题 (如: 坏心思)" class="moe-input" style="flex: 1" />
+							<textarea id="iv-prompt-naughty" rows="1" placeholder="指令 (如: 描述你的腹黑想法)" class="moe-input" style="flex: 2; resize: vertical"></textarea>
+						</div>
+					</div>
+					<hr style="opacity: 0.2" />
+					<!-- === 替换结束 === -->
+
+					<hr style="opacity: 0.2" />
+					<!-- === 新增结束 === -->
 					<!-- 卡片背景颜色 -->
 					<div class="form-group">
 						<label for="iv-card-bg-color">卡片背景颜色</label>
@@ -8081,6 +8199,87 @@
 				<div class="modal-footer" style="display: flex; gap: 10px">
 					<button class="form-button-secondary" id="kk-item-share-close-btn" style="flex: 1; margin: 0">关闭</button>
 					<button class="form-button" id="kk-item-share-confirm-btn" style="flex: 1; margin: 0; background-color: #ff9800; border-color: #ff9800">📤 分享给Ta</button>
+				</div>
+			</div>
+		</div>
+		<!-- 番茄钟暂停休息聊天弹窗 -->
+		<div id="pomodoro-break-modal" class="modal">
+			<div class="modal-content">
+				<div class="modal-header">
+					<span>☕ 休息时间</span>
+					<span id="close-pomodoro-break-btn" style="cursor: pointer; font-size: 20px">×</span>
+				</div>
+				<!-- 消息列表 -->
+				<div class="modal-body" id="pomodoro-break-messages">
+					<div style="text-align: center; color: #999; font-size: 13px; margin-top: 10px">累了吗？和我聊聊吧~</div>
+				</div>
+				<!-- 输入框区域 -->
+				<div class="chat-input-area">
+					<div class="chat-input-main-row">
+						<textarea id="pomodoro-break-input" rows="1" placeholder="说点什么..."></textarea>
+						<button id="pomodoro-break-send-btn" class="action-button">发送</button>
+					</div>
+				</div>
+			</div>
+		</div>
+		<!-- 情侣头像库管理模态框 -->
+		<div id="couple-avatar-library-modal" class="modal">
+			<div class="modal-content" style="height: 70%">
+				<div class="modal-header">
+					<span>情侣头像库</span>
+					<button id="add-couple-avatar-btn" class="action-button">添加</button>
+				</div>
+				<div class="modal-body" style="padding: 15px; background: #f5f5f5">
+					<div id="couple-avatar-library-list" style="display: flex; flex-direction: column; gap: 15px">
+						<!-- 情头列表将由JS动态生成 -->
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button class="save" id="close-couple-avatar-library-btn" style="width: 100%">关闭</button>
+				</div>
+			</div>
+		</div>
+		<!-- 替换原来的 id="add-couple-avatar-modal" -->
+		<div id="add-couple-avatar-modal" class="modal" style="z-index: 1002">
+			<div class="modal-content" style="height: auto">
+				<div class="modal-header">
+					<span>添加情侣头像</span>
+				</div>
+				<div class="modal-body">
+					<div class="moe-grid-row" style="margin-bottom: 15px; display: flex; justify-content: space-around">
+						<!-- 你的头像 -->
+						<div class="form-group" style="text-align: center; width: 45%">
+							<label style="font-size: 12px; color: #666">我的头像</label>
+							<div class="avatar-upload" style="width: 80px; height: 80px; margin: 5px auto">
+								<img id="new-couple-my-avatar-preview" src="https://i.postimg.cc/pT2xKzPz/album-cover-placeholder.png" style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px; border: 1px dashed #ccc" />
+								<!-- 隐藏的文件输入框 -->
+								<input type="file" id="new-couple-my-avatar-input" accept="image/*" hidden />
+							</div>
+							<!-- 这里的按钮现在有 ID 了 -->
+							<button id="upload-couple-my-btn" class="moe-btn-mini" style="width: 100%">上传/URL</button>
+						</div>
+
+						<!-- 对方头像 -->
+						<div class="form-group" style="text-align: center; width: 45%">
+							<label style="font-size: 12px; color: #666">对方头像</label>
+							<div class="avatar-upload" style="width: 80px; height: 80px; margin: 5px auto">
+								<img id="new-couple-char-avatar-preview" src="https://i.postimg.cc/pT2xKzPz/album-cover-placeholder.png" style="width: 100%; height: 100%; object-fit: cover; border-radius: 12px; border: 1px dashed #ccc" />
+								<!-- 隐藏的文件输入框 -->
+								<input type="file" id="new-couple-char-avatar-input" accept="image/*" hidden />
+							</div>
+							<!-- 这里的按钮现在有 ID 了 -->
+							<button id="upload-couple-char-btn" class="moe-btn-mini" style="width: 100%">上传/URL</button>
+						</div>
+					</div>
+
+					<div class="form-group">
+						<label>情头描述 (重要：AI将根据此描述选择头像)</label>
+						<textarea id="new-couple-desc-input" rows="3" class="moe-input" placeholder="例如：甜蜜的拥抱，我在左边抱着你..."></textarea>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button class="cancel" id="cancel-add-couple-avatar-btn">取消</button>
+					<button class="save" id="save-couple-avatar-btn">保存</button>
 				</div>
 			</div>
 		</div>

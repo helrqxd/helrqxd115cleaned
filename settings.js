@@ -3,8 +3,62 @@
 // ===================================================================
 // 1. 全局配置常量
 // ===================================================================
+// --- Moved Helpers to Global Scope to fix ReferenceErrors ---
 
-window.STICKER_REGEX = /^(https:\/\/i\.postimg\.cc\/.+|https:\/\/i\.ibb\.co\/.+|https:\/\/files\.catbox\.moe\/.+|data:image)/;
+/**
+ * 通用文件上传并压缩处理函数
+ * @param {File} file - 用户选择的文件
+ * @returns {Promise<string>} - 返回压缩后的Base64字符串
+ */
+window.handleImageUploadAndCompress = async function (file) {
+    const base64Url = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+    });
+
+    // Check if state is available, otherwise default to 0.7
+    const quality = (window.state && window.state.globalSettings && window.state.globalSettings.imageCompressionQuality) || 0.7;
+    console.log(`准备压缩图片，质量: ${quality}`);
+
+    // Assuming compressImage is hoisted from the bottom of settings.js
+    if (typeof compressImage === 'function') {
+        const compressedBase64 = await compressImage(base64Url, quality);
+        console.log(`图片压缩完成。原始大小: ${base64Url.length}, 压缩后大小: ${compressedBase64.length}`);
+        return compressedBase64;
+    } else {
+        console.warn('compressImage function not found, returning original.');
+        return base64Url;
+    }
+};
+
+/**
+ * 文件上传绑定通用函数
+ * @param {string} inputId - 文件输入框ID
+ * @param {function} callback - 处理完成后的回调函数，接收 Base64 字符串
+ */
+window.setupFileUpload = function (inputId, callback) {
+    const el = document.getElementById(inputId);
+    if (!el) return;
+    el.addEventListener('change', async (event) => {
+        const file = event.target.files[0];
+        if (file) {
+            try {
+                const compressedDataUrl = await window.handleImageUploadAndCompress(file);
+                callback(compressedDataUrl);
+            } catch (error) {
+                console.error(`处理文件 ${file.name} 失败:`, error);
+                alert(`处理图片失败: ${error.message}`);
+            } finally {
+                event.target.value = null;
+            }
+        }
+    });
+};
+
+const STICKER_REGEX = /^(https?:\/\/.+|data:image)/;
+
 window.BLOCKED_API_SITES = ['api.pisces.ink', 'aiapi.qzz.io'];
 
 window.THEME_CSS_TEMPLATE = `
@@ -776,10 +830,10 @@ window.initSettingsListeners = function () {
 
             window.handleAutoBackupTimer();
             await db.apiConfig.put(state.apiConfig);
-
-            // 图片压缩质量
+            state.globalSettings.enableSystemNotifications = document.getElementById('system-notification-switch').checked;
+            console.log('保存系统通知开关状态:', state.globalSettings.enableSystemNotifications);
             state.globalSettings.imageCompressionQuality = parseFloat(document.getElementById('image-quality-slider').value);
-
+            state.globalSettings.enableSystemNotifications = document.getElementById('system-notification-switch').checked;
             const backgroundSwitch = document.getElementById('background-activity-switch');
             const intervalInput = document.getElementById('background-interval-input');
             const newEnableState = backgroundSwitch.checked;
@@ -807,6 +861,19 @@ window.initSettingsListeners = function () {
                 console.log(`后台活动模拟已启动，间隔: ${state.globalSettings.backgroundActivityInterval}秒`);
             } else {
                 console.log('后台活动模拟已停止。');
+            }
+            const novelaiSwitch = document.getElementById('novelai-switch');
+            const novelaiModelInput = document.getElementById('novelai-model');
+            const novelaiKeyInput = document.getElementById('novelai-api-key');
+
+            if (novelaiSwitch) {
+                localStorage.setItem('novelai-enabled', novelaiSwitch.checked);
+            }
+            if (novelaiModelInput) {
+                localStorage.setItem('novelai-model', novelaiModelInput.value);
+            }
+            if (novelaiKeyInput) {
+                localStorage.setItem('novelai-api-key', novelaiKeyInput.value.trim());
             }
 
             alert('API设置已保存!');
@@ -2315,6 +2382,62 @@ window.renderApiSettings = function () {
     if (typeof window.loadNovelAISettings === 'function') {
         window.loadNovelAISettings();
     }
+
+    const sysNotifSwitch = document.getElementById('system-notification-switch');
+
+    // ★★★【修改点2：重写开关加载与交互逻辑】★★★
+    const oldSysSwitch = document.getElementById('system-notification-switch');
+    if (oldSysSwitch) {
+        // 1. 使用克隆大法，彻底移除所有之前可能重复绑定的事件监听器
+        const newSysSwitch = oldSysSwitch.cloneNode(true);
+        oldSysSwitch.parentNode.replaceChild(newSysSwitch, oldSysSwitch);
+
+        // 2. 读取保存的状态
+        const savedNotifState = state.globalSettings.enableSystemNotifications;
+        const hasPerm = 'Notification' in window && Notification.permission === 'granted';
+
+        // 3. 智能判断开关状态：
+        // - 如果有保存的记录，就严格听记录的（是true就是true，是false就是false）
+        // - 如果从没保存过（undefined），但浏览器已经有权限，默认开启
+        if (typeof savedNotifState !== 'undefined') {
+            newSysSwitch.checked = savedNotifState;
+        } else {
+            newSysSwitch.checked = hasPerm;
+        }
+
+        // 4. 绑定新的、唯一的点击事件
+        newSysSwitch.addEventListener('change', async (e) => {
+            if (e.target.checked) {
+                // --- 用户想开启 ---
+                if (!('Notification' in window)) {
+                    alert('抱歉，设备不支持系统通知。');
+                    e.target.checked = false;
+                } else if (Notification.permission === 'granted') {
+                    // 已有权限，直接开启成功
+                    new Notification('EPhone', {
+                        body: '系统通知已开启！别忘了点击底部的【保存】按钮哦。',
+                    });
+                } else if (Notification.permission !== 'denied') {
+                    // 请求权限
+                    const permission = await Notification.requestPermission();
+                    if (permission === 'granted') {
+                        new Notification('EPhone', {
+                            body: '权限获取成功！请点击【保存】。',
+                        });
+                    } else {
+                        e.target.checked = false;
+                        alert('权限被拒绝，无法开启。');
+                    }
+                } else {
+                    // 之前被永久拒绝
+                    e.target.checked = false;
+                    alert('权限已被拒绝。请去手机/浏览器设置中手动开启通知权限。');
+                }
+            } else {
+            }
+        });
+    }
+
 }
 
 // ===================================================================
@@ -2737,53 +2860,208 @@ window.restoreBackupFromGitHubStream = async function () {
 };
 
 window.repairAllData = async function () {
-    if (!(await showCustomConfirm('数据修复', '修复数据结构？', { confirmButtonClass: 'btn-warning' }))) return;
-    await showCustomAlert('请稍候...', '正在修复...');
+    const confirmed = await showCustomConfirm('数据修复', '此功能将扫描所有数据，补全缺失的属性并修复错误结构（不会删除聊天记录）。\n\n如果你的界面出现白屏、卡顿或报错，请尝试此操作。\n\n确定要开始修复吗？');
+
+    if (!confirmed) return;
+
+    await showCustomAlert('请稍候...', '正在深度扫描并修复数据结构...');
 
     try {
         let fixCount = 0;
+
+        // 1. 修复聊天数据 (Chats)
         const allChats = await db.chats.toArray();
         for (const chat of allChats) {
-            let s = false;
-            // Simplified checks for brevity, assuming standard repairs
-            if (!chat.history) { chat.history = []; s = true; }
-            if (!chat.settings) { chat.settings = {}; s = true; }
-            if (!chat.status) { chat.status = { text: '在线', lastUpdate: Date.now(), isBusy: false }; s = true; }
+            let needSave = false;
+
+            // 修复基础结构
+            if (!chat.history || !Array.isArray(chat.history)) {
+                chat.history = [];
+                needSave = true;
+            }
+            if (!chat.settings) {
+                chat.settings = {};
+                needSave = true;
+            }
+            if (!chat.status) {
+                chat.status = {
+                    text: '在线',
+                    lastUpdate: Date.now(),
+                    isBusy: false,
+                };
+                needSave = true;
+            }
+
+            // 修复群聊成员结构
             if (chat.isGroup) {
-                if (!chat.members) { chat.members = []; s = true; }
-            } else {
-                if (!chat.relationship) { chat.relationship = { status: 'friend' }; s = true; }
+                if (!chat.members || !Array.isArray(chat.members)) {
+                    chat.members = [];
+                    needSave = true;
+                }
+                chat.members.forEach((m) => {
+                    if (!m.originalName && m.name) {
+                        m.originalName = m.name;
+                        needSave = true;
+                    } // 修复旧版名字
+                    if (!m.groupNickname) {
+                        m.groupNickname = m.originalName || '未知成员';
+                        needSave = true;
+                    }
+                });
+            }
+
+            // 修复单聊设置
+            if (!chat.isGroup) {
+                // 修复关系状态
+                if (!chat.relationship) {
+                    chat.relationship = { status: 'friend' };
+                    needSave = true;
+                }
+
+                // 修复手机数据结构 (最容易导致报错的部分)
                 if (!chat.characterPhoneData) {
-                    chat.characterPhoneData = { chats: {}, shoppingCart: [], memos: [], browserHistory: [], photoAlbum: [], bank: { balance: 0, transactions: [] } };
-                    s = true;
+                    chat.characterPhoneData = {};
+                    needSave = true;
+                }
+
+                const phone = chat.characterPhoneData;
+                const phoneDefaults = {
+                    chats: {},
+                    shoppingCart: [],
+                    memos: [],
+                    browserHistory: [],
+                    photoAlbum: [],
+                    bank: { balance: 0, transactions: [] },
+                    trajectory: [],
+                    appUsage: [],
+                    diary: [],
+                    widgets: {},
+                };
+
+                for (const key in phoneDefaults) {
+                    if (!phone[key]) {
+                        phone[key] = phoneDefaults[key];
+                        needSave = true;
+                    }
+                }
+
+                // 修复银行余额为NaN的情况
+                if (phone.bank && typeof phone.bank.balance !== 'number') {
+                    phone.bank.balance = 0;
+                    needSave = true;
                 }
             }
-            if (s) { await db.chats.put(chat); fixCount++; }
+
+            // 修复设置中的缺失项
+            if (!chat.settings.streak) {
+                chat.settings.streak = { enabled: false, currentDays: 0 };
+                needSave = true;
+            }
+            if (!chat.settings.summary) {
+                chat.settings.summary = {
+                    enabled: false,
+                    mode: 'auto',
+                    count: 20,
+                    lastSummaryIndex: -1,
+                };
+                needSave = true;
+            }
+
+            if (needSave) {
+                await db.chats.put(chat);
+                fixCount++;
+            }
         }
 
-        // Fix Global
-        let gs = await db.globalSettings.get('main');
-        if (!gs) { gs = { id: 'main' }; fixCount++; }
-        if (!gs.appIcons) { gs.appIcons = {}; await db.globalSettings.put(gs); fixCount++; }
+        // 2. 修复全局设置 (Global Settings)
+        let globalSettings = await db.globalSettings.get('main');
+        if (!globalSettings) {
+            globalSettings = { id: 'main' }; // 如果完全丢失，重建
+        }
 
-        await showCustomAlert('修复完成', `修复了 ${fixCount} 处问题。`);
-        setTimeout(() => window.location.reload(), 2000);
-    } catch (e) {
-        await showCustomAlert('错误', e.message);
+        let globalNeedSave = false;
+        if (!globalSettings.appIcons) {
+            globalSettings.appIcons = {};
+            globalNeedSave = true;
+        }
+        if (!globalSettings.appLabels) {
+            globalSettings.appLabels = {};
+            globalNeedSave = true;
+        }
+        if (!globalSettings.quickReplies || !Array.isArray(globalSettings.quickReplies)) {
+            globalSettings.quickReplies = [];
+            globalNeedSave = true;
+        }
+        // 修复余额NaN
+        if (typeof globalSettings.userBalance !== 'number' || isNaN(globalSettings.userBalance)) {
+            globalSettings.userBalance = 0;
+            globalNeedSave = true;
+        }
+
+        if (globalNeedSave) {
+            await db.globalSettings.put(globalSettings);
+            fixCount++;
+        }
+
+        // 3. 修复动态设置 (Qzone Settings)
+        let qzoneSettings = await db.qzoneSettings.get('main');
+        if (!qzoneSettings) {
+            await db.qzoneSettings.put({
+                id: 'main',
+                nickname: '我',
+                avatar: 'https://files.catbox.moe/q6z5fc.jpeg',
+            });
+            fixCount++;
+        }
+
+        await showCustomAlert('修复完成', `已检查所有数据，共修复了 ${fixCount} 处潜在问题。\n\n页面即将刷新以应用更改。`);
+
+        setTimeout(() => {
+            window.location.reload();
+        }, 2000);
+    } catch (error) {
+        console.error('修复过程中出错:', error);
+        alert(`修复失败: ${error.message}\n请截图控制台报错给开发者。`);
     }
 };
+async function handleCoupleImageSelect(previewImgId, fileInputId) {
+    const choice = await showChoiceModal('选择图片来源', [
+        { text: '📁 从本地上传', value: 'local' },
+        { text: '🌐 使用网络URL', value: 'url' },
+    ]);
 
-window.handleAutoBackupTimer = function () {
-    if (window.githubBackupTimer) { clearInterval(window.githubBackupTimer); window.githubBackupTimer = null; }
-    if (state.apiConfig && state.apiConfig.githubAutoBackup) {
-        const min = state.apiConfig.githubBackupInterval || 30;
-        console.log(`Auto Backup Enabled: ${min} mins`);
-        window.githubBackupTimer = setInterval(() => {
-            if (state.apiConfig.githubBackupMode === 'stream') window.uploadBackupToGitHubStream(true);
-            else window.uploadBackupToGitHub(true);
-        }, min * 60 * 1000);
+    if (!choice) return;
+
+    if (choice === 'local') {
+        // 触发本地文件选择
+        document.getElementById(fileInputId).click();
+    } else if (choice === 'url') {
+        // 弹出输入框获取URL
+        const url = await showCustomPrompt('输入图片链接', '请粘贴以 http 开头的图片地址', '', 'url');
+        if (url && url.trim()) {
+            document.getElementById(previewImgId).src = url.trim();
+        }
     }
-};
+}
+window.handleCoupleImageSelect = handleCoupleImageSelect;
+
+// 2. 绑定两个上传按钮的点击事件 (使用上面定义的新ID)
+document.getElementById('upload-couple-my-btn').addEventListener('click', () => {
+    handleCoupleImageSelect('new-couple-my-avatar-preview', 'new-couple-my-avatar-input');
+});
+
+document.getElementById('upload-couple-char-btn').addEventListener('click', () => {
+    handleCoupleImageSelect('new-couple-char-avatar-preview', 'new-couple-char-avatar-input');
+});
+
+// 3. 绑定本地文件选择后的预览 (复用之前的逻辑，保持不变)
+// 这里的 setupFileUpload 是你代码里已有的辅助函数
+setupFileUpload('new-couple-my-avatar-input', (base64) => {
+    document.getElementById('new-couple-my-avatar-preview').src = base64;
+});
+setupFileUpload('new-couple-char-avatar-input', (base64) => {
+    document.getElementById('new-couple-char-avatar-preview').src = base64;
+});
 
 // ===================================================================
 // 8. 数据清理与重置 (Data Cleaning & Reset)
@@ -2793,73 +3071,83 @@ window.handleAutoBackupTimer = function () {
  * 分块导出 (只导出选中的数据)
  */
 window.exportChunkedData = async function () {
+    await showCustomAlert('请稍候...', '正在打包您选择的数据...');
+
     const backupData = {
-        type: 'EPhoneChunkedBackup', // 标记文件类型
-        version: 1,
-        timestamp: Date.now(),
-        contains: [], // 记录包含了哪些模块
+        type: 'EPhoneChunkedBackup',
+        version: 3,
+        exportedAt: Date.now(),
+        contains: [],
         data: {},
     };
 
-    // 1. 获取用户选择了哪些模块
-    const checkboxes = document.querySelectorAll('#chunk-export-options input[type="checkbox"]:checked');
-    if (checkboxes.length === 0) {
-        await window.showCustomAlert('提示', '请至少选择一项要导出的内容。');
-        return;
-    }
-
-    await window.showCustomAlert('请稍候...', '正在打包您选择的数据...');
-
     try {
-        const selectedModules = Array.from(checkboxes).map((cb) => cb.value);
-        backupData.contains = selectedModules;
+        const appCheckboxes = document.querySelectorAll('.export-app-checkbox:checked');
+        const charCheckboxes = document.querySelectorAll('.export-char-checkbox:checked');
 
-        // 根据模块，决定要导出的表名
-        const moduleToTableMap = {
-            weibo: ['weiboPosts'],
-            forum: ['forumGroups', 'forumPosts', 'forumComments', 'forumCategories'],
-            taobao: ['taobaoProducts', 'taobaoOrders', 'taobaoCart'],
-            worldBooks: ['worldBooks', 'worldBookCategories'],
+        if (appCheckboxes.length === 0 && charCheckboxes.length === 0) {
+            alert('请至少选择一项要导出的内容！');
+            hideCustomModal();
+            return;
+        }
 
-            dateALive: ['datingScenes', 'datingPresets', 'datingSpriteGroups', 'datingSprites'],
+        const appsToExportMap = {
+            weibo: { tables: ['weiboPosts', 'qzoneSettings'] },
+            forum: {
+                tables: ['forumGroups', 'forumPosts', 'forumComments', 'forumCategories', 'forumSeries', 'forumChapters'],
+            },
+            taobao: {
+                tables: ['taobaoProducts', 'taobaoOrders', 'taobaoCart', 'userWalletTransactions'],
+            },
+            worldBooks: { tables: ['worldBooks', 'worldBookCategories'] },
 
-            tukeyAccounting: ['userWalletTransactions', 'tukeyUserSettings', 'tukeyCustomConfig', 'tukeyAccountingGroups'],
+            dateALive: {
+                tables: ['datingScenes', 'datingPresets', 'datingSpriteGroups', 'datingSprites', 'datingHistory'],
+            },
 
-            studio: ['scriptKillScripts'],
+            tukeyAccounting: {
+                tables: ['tukeyAccounts', 'tukeyAccountingGroups', 'tukeyAccountingRecords', 'tukeyAccountingReplies', 'tukeyUserSettings', 'tukeyCustomConfig'],
+            },
 
-            userStickers: ['userStickers', 'userStickerCategories'],
-            charStickers: ['charStickers'],
-            gameData: ['pomodoroSessions', 'tarotReadings', 'ludoQuestionBanks', 'ludoQuestions'],
-            appearance: ['themes', 'bubbleStylePresets', 'fontPresets', 'homeScreenPresets', 'customAvatarFrames'],
+            studio: {
+                tables: ['studioScripts', 'studioHistory'],
+            },
+
+            userStickers: {
+                tables: ['userStickers', 'userStickerCategories'],
+            },
+            charStickers: { tables: ['charStickers'] },
+            gameData: {
+                tables: ['scriptKillScripts', 'ludoQuestionBanks', 'ludoQuestions'],
+            },
+            appearance: {
+                tables: ['themes', 'fontPresets', 'homeScreenPresets', 'customAvatarFrames', 'apiPresets', 'bubbleStylePresets'],
+            },
         };
 
-        const charIds = [];
-
-        for (const module of selectedModules) {
-            if (module.startsWith('character_')) {
-                // 如果是特定角色
-                charIds.push(module.replace('character_', ''));
-            } else if (moduleToTableMap[module]) {
-                // 如果是功能模块
-                const tables = moduleToTableMap[module];
-                for (const tableName of tables) {
-                    // 只有当数据库里有这个表才导出
-                    if (db[tableName]) {
-                        backupData.data[tableName] = await db[tableName].toArray();
-                    }
+        // 1. 导出选中的App数据
+        for (const checkbox of appCheckboxes) {
+            const appId = checkbox.value;
+            const appInfo = appsToExportMap[appId];
+            if (appInfo) {
+                backupData.contains.push(appId);
+                for (const tableName of appInfo.tables) {
+                    backupData.data[tableName] = await db[tableName].toArray();
+                    console.log(`已打包App数据表: ${tableName}`);
                 }
             }
         }
 
-        // 2. 如果包含了角色，需要精细化筛选关联数据
+        // 2. 导出选中的角色数据
+        const charIds = Array.from(charCheckboxes).map((cb) => cb.value);
         if (charIds.length > 0) {
-            // 导出角色基础信息
-            backupData.data['chats'] = await db.chats.where('id').anyOf(charIds).toArray();
+            backupData.data.chats = await db.chats.bulkGet(charIds);
+            backupData.contains.push(...charIds.map((id) => `character_${id}`));
 
-            // 导出与这些角色关联的表数据
-            const relatedDataTables = ['callRecords', 'qzonePosts', 'weiboPosts', 'datingHistory', 'pomodoroSessions'];
-            // 对应关系：表名 -> 关联字段名
+            // 打包所有与这些角色关联的数据
+            const relatedDataTables = ['memories', 'callRecords', 'qzonePosts', 'weiboPosts', 'datingHistory', 'pomodoroSessions'];
             const relatedKey = {
+                memories: 'chatId',
                 callRecords: 'chatId',
                 qzonePosts: 'authorId',
                 weiboPosts: 'authorId',
@@ -2885,7 +3173,9 @@ window.exportChunkedData = async function () {
         }
 
         // 3. 创建JSON文件并触发下载
-        const blob = new Blob([JSON.stringify(backupData, null, 2)], { type: 'application/json' });
+        const blob = new Blob([JSON.stringify(backupData, null, 2)], {
+            type: 'application/json',
+        });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
@@ -2895,13 +3185,12 @@ window.exportChunkedData = async function () {
         document.body.removeChild(link);
         URL.revokeObjectURL(url);
 
-        await window.showCustomAlert('导出成功', '已成功导出您选中的数据！');
+        await showCustomAlert('导出成功', '已成功导出您选中的数据！');
     } catch (error) {
         console.error('分块导出失败:', error);
-        await window.showCustomAlert('导出失败', `发生错误: ${error.message}`);
+        await showCustomAlert('导出失败', `发生错误: ${error.message}`);
     } finally {
-        const modal = document.getElementById('advanced-transfer-modal');
-        if (modal) modal.classList.remove('visible');
+        document.getElementById('advanced-transfer-modal').classList.remove('visible');
     }
 };
 
@@ -3153,7 +3442,7 @@ window.importFrom330Format = async function (file) {
         const data330 = importedData.data;
 
         // 这是一个安全列表，确保我们只操作您数据库中存在的表
-        const existingTables = ['chats', 'worldBooks', 'worldBookCategories', 'userStickers', 'userStickerCategories', 'apiConfig', 'globalSettings', 'qzonePosts', 'qzoneAlbums', 'qzonePhotos', 'qzoneSettings', 'personaPresets', 'memories', 'apiPresets', 'favorites', 'musicLibrary', 'callRecords', 'customAvatarFrames', 'themes', 'bubbleStylePresets', 'fontPresets', 'homeScreenPresets', 'weiboPosts', 'forumGroups', 'forumPosts', 'forumComments', 'forumCategories', 'tarotReadings', 'pomodoroSessions', 'scriptKillScripts', 'taobaoProducts', 'taobaoOrders', 'taobaoCart', 'userWalletTransactions', 'ludoQuestionBanks', 'ludoQuestions', 'datingScenes', 'datingPresets', 'datingSpriteGroups', 'datingSprites', 'datingHistory'];
+        const existingTables = ['chats', 'worldBooks', 'worldBookCategories', 'userStickers', 'userStickerCategories', 'apiConfig', 'globalSettings', 'qzonePosts', 'qzoneAlbums', 'qzonePhotos', 'qzoneSettings', 'personaPresets', 'memories', 'apiPresets', 'favorites', 'musicLibrary', 'callRecords', 'customAvatarFrames', 'themes', 'bubbleStylePresets', 'fontPresets', 'homeScreenPresets', 'weiboPosts', 'forumGroups', 'forumPosts', 'forumComments', 'forumCategories', 'forumSeries', 'forumChapters', 'tarotReadings', 'pomodoroSessions', 'scriptKillScripts', 'taobaoProducts', 'taobaoOrders', 'taobaoCart', 'userWalletTransactions', 'ludoQuestionBanks', 'ludoQuestions', 'datingScenes', 'datingPresets', 'datingSpriteGroups', 'datingSprites', 'datingHistory'];
 
         await db.transaction('rw', existingTables, async () => {
             for (const tableName of existingTables) {
@@ -3244,6 +3533,7 @@ window.importFrom330Format = async function (file) {
                         content: post.content,
                         authorNickname: post.authorName,
                         timestamp: post.timestamp,
+                        lengthType: 'short',
                         likes: post.likesCount || 0,
                     });
                     if (post.comments && post.comments.length > 0) {
@@ -3295,7 +3585,7 @@ window.exportDataStream = async function () {
     await window.showCustomAlert('请稍候...', '正在准备流式导出，这可能需要一些时间，但不会使浏览器崩溃。');
 
     // 定义所有需要备份的数据库表名
-    const tablesToExport = ['chats', 'apiConfig', 'globalSettings', 'userStickers', 'charStickers', 'worldBooks', 'musicLibrary', 'personaPresets', 'qzoneSettings', 'qzonePosts', 'qzoneAlbums', 'qzonePhotos', 'favorites', 'qzoneGroups', 'memories', 'worldBookCategories', 'callRecords', 'customAvatarFrames', 'themes', 'apiPresets', 'bubbleStylePresets', 'fontPresets', 'homeScreenPresets', 'weiboPosts', 'forumGroups', 'forumPosts', 'forumComments', 'forumCategories', 'tarotReadings', 'pomodoroSessions', 'scriptKillScripts', 'taobaoProducts', 'taobaoOrders', 'taobaoCart', 'userWalletTransactions', 'userStickerCategories', 'datingScenes', 'datingPresets', 'datingSpriteGroups', 'datingSprites', 'datingHistory'];
+    const tablesToExport = ['chats', 'apiConfig', 'globalSettings', 'userStickers', 'charStickers', 'worldBooks', 'musicLibrary', 'personaPresets', 'qzoneSettings', 'qzonePosts', 'qzoneAlbums', 'qzonePhotos', 'favorites', 'qzoneGroups', 'memories', 'worldBookCategories', 'callRecords', 'customAvatarFrames', 'themes', 'apiPresets', 'bubbleStylePresets', 'fontPresets', 'homeScreenPresets', 'weiboPosts', 'forumGroups', 'forumPosts', 'forumComments', 'forumCategories', 'forumSeries', 'forumChapters', 'tarotReadings', 'pomodoroSessions', 'scriptKillScripts', 'taobaoProducts', 'taobaoOrders', 'taobaoCart', 'userWalletTransactions', 'userStickerCategories', 'datingScenes', 'datingPresets', 'datingSpriteGroups', 'datingSprites', 'datingHistory'];
 
     const stream = new ReadableStream({
         async start(controller) {

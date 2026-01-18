@@ -218,6 +218,10 @@ window.initQQSettings = function (dependencies) {
                 imageUploadsDiv.style.display = visualCallSwitch.checked ? 'block' : 'none';
             };
         }
+        const realCameraSwitch = document.getElementById('user-real-camera-switch');
+        if (realCameraSwitch) {
+            realCameraSwitch.checked = chat.settings.useRealCamera || false;
+        }
 
         // --- 线下模式UI渲染 ---
         const offlineModeSettings = chat.settings.offlineMode || { enabled: false, presets: [] }; // 安全获取
@@ -742,6 +746,7 @@ window.initQQSettings = function (dependencies) {
             chat.settings.charVideoImage = document.getElementById('char-video-image-preview').src;
             chat.settings.userVideoImage = document.getElementById('user-video-image-preview').src;
             chat.settings.videoCallVoiceAccess = document.getElementById('video-call-voice-access-switch').checked;
+            chat.settings.useRealCamera = document.getElementById('user-real-camera-switch').checked;
 
             // 保存NAI出图设置
             const novelaiEnabled = localStorage.getItem('novelai-enabled') === 'true';
@@ -904,6 +909,7 @@ window.initQQSettings = function (dependencies) {
             }
         });
     };
+    window.setupFileUpload = setupFileUpload;
 
     setupFileUpload('ai-avatar-input', (base64) => (document.getElementById('ai-avatar-preview').src = base64));
     setupFileUpload('my-avatar-input', (base64) => (document.getElementById('my-avatar-preview').src = base64));

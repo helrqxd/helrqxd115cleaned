@@ -2193,146 +2193,212 @@ window.handleInitiateCall = async function () {
 }
 
 window.startVideoCall = function () {
-    const chat = window.state.chats[window.videoCallState.activeChatId];
+    const chat = state.chats[videoCallState.activeChatId];
     if (!chat) return;
 
     // 提取通话前的最后20条消息作为上下文
-    window.videoCallState.preCallContext = chat.history
+    videoCallState.preCallContext = chat.history
         .slice(-20)
         .map((msg) => `${msg.role === 'user' ? chat.settings.myNickname || '我' : msg.senderName || chat.name}: ${String(msg.content).substring(0, 50)}...`)
         .join('\n');
 
-    const defaultAvatar = 'https://i.postimg.cc/PxZrFFFL/o-o-1.jpg';
-
     // 1. 检查是否启用了可视化界面
     if (chat.settings.visualVideoCallEnabled) {
         // --- 启动【新】的可视化界面 ---
-        window.videoCallState.isActive = true;
-        window.videoCallState.isAwaitingResponse = false;
-        window.videoCallState.startTime = Date.now();
-        window.videoCallState.callHistory = [];
+        videoCallState.isActive = true;
+        videoCallState.isAwaitingResponse = false;
+        videoCallState.startTime = Date.now();
+        videoCallState.callHistory = [];
+
+        // 标记当前大屏是谁 (false代表大屏是对方，小屏是我)
+        videoCallState.isUserMain = false;
+        // 【新增】标记当前摄像头方向 ('user'前置, 'environment'后置)
+        videoCallState.facingMode = 'user';
 
         const visualInterface = document.getElementById('visual-call-interface');
         const textInterface = document.getElementById('text-call-interface');
 
-        // 显示新界面，隐藏旧界面
-        if (visualInterface) visualInterface.style.display = 'flex';
-        if (textInterface) textInterface.style.display = 'none';
+        visualInterface.style.display = 'flex';
+        textInterface.style.display = 'none';
 
-        // 加载图片
-        const mainViewImg = document.querySelector('#video-main-view img');
-        if (mainViewImg) mainViewImg.src = chat.settings.charVideoImage || defaultAvatar;
+        // 1. 设置对方的画面 (始终是图片/动图)
+        const mainImg = document.querySelector('#video-main-view img');
+        const mainVideo = document.querySelector('#video-main-view video');
 
-        const pipViewImg = document.querySelector('#video-pip-view img');
-        if (pipViewImg) pipViewImg.src = chat.settings.userVideoImage || defaultAvatar;
+        if (mainImg) mainImg.style.display = 'block';
+        if (mainVideo) mainVideo.style.display = 'none';
+        if (mainImg) mainImg.src = chat.settings.charVideoImage || defaultAvatar;
 
-        // 清空旧的聊天气泡
-        const visualMsgs = document.getElementById('video-call-messages-visual');
-        if (visualMsgs) visualMsgs.innerHTML = `<em>正在接通...</em>`;
+        // 2. 设置我的画面 (根据设置决定是图片还是摄像头)
+        const pipImg = document.querySelector('#video-pip-view img');
+        const pipVideo = document.querySelector('#video-pip-view video');
+        const flipBtn = document.getElementById('flip-real-camera-btn');
 
-        if (window.showScreen) window.showScreen('video-call-screen');
+        if (chat.settings.useRealCamera) {
+            // --- 使用摄像头模式 ---
+            if (pipImg) pipImg.style.display = 'none';
+            if (pipVideo) pipVideo.style.display = 'block';
 
-        // 启动计时器
-        if (window.callTimerInterval) clearInterval(window.callTimerInterval);
-        window.callTimerInterval = setInterval(window.updateCallTimer, 1000);
-        window.updateCallTimer(); // 立即更新一次
+            // 显示翻转按钮
+            if (flipBtn) flipBtn.style.display = 'block';
 
-        // 触发AI在通话中的第一句话
-        window.triggerAiInCallAction();
+            // 请求摄像头权限 (默认前置)
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                navigator.mediaDevices
+                    .getUserMedia({ video: { facingMode: 'user' }, audio: false })
+                    .then((stream) => {
+                        if (pipVideo) {
+                            pipVideo.srcObject = stream;
+                            // 前置摄像头通常需要镜像
+                            pipVideo.style.transform = 'scaleX(-1)';
+                        }
+                        window.localCameraStream = stream;
+                    })
+                    .catch((err) => {
+                        console.error('无法启动摄像头:', err);
+                        alert('无法启动摄像头，已切换回图片模式。');
+                        // 失败回退
+                        if (pipVideo) pipVideo.style.display = 'none';
+                        if (pipImg) pipImg.style.display = 'block';
+                        if (pipImg) pipImg.src = chat.settings.userVideoImage || defaultAvatar;
+                        if (flipBtn) flipBtn.style.display = 'none';
+                    });
+            } else {
+                alert('当前浏览器不支持摄像头调用。');
+            }
+        } else {
+            // --- 使用图片模式 ---
+            if (pipVideo) pipVideo.style.display = 'none';
+            if (flipBtn) flipBtn.style.display = 'none'; // 隐藏翻转按钮
+
+            // 停止旧流
+            if (window.localCameraStream) {
+                window.localCameraStream.getTracks().forEach((track) => track.stop());
+                window.localCameraStream = null;
+            }
+            if (pipImg) pipImg.style.display = 'block';
+            if (pipImg) pipImg.src = chat.settings.userVideoImage || defaultAvatar;
+        }
+
+        // 清空旧气泡
+        document.getElementById('video-call-messages-visual').innerHTML = `<em>正在接通...</em>`;
+        showScreen('video-call-screen');
+
+        if (callTimerInterval) clearInterval(callTimerInterval);
+        callTimerInterval = setInterval(updateCallTimer, 1000);
+        updateCallTimer();
+
+        triggerAiInCallAction();
     } else {
-        // --- 启动【旧】的纯文字界面 ---
-        window.videoCallState.isActive = true;
-        window.videoCallState.isAwaitingResponse = false;
-        window.videoCallState.startTime = Date.now();
-        window.videoCallState.callHistory = [];
+        // --- 启动【旧】的纯文字界面 (保持不变) ---
+        videoCallState.isActive = true;
+        videoCallState.isAwaitingResponse = false;
+        videoCallState.startTime = Date.now();
+        videoCallState.callHistory = [];
 
         const visualInterface = document.getElementById('visual-call-interface');
         const textInterface = document.getElementById('text-call-interface');
+        visualInterface.style.display = 'none';
+        textInterface.style.display = 'flex';
 
-        // 显示旧界面，隐藏新界面
-        if (visualInterface) visualInterface.style.display = 'none';
-        if (textInterface) textInterface.style.display = 'flex'; // 旧界面用flex
+        updateParticipantAvatars();
+        document.getElementById('video-call-main').innerHTML = `<em>${videoCallState.isGroupCall ? '群聊已建立...' : '正在接通...'}</em>`;
+        showScreen('video-call-screen');
 
-        window.updateParticipantAvatars();
+        document.getElementById('user-speak-btn').style.display = videoCallState.isUserParticipating ? 'block' : 'none';
+        document.getElementById('join-call-btn').style.display = videoCallState.isUserParticipating ? 'none' : 'block';
 
-        const videoCallMain = document.getElementById('video-call-main');
-        if (videoCallMain) videoCallMain.innerHTML = `<em>${window.videoCallState.isGroupCall ? '群聊已建立...' : '正在接通...'}</em>`;
-        if (window.showScreen) window.showScreen('video-call-screen');
+        if (callTimerInterval) clearInterval(callTimerInterval);
+        callTimerInterval = setInterval(updateCallTimer, 1000);
+        updateCallTimer();
 
-        const userSpeakBtn = document.getElementById('user-speak-btn');
-        if (userSpeakBtn) userSpeakBtn.style.display = window.videoCallState.isUserParticipating ? 'block' : 'none';
-
-        const joinCallBtn = document.getElementById('join-call-btn');
-        if (joinCallBtn) joinCallBtn.style.display = window.videoCallState.isUserParticipating ? 'none' : 'block';
-
-        if (window.callTimerInterval) clearInterval(window.callTimerInterval);
-        window.callTimerInterval = setInterval(window.updateCallTimer, 1000);
-        window.updateCallTimer();
-
-        window.triggerAiInCallAction();
+        triggerAiInCallAction();
     }
 }
+
 
 /**
  * 结束视频通话
  */
 window.endVideoCall = async function () {
-    const visualInterface = document.getElementById('visual-call-interface');
-    if (visualInterface) visualInterface.style.display = 'none';
-
+    // 1. 隐藏界面元素
+    document.getElementById('visual-call-interface').style.display = 'none';
+    document.getElementById('text-call-interface').style.display = 'none'; // 确保旧界面也隐藏
     document.getElementById('video-call-floating-bubble').style.display = 'none';
-    if (!window.videoCallState.isActive) return;
 
-    const duration = Math.floor((Date.now() - window.videoCallState.startTime) / 1000);
+    if (!videoCallState.isActive) return;
+
+    // ==========================================
+    // 【核心新增】关闭摄像头流，释放硬件资源
+    // ==========================================
+    if (window.localCameraStream) {
+        window.localCameraStream.getTracks().forEach((track) => track.stop());
+        window.localCameraStream = null;
+    }
+
+    // 清空 video 标签的源，防止黑屏残留
+    const v1 = document.querySelector('#video-main-view video');
+    const v2 = document.querySelector('#video-pip-view video');
+    if (v1) v1.srcObject = null;
+    if (v2) v2.srcObject = null;
+    // ==========================================
+
+    const duration = Math.floor((Date.now() - videoCallState.startTime) / 1000);
     const durationText = `${Math.floor(duration / 60)}分${duration % 60}秒`;
     const endCallText = `通话结束，时长 ${durationText}`;
 
-    const chat = window.state.chats[window.videoCallState.activeChatId];
+    const chat = state.chats[videoCallState.activeChatId];
     if (chat) {
-        const defaultMyGroupAvatar = 'https://i.postimg.cc/cLPP10Vm/4.jpg';
-        const defaultAvatar = 'https://i.postimg.cc/PxZrFFFL/o-o-1.jpg';
-        // 1. 保存完整的通话记录到数据库
+        // 保存通话记录到数据库
         const participantsData = [];
-        if (window.videoCallState.isGroupCall) {
-            window.videoCallState.participants.forEach((p) => participantsData.push({ name: p.originalName, avatar: p.avatar }));
-            if (window.videoCallState.isUserParticipating) {
+        if (videoCallState.isGroupCall) {
+            videoCallState.participants.forEach((p) =>
+                participantsData.push({
+                    name: p.originalName,
+                    avatar: p.avatar,
+                }),
+            );
+            if (videoCallState.isUserParticipating) {
                 participantsData.unshift({
                     name: chat.settings.myNickname || '我',
                     avatar: chat.settings.myAvatar || defaultMyGroupAvatar,
                 });
             }
         } else {
-            participantsData.push({ name: chat.name, avatar: chat.settings.aiAvatar || defaultAvatar });
-            participantsData.unshift({ name: '我', avatar: chat.settings.myAvatar || defaultAvatar });
+            participantsData.push({
+                name: chat.name,
+                avatar: chat.settings.aiAvatar || defaultAvatar,
+            });
+            participantsData.unshift({
+                name: '我',
+                avatar: chat.settings.myAvatar || defaultAvatar,
+            });
         }
 
         const callRecord = {
-            chatId: window.videoCallState.activeChatId,
+            chatId: videoCallState.activeChatId,
             timestamp: Date.now(),
             duration: duration,
             participants: participantsData,
-            transcript: [...window.videoCallState.callHistory],
+            transcript: [...videoCallState.callHistory],
         };
-        if (window.db && window.db.callRecords) {
-            await window.db.callRecords.add(callRecord);
-            console.log('通话记录已保存:', callRecord);
-        }
+        await db.callRecords.add(callRecord);
 
-        // 2. 在聊天记录里添加对用户可见的“通话结束”消息
+        // 添加结束消息
         let summaryMessage = {
-            role: window.videoCallState.initiator === 'user' ? 'user' : 'assistant',
+            role: videoCallState.initiator === 'user' ? 'user' : 'assistant',
             content: endCallText,
             timestamp: Date.now(),
         };
 
         if (chat.isGroup && summaryMessage.role === 'assistant') {
-            summaryMessage.senderName = window.videoCallState.callRequester || chat.members[0]?.originalName || chat.name;
+            summaryMessage.senderName = videoCallState.callRequester || chat.members[0]?.originalName || chat.name;
         }
 
         chat.history.push(summaryMessage);
 
-        // 3. 创建并添加对用户隐藏的“通话后汇报”指令
-        const callTranscriptForAI = window.videoCallState.callHistory.map((h) => `${h.role === 'user' ? chat.settings.myNickname || '我' : h.role}: ${h.content}`).join('\n');
+        // 触发AI总结
+        const callTranscriptForAI = videoCallState.callHistory.map((h) => `${h.role === 'user' ? chat.settings.myNickname || '我' : h.role}: ${h.content}`).join('\n');
 
         const hiddenReportInstruction = {
             role: 'system',
@@ -2342,14 +2408,13 @@ window.endVideoCall = async function () {
         };
         chat.history.push(hiddenReportInstruction);
 
-        // 4. 保存所有更新到数据库
-        if (window.db && window.db.chats) await window.db.chats.put(chat);
+        await db.chats.put(chat);
     }
 
-    // 5. 清理和重置状态
-    if (window.callTimerInterval) clearInterval(window.callTimerInterval);
-    window.callTimerInterval = null;
-    window.videoCallState = {
+    // 重置状态
+    clearInterval(callTimerInterval);
+    callTimerInterval = null;
+    videoCallState = {
         isActive: false,
         isAwaitingResponse: false,
         isGroupCall: false,
@@ -2360,12 +2425,13 @@ window.endVideoCall = async function () {
         isUserParticipating: true,
         callHistory: [],
         preCallContext: '',
+        isUserMain: false, // 重置视图状态
     };
 
-    // 6. 返回聊天界面并触发AI响应
+    // 返回聊天界面
     if (chat) {
-        if (window.openChat) window.openChat(chat.id);
-        if (window.triggerAiResponse) window.triggerAiResponse();
+        openChat(chat.id);
+        triggerAiResponse();
     }
 }
 
@@ -2784,13 +2850,100 @@ window.hideIncomingCallModal = function () {
 }
 
 window.switchVideoViews = function () {
-    const mainView = document.getElementById('video-main-view');
-    const pipView = document.getElementById('video-pip-view');
-    const mainImg = mainView.querySelector('img');
-    const pipImg = pipView.querySelector('img');
-    const tempSrc = mainImg.src;
-    mainImg.src = pipImg.src;
-    pipImg.src = tempSrc;
+    // 切换状态：标记当前谁在主屏幕
+    videoCallState.isUserMain = !videoCallState.isUserMain;
+
+    const chat = state.chats[videoCallState.activeChatId];
+    if (!chat) return;
+
+    const useCamera = chat.settings.useRealCamera;
+
+    // 获取所有视图元素
+    const mainImg = document.querySelector('#video-main-view img');
+    const mainVideo = document.querySelector('#video-main-view video');
+    const pipImg = document.querySelector('#video-pip-view img');
+    const pipVideo = document.querySelector('#video-pip-view video');
+
+    // 准备资源地址
+    const charUrl = chat.settings.charVideoImage || defaultAvatar;
+    const userUrl = chat.settings.userVideoImage || defaultAvatar;
+
+    // 根据前置/后置决定是否镜像 (前置镜像，后置不镜像)
+    const shouldMirror = videoCallState.facingMode === 'user';
+    const mirrorStyle = shouldMirror ? 'scaleX(-1)' : 'none';
+
+    // --- 辅助函数：安全播放视频 ---
+    const safePlay = (videoEl, stream, transform) => {
+        if (!videoEl) return;
+        videoEl.srcObject = stream;
+        videoEl.muted = true; // 必须静音才能自动播放
+        videoEl.style.transform = transform;
+        videoEl.style.display = 'block';
+        // 强制触发播放
+        videoEl.play().catch((e) => console.error('视频播放失败:', e));
+    };
+
+    if (videoCallState.isUserMain) {
+        // === 状态 A：用户(我)在主大屏，角色(Ta)在小屏 ===
+
+        // 1. 设置小屏 (显示对方 - 始终是图片)
+        if (pipVideo) {
+            pipVideo.style.display = 'none';
+            pipVideo.srcObject = null; // 切断流
+        }
+        if (pipImg) {
+            pipImg.style.display = 'block';
+            pipImg.src = charUrl;
+        }
+
+        // 2. 设置大屏 (显示我)
+        if (useCamera && window.localCameraStream) {
+            // 摄像头模式 -> 视频流给大屏
+            if (mainImg) mainImg.style.display = 'none';
+            // 使用辅助函数强制播放
+            safePlay(mainVideo, window.localCameraStream, mirrorStyle);
+        } else {
+            // 图片模式 -> 图片给大屏
+            if (mainVideo) {
+                mainVideo.style.display = 'none';
+                mainVideo.srcObject = null;
+            }
+            if (mainImg) {
+                mainImg.style.display = 'block';
+                mainImg.src = userUrl;
+            }
+        }
+    } else {
+        // === 状态 B (默认)：角色(Ta)在主大屏，用户(我)在小屏 ===
+
+        // 1. 设置大屏 (显示对方 - 始终是图片)
+        if (mainVideo) {
+            mainVideo.style.display = 'none';
+            mainVideo.srcObject = null; // 切断流
+        }
+        if (mainImg) {
+            mainImg.style.display = 'block';
+            mainImg.src = charUrl;
+        }
+
+        // 2. 设置小屏 (显示我)
+        if (useCamera && window.localCameraStream) {
+            // 摄像头模式 -> 视频流给小屏
+            if (pipImg) pipImg.style.display = 'none';
+            // 使用辅助函数强制播放
+            safePlay(pipVideo, window.localCameraStream, mirrorStyle);
+        } else {
+            // 图片模式 -> 图片给小屏
+            if (pipVideo) {
+                pipVideo.style.display = 'none';
+                pipVideo.srcObject = null;
+            }
+            if (pipImg) {
+                pipImg.style.display = 'block';
+                pipImg.src = userUrl;
+            }
+        }
+    }
 }
 
 window.handleVideoCallReroll = async function () {
@@ -2821,27 +2974,37 @@ window.handleVideoCallReroll = async function () {
 }
 
 window.handleCallControls = function (event) {
+    // 找到被点击的那个按钮元素
     const button = event.target.closest('.control-btn');
-    if (!button) return;
+    if (!button) return; // 如果点击的不是按钮，就什么也不做
+
+    // 根据按钮的ID来执行不同的操作
     switch (button.id) {
         case 'user-speak-btn':
         case 'user-speak-btn-visual':
-            const btn = document.getElementById('user-speak-btn');
-            if (btn) btn.click(); // Trigger the click listener we added
+            // 这里调用你原本处理“用户发言”的函数
+            handleUserSpeakInCall(); // 假设你的函数名叫这个
             break;
         case 'hang-up-btn':
         case 'hang-up-btn-visual':
-            window.endVideoCall();
+            // 调用你原本处理“挂断”的函数
+            endVideoCall();
             break;
         case 'join-call-btn':
-            window.handleUserJoinCall();
+            // 调用你原本处理“加入通话”的函数
+            handleUserJoinCall();
             break;
         case 'reroll-call-btn':
         case 'reroll-call-btn-text':
-            window.handleVideoCallReroll();
+            // 调用你原本处理“重roll”的函数
+            handleVideoCallReroll();
+            break;
+        case 'flip-real-camera-btn':
+            handleCameraFlip();
             break;
         case 'switch-camera-btn':
-            window.switchVideoViews();
+            // 调用你原本处理“切换镜头”的函数
+            switchVideoViews();
             break;
     }
 }
@@ -5731,6 +5894,191 @@ function initAuroraListeners() {
     document.querySelectorAll('input[name="aurora-mode"]').forEach((radio) => {
         radio.addEventListener('change', toggleAuroraInputs);
     });
+
+    const sysNotifSwitch = document.getElementById('system-notification-switch');
+    if (sysNotifSwitch) {
+        sysNotifSwitch.addEventListener('change', (e) => {
+            if (e.target.checked) {
+                // 用户尝试开启
+                if (!('Notification' in window)) {
+                    alert('抱歉，你的设备或浏览器不支持系统通知。');
+                    e.target.checked = false;
+                } else if (Notification.permission === 'granted') {
+                    // 已经是授权状态，无需操作
+                    new Notification('EPhone', {
+                        body: '测试通知：系统通知功能正常！',
+                    });
+                } else if (Notification.permission !== 'denied') {
+                    // 请求权限
+                    Notification.requestPermission().then((permission) => {
+                        if (permission === 'granted') {
+                            new Notification('EPhone', {
+                                body: '成功开启！以后收到消息会有弹窗哦。',
+                            });
+                        } else {
+                            e.target.checked = false;
+                            alert('你拒绝了通知权限。如需开启，请在手机系统设置中允许本应用发送通知。');
+                        }
+                    });
+                } else {
+                    // 之前被拒绝过
+                    alert('权限已被拒绝。请前往手机【设置 -> 通知】中找到本应用，手动开启通知权限。');
+                    e.target.checked = false;
+                }
+            }
+        });
+    }
+    // --- 情侣头像库功能事件 ---
+
+    // 1. 打开管理弹窗
+    document.getElementById('manage-couple-avatar-library-btn').addEventListener('click', (e) => {
+        // 阻止冒泡防止关闭设置弹窗（视情况而定，这里建议先不关闭设置弹窗，或者层叠显示）
+        // 为了体验更好，我们可以先隐藏聊天设置弹窗
+        document.getElementById('chat-settings-modal').classList.remove('visible');
+        openCoupleAvatarLibraryModal();
+    });
+
+    // 2. 关闭管理弹窗 (返回设置)
+    document.getElementById('close-couple-avatar-library-btn').addEventListener('click', () => {
+        document.getElementById('couple-avatar-library-modal').classList.remove('visible');
+        // 重新打开设置弹窗
+        document.getElementById('chat-settings-btn').click();
+    });
+
+    // 3. 打开添加弹窗
+    document.getElementById('add-couple-avatar-btn').addEventListener('click', () => {
+        // 清空输入
+        document.getElementById('new-couple-my-avatar-preview').src = 'https://i.postimg.cc/pT2xKzPz/album-cover-placeholder.png';
+        document.getElementById('new-couple-char-avatar-preview').src = 'https://i.postimg.cc/pT2xKzPz/album-cover-placeholder.png';
+        document.getElementById('new-couple-desc-input').value = '';
+        document.getElementById('new-couple-my-avatar-input').value = '';
+        document.getElementById('new-couple-char-avatar-input').value = '';
+
+        document.getElementById('add-couple-avatar-modal').classList.add('visible');
+    });
+
+    // 4. 关闭添加弹窗
+    document.getElementById('cancel-add-couple-avatar-btn').addEventListener('click', () => {
+        document.getElementById('add-couple-avatar-modal').classList.remove('visible');
+    });
+
+    // 5. 保存新情头
+    document.getElementById('save-couple-avatar-btn').addEventListener('click', async () => {
+        const myAvatarSrc = document.getElementById('new-couple-my-avatar-preview').src;
+        const charAvatarSrc = document.getElementById('new-couple-char-avatar-preview').src;
+        const desc = document.getElementById('new-couple-desc-input').value.trim();
+
+        if (myAvatarSrc.includes('placeholder') || charAvatarSrc.includes('placeholder')) {
+            alert('请上传两张头像！');
+            return;
+        }
+        if (!desc) {
+            alert('请输入描述，这很重要，AI靠它来选择头像！');
+            return;
+        }
+
+        const chat = state.chats[state.activeChatId];
+        if (!chat.settings.coupleAvatarLibrary) chat.settings.coupleAvatarLibrary = [];
+
+        const newPair = {
+            id: 'couple_' + Date.now(),
+            userAvatar: myAvatarSrc,
+            charAvatar: charAvatarSrc,
+            description: desc,
+        };
+
+        chat.settings.coupleAvatarLibrary.push(newPair);
+        await db.chats.put(chat);
+
+        document.getElementById('add-couple-avatar-modal').classList.remove('visible');
+        renderCoupleAvatarLibraryList(); // 刷新列表
+        alert('情侣头像添加成功！');
+    });
+
+    // 6. 图片上传预览绑定 (复用通用的上传函数)
+    setupFileUpload('new-couple-my-avatar-input', (base64) => {
+        document.getElementById('new-couple-my-avatar-preview').src = base64;
+    });
+    setupFileUpload('new-couple-char-avatar-input', (base64) => {
+        document.getElementById('new-couple-char-avatar-preview').src = base64;
+    });
+
+    // 核心函数：打开管理弹窗
+    function openCoupleAvatarLibraryModal() {
+        if (!state.activeChatId) return;
+        renderCoupleAvatarLibraryList();
+        document.getElementById('couple-avatar-library-modal').classList.add('visible');
+    }
+
+    // 核心函数：渲染列表
+    function renderCoupleAvatarLibraryList() {
+        const listEl = document.getElementById('couple-avatar-library-list');
+        const chat = state.chats[state.activeChatId];
+        const library = chat.settings.coupleAvatarLibrary || [];
+
+        listEl.innerHTML = '';
+
+        if (library.length === 0) {
+            listEl.innerHTML = '<p style="text-align:center; color:#999; padding:20px;">这里空空如也，快去添加第一对情头吧！</p>';
+            return;
+        }
+
+        library.forEach((pair, index) => {
+            const item = document.createElement('div');
+            item.style.cssText = `
+            background: #fff; padding: 10px; border-radius: 12px; 
+            display: flex; flex-direction: column; gap: 10px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        `;
+
+            item.innerHTML = `
+            <div style="display:flex; justify-content:center; gap: 15px; align-items:center;">
+                <div style="text-align:center;">
+                    <img src="${pair.userAvatar}" style="width:50px; height:50px; border-radius:50%; object-fit:cover; border:2px solid #eee;">
+                    <div style="font-size:10px; color:#666; margin-top:2px;">我</div>
+                </div>
+                <div style="font-size:20px;">❤️</div>
+                <div style="text-align:center;">
+                    <img src="${pair.charAvatar}" style="width:50px; height:50px; border-radius:50%; object-fit:cover; border:2px solid #eee;">
+                    <div style="font-size:10px; color:#666; margin-top:2px;">Ta</div>
+                </div>
+            </div>
+            <div style="font-size:13px; color:#333; background:#f9f9f9; padding:8px; border-radius:6px;">
+                <strong>描述：</strong>${pair.description}
+            </div>
+            <div style="display:flex; gap:10px; justify-content:flex-end;">
+                <button class="moe-btn-mini apply-pair-btn" style="background:#4caf50; color:white;">应用</button>
+                <button class="moe-btn-mini delete-pair-btn" style="background:#ff3b30; color:white;">删除</button>
+            </div>
+        `;
+
+            // 绑定删除
+            item.querySelector('.delete-pair-btn').onclick = async () => {
+                if (confirm('确定要删除这对情头吗？')) {
+                    chat.settings.coupleAvatarLibrary.splice(index, 1);
+                    await db.chats.put(chat);
+                    renderCoupleAvatarLibraryList();
+                }
+            };
+
+            // 绑定手动应用
+            item.querySelector('.apply-pair-btn').onclick = async () => {
+                chat.settings.aiAvatar = pair.charAvatar;
+                chat.settings.myAvatar = pair.userAvatar;
+                chat.settings.isCoupleAvatar = true;
+                chat.settings.coupleAvatarDescription = pair.description;
+                await db.chats.put(chat);
+
+                // 如果聊天界面开着，刷新它
+                if (document.getElementById('chat-interface-screen').classList.contains('active')) {
+                    renderChatInterface(chat.id);
+                }
+                alert('已应用此情侣头像！');
+            };
+
+            listEl.appendChild(item);
+        });
+    }
 
     initAuroraDrag(); // 初始化拖拽
     initAuroraFontControl();

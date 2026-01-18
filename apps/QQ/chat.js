@@ -2604,7 +2604,9 @@ window.triggerAiResponse = async function triggerAiResponse() {
 			你的回复【必须】模拟真人的打字和思考习惯。不要一次性发送一大段文字，每条消息最好不要超过30个字。这会让对话看起来更自然、更真实。
 			**角色回复顺序不固定，可以交叉回复，例如角色A、角色B、角色B、角色A、角色C这样的交叉顺序。不一定要一个人全部说完了才轮到下一个人。角色之间【必须】有互动对话。**
 			# 【【【身份铁律：这是最高指令，必须严格遵守】】】
-			1.  **核心任务**: 你的唯一任务是扮演且仅能扮演下方“群成员列表”中明确列出的角色。
+			1.  **核心任务**: 你的唯一任务是扮演【且仅能扮演】下方“群成员列表”中明确列出的角色。【绝对禁止】扮演任何未在“群成员列表”中出现的角色。严格遵守“群成员列表及人设”中的每一个角色的设定。
+            # 群成员列表及人设 (name字段是你要使用的【本名】)
+			${chat.members.map((m) => `- **${m.originalName}**: (群昵称为: ${m.groupNickname}) 人设: ${m.persona}`).join('\n')}
 			2.  **用户识别**: 用户的身份是【${myNickname}】。你【绝对、永远、在任何情况下都不能】生成 \`name\` 字段为 **"${myNickname}"** 的消息。
 			3.  **禁止杜撰**: 【绝对禁止】扮演任何未在“群成员列表”中出现的角色。
 			4.  **【【【格式铁律：这是你的生命线，违者生成失败】】】**:
@@ -2612,9 +2614,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
 			    -   数组中的【每一个元素都必须是一个JSON对象】。
 			    -   每一个JSON对象都【必须包含一个 "name" 字段】，其值【必须是】下方列表中角色的【【本名】】(originalName)。
 			    -   缺少 "name" 字段的回复是无效的，会被系统拒绝。
-			5.  **角色扮演**: 严格遵守下方“群成员列表及人设”中的每一个角色的设定。
-			# 群成员列表及人设 (name字段是你要使用的【本名】)
-			${chat.members.map((m) => `- **${m.originalName}**: (群昵称为: ${m.groupNickname}) 人设: ${m.persona}`).join('\n')}
+			5.  **角色扮演**: 严格遵守“群成员列表及人设”中的每一个角色的设定。
 			6.  **禁止出戏**: 绝不能透露你是AI、模型，或提及“扮演”、“生成”等词语。并且不能一直要求和用户见面，这是线上聊天，决不允许出现或者发展线下剧情！！
 			7.  **情景感知**: 注意当前时间是 ${currentTime}。
 			8.  **红包互动**:
@@ -2641,7 +2641,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
 
 			## 你可以使用的操作指令 (JSON数组中的元素):
 			-   **发送文本**: \`{"type": "text", "name": "角色名", "message": "文本内容"}\`
-			-   **【【【全新】】】发送后立刻撤回 (动画效果)**: \`{"type": "send_and_recall", "name": "角色名", "content": "你想让角色说出后立刻消失的话"}\`
+			-   **发送后立刻撤回 (动画效果)**: \`{"type": "send_and_recall", "name": "角色名", "content": "你想让角色说出后立刻消失的话"}\`
 			-   **发送表情**: \`{"type": "sticker", "name": "角色名", "sticker_name": "表情的名字"}\`
 			-   **发送图片**: \`{"type": "ai_image", "name": "角色名", "description": "图片的详细文字描述"}\`
 			-   **发送语音**: \`{"type": "voice_message", "name": "角色名", "content": "语音的文字内容"}\`
@@ -2659,22 +2659,22 @@ window.triggerAiResponse = async function triggerAiResponse() {
                     : ''
                 }
 			-   **发起外卖代付**: \`{"type": "waimai_request", "name": "角色名", "productInfo": "一杯奶茶", "amount": 18}\`
-			-   **【新】发起群视频**: \`{"type": "group_call_request", "name": "你的角色名"}\`
-			-   **【新】回应群视频**: \`{"type": "group_call_response", "name": "你的角色名", "decision": "join" or "decline"}\`
+			-   **发起群视频**: \`{"type": "group_call_request", "name": "你的角色名"}\`
+			-   **回应群视频**: \`{"type": "group_call_response", "name": "你的角色名", "decision": "join" or "decline"}\`
 			-   **拍一拍用户**: \`{"type": "pat_user", "name": "你的角色名", "suffix": "(可选)你想加的后缀"}\`
 			-   **发拼手气红包**: \`{"type": "red_packet", "packetType": "lucky", "name": "你的角色名", "amount": 8.88, "count": 5, "greeting": "祝大家天天开心！"}\`
 			-   **发专属红包**: \`{"type": "red_packet", "packetType": "direct", "name": "你的角色名", "amount": 5.20, "receiver": "接收者角色名", "greeting": "给你的~"}\`
 			-   **打开红包**: \`{"type": "open_red_packet", "name": "你的角色名", "packet_timestamp": (你想打开的红包消息的时间戳)}\`(注意: 打开前请先查看下方的红包状态，如果已领过或已领完则不要使用此指令。)
-			-   **【新】发送系统消息**: \`{"type": "system_message", "content": "你想在聊天中显示的系统文本"}\`
-			-   **【【【全新】】】发起投票**: \`{"type": "poll", "name": "你的角色名", "question": "投票的问题", "options": "选项A\\n选项B\\n选项C"}\` (重要提示：options字段是一个用换行符 \\n 分隔的字符串，不是数组！)
-			-   **【【【全新】】】参与投票**: \`{"type": "vote", "name": "你的角色名", "poll_timestamp": (投票消息的时间戳), "choice": "你选择的选项文本"}\`
-			- **【全新】引用回复**: \`{"type": "quote_reply", "target_timestamp": (你想引用的消息的时间戳), "reply_content": "你的回复内容"}\` (提示：每条历史消息的开头都提供了 \`(Timestamp: ...)\`，请使用它！)
-			-   **【新】踢出成员**: \`{"type": "kick_member", "name": "你的角色名", "targetName": "要踢出的成员名"}\` (仅群主可用)
-			-   **【新】禁言成员**: \`{"type": "mute_member", "name": "你的角色名", "targetName": "要禁言的成员名"}\` (仅群主或管理员可用)
-			-   **【新】解禁成员**: \`{"type": "unmute_member", "name": "你的角色名", "targetName": "要解禁的成员名"}\` (仅群主或管理员可用)
-			-   **【新】设置/取消管理员**: \`{"type": "set_group_admin", "name": "你的角色名", "targetName": "目标角色名", "isAdmin": true/false}\`(仅群主可用, true为设置, false为取消)
-			-   **【新】设置群头衔**: \`{"type": "set_group_title", "name": "你的角色名", "targetName": "目标角色名", "title": "新头衔"}\` (仅群主或管理员可用)
-			-   **【新】修改群公告**: \`{"type": "set_group_announcement", "name": "你的角色名", "content": "新的公告内容..."}\` (仅群主或管理员可用)
+			-   **发送系统消息**: \`{"type": "system_message", "content": "你想在聊天中显示的系统文本"}\`
+			-   **发起投票**: \`{"type": "poll", "name": "你的角色名", "question": "投票的问题", "options": "选项A\\n选项B\\n选项C"}\` (重要提示：options字段是一个用换行符 \\n 分隔的字符串，不是数组！)
+			-   **参与投票**: \`{"type": "vote", "name": "你的角色名", "poll_timestamp": (投票消息的时间戳), "choice": "你选择的选项文本"}\`
+			-   **引用回复**: \`{"type": "quote_reply", "target_timestamp": (你想引用的消息的时间戳), "reply_content": "你的回复内容"}\` (提示：每条历史消息的开头都提供了 \`(Timestamp: ...)\`，请使用它！)
+			-   **踢出成员**: \`{"type": "kick_member", "name": "你的角色名", "targetName": "要踢出的成员名"}\` (仅群主可用)
+			-   **禁言成员**: \`{"type": "mute_member", "name": "你的角色名", "targetName": "要禁言的成员名"}\` (仅群主或管理员可用)
+			-   **解禁成员**: \`{"type": "unmute_member", "name": "你的角色名", "targetName": "要解禁的成员名"}\` (仅群主或管理员可用)
+			-   **设置/取消管理员**: \`{"type": "set_group_admin", "name": "你的角色名", "targetName": "目标角色名", "isAdmin": true/false}\`(仅群主可用, true为设置, false为取消)
+			-   **设置群头衔**: \`{"type": "set_group_title", "name": "你的角色名", "targetName": "目标角色名", "title": "新头衔"}\` (仅群主或管理员可用)
+			-   **修改群公告**: \`{"type": "set_group_announcement", "name": "你的角色名", "content": "新的公告内容..."}\` (仅群主或管理员可用)
 
 			# 如何区分图片与表情:
 			-   **图片 (ai_image)**: 指的是【模拟真实相机拍摄的照片】，比如风景、自拍、美食等。指令: \`{"type": "ai_image", "description": "图片的详细文字描述..."}\`
@@ -2923,6 +2923,31 @@ window.triggerAiResponse = async function triggerAiResponse() {
 `;
                 }
             }
+            const savedTags = chat.settings.innerVoiceTags || {};
+            const ivTags = {
+                clothing_label: savedTags.clothing_label || '服装',
+                clothing_prompt: savedTags.clothing_prompt || '详细描述你当前从头到脚的全身服装。',
+                behavior_label: savedTags.behavior_label || '行为',
+                behavior_prompt: savedTags.behavior_prompt || '描述你当前符合聊天情景的细微动作或表情。',
+                thoughts_label: savedTags.thoughts_label || '心声',
+                thoughts_prompt: savedTags.thoughts_prompt || '描述你此刻丰富、细腻的内心真实想法（50字左右）。',
+                naughty_label: savedTags.naughty_label || '坏心思',
+                naughty_prompt: savedTags.naughty_prompt || '描述你此刻与情境相关的腹黑或色色的坏心思，必须符合人设。',
+            };
+            // ... 在 triggerAiResponse 函数内 ...
+
+            // --- 注入情侣头像库上下文 ---
+            let coupleAvatarLibraryContext = '';
+            if (!chat.isGroup && chat.settings.coupleAvatarLibrary && chat.settings.coupleAvatarLibrary.length > 0) {
+                const libraryList = chat.settings.coupleAvatarLibrary.map((pair) => `- (ID: ${pair.id}) 描述: ${pair.description}`).join('\n');
+
+                coupleAvatarLibraryContext = `
+# 可用的情侣头像库
+你可以根据当前的对话氛围、情感状态或剧情发展，主动更换我们两人的情侣头像。
+可用列表:
+${libraryList}
+`;
+            }
 
             // --- 获取饿了么菜单，为AI点单提供上下文 ---
             let elemeContext = '\n# 饿了么外卖菜单 (你可以从中选择为用户点单)\n';
@@ -2948,6 +2973,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
 			- **核心人设**: ${chat.settings.aiPersona}
 			- **总结**:${summaryContext}
 			- **情侣头像**: ${coupleAvatarContext}
+            - **情侣头像库**: ${coupleAvatarLibraryContext}
 			- **世界观/NPC**: ${npcContext}
 			${petContext}
 			**2. 你的当前状态:**
@@ -2976,12 +3002,11 @@ window.triggerAiResponse = async function triggerAiResponse() {
 
 			**3. "innerVoice" 键:**
 			- **类型**: JSON对象 {}。
-			- **内容**: 描绘你此刻未曾说出口的内心活动。
 			- **必含字段**:
-			    - "clothing": (字符串) 详细描述你当前从头到脚的**全身服装**。
-			    - "behavior": (字符串) 描述你当前符合聊天情景的**细微动作或表情**。
-			    - "thoughts": (字符串) 描述你此刻**丰富、细腻的内心真实想法**（50字左右）。
-			    - "naughtyThoughts": (字符串) 描述你此刻与情境相关的**腹黑或色色的坏心思**，必须符合人设。
+                - "clothing": (字符串) 对应标签【${ivTags.clothing_label}】。指令：${ivTags.clothing_prompt}
+                - "behavior": (字符串) 对应标签【${ivTags.behavior_label}】。指令：${ivTags.behavior_prompt}
+                - "thoughts": (字符串) 对应标签【${ivTags.thoughts_label}】。指令：${ivTags.thoughts_prompt}
+                - "naughtyThoughts": (字符串) 对应标签【${ivTags.naughty_label}】。指令：${ivTags.naughty_prompt}
 
 			**4. 标准输出格式示例:**
 			{
@@ -3114,6 +3139,9 @@ window.triggerAiResponse = async function triggerAiResponse() {
 			- **更换头像**: \`{"type": "change_avatar", "name": "头像名"}\`(头像名需在头像库列表中)
 			- **切换歌曲**: \`{"type": "change_music", "song_name": "歌曲名"}\` (歌曲名需在播放列表中)
 			- **发送定位**: \`[SEND_LOCATION] 我的位置: (你的位置) | 你的位置: (用户的位置) | 相距: (你们的距离) | 途经点: (地点A, 地点B)\` (注意: 这是纯文本格式)
+            - **更换情侣头像(库中已有)**: \`{"type": "change_couple_avatar", "avatar_id": "情头ID"}\` (根据上下文选择最合适的一对)
+            - **【设置新情头】**: 当用户发送了图片（一张或两张）并表示想换情头时使用。指令：\`{"type": "set_new_couple_avatar", "description": "描述", "user_img_index": 0, "char_img_index": 1}\`。
+              * 规则：**如果用户只发了一张图，系统默认该图是给你的，用户的头像保持不变（此时忽略index参数）。** 如果发了两张，请根据用户描述分配 index。
 
 			**三、 社交与关系指令**
 			- **记录回忆**: \`{"type": "create_memory", "description": "用你的话记录下这个特殊瞬间。"}\` (此为秘密日记，用户不可见)
@@ -3819,6 +3847,137 @@ window.triggerAiResponse = async function triggerAiResponse() {
                     }
                     break;
                 }
+                case 'change_couple_avatar': {
+                    const pairId = msgData.avatar_id;
+                    const library = chat.settings.coupleAvatarLibrary || [];
+                    const targetPair = library.find((p) => p.id === pairId);
+
+                    if (targetPair) {
+                        // 1. 更新双方头像
+                        chat.settings.aiAvatar = targetPair.charAvatar;
+                        chat.settings.myAvatar = targetPair.userAvatar;
+
+                        // 2. 自动开启情侣模式并更新描述
+                        chat.settings.isCoupleAvatar = true;
+                        chat.settings.coupleAvatarDescription = targetPair.description;
+
+                        // 3. 生成系统提示消息
+                        const sysMsg = {
+                            role: 'system',
+                            type: 'pat_message',
+                            content: `[${chat.name} 觉得现在的氛围很适合，将情侣头像更换为：${targetPair.description}]`,
+                            timestamp: Date.now(),
+                        };
+                        chat.history.push(sysMsg);
+
+                        // 4. 保存并刷新
+                        await db.chats.put(chat);
+
+                        if (isViewingThisChat) {
+                            appendMessage(sysMsg, chat);
+                            renderChatInterface(chatId); // 刷新界面以显示新头像
+                        }
+                    }
+                    continue; // 继续处理其他消息
+                }
+                // ▼▼▼▼▼▼ 在 switch 语句中插入/替换此段代码 ▼▼▼▼▼▼
+                case 'set_new_couple_avatar': {
+                    // 1. 搜集用户最近发送的所有图片
+                    const recentUserImages = [];
+                    // 向回查找最近 10 条消息，收集里面的所有图片
+                    const recentUserMsgs = chat.history
+                        .filter((m) => m.role === 'user' && !m.isHidden)
+                        .slice(-10)
+                        .reverse(); // 翻转：变成 [最新消息, ..., 较旧消息]
+
+                    recentUserMsgs.forEach((msg) => {
+                        // 支持多模态消息 (数组结构)
+                        if (Array.isArray(msg.content)) {
+                            msg.content.forEach((part) => {
+                                if (part.type === 'image_url') {
+                                    // unshift: 插入到数组开头
+                                    // 因为我们遍历的是“从新到旧”，unshift 会让最终数组变成 [旧图1, 旧图2, ..., 最新图]
+                                    // 这样 index 0 就是用户先发的那张
+                                    recentUserImages.unshift(part.image_url.url);
+                                }
+                            });
+                        }
+                        // 兼容旧的单图片格式
+                        else if (msg.type === 'user_photo' || msg.type === 'ai_image') {
+                            if (msg.content && msg.content.startsWith('data:image')) {
+                                recentUserImages.unshift(msg.content);
+                            }
+                        }
+                    });
+
+                    let userAvatarUrl, charAvatarUrl;
+                    let success = false;
+
+                    // 2. 根据图片数量决定策略
+                    if (recentUserImages.length === 0) {
+                        // 一张图都没找到
+                        aiMessage = {
+                            ...baseMessage,
+                            content: '（挠头）我没找到图片呀？你再发一次试试？',
+                        };
+                    } else if (recentUserImages.length === 1) {
+                        // === 策略 A：只有一张图 ===
+                        // 默认：这张图是给 Char 的，User 保持原样
+                        charAvatarUrl = recentUserImages[0];
+                        userAvatarUrl = chat.settings.myAvatar || defaultAvatar; // 获取用户当前头像
+                        success = true;
+                    } else {
+                        // === 策略 B：有两张及以上图 ===
+                        // 使用 AI 指定的索引，默认为 0 和 1
+                        const userIdx = typeof msgData.user_img_index === 'number' ? msgData.user_img_index : 0;
+                        const charIdx = typeof msgData.char_img_index === 'number' ? msgData.char_img_index : 1;
+
+                        userAvatarUrl = recentUserImages[userIdx] || recentUserImages[0];
+                        charAvatarUrl = recentUserImages[charIdx] || recentUserImages[1];
+                        success = true;
+                    }
+
+                    if (success) {
+                        // 3. 更新当前设置
+                        chat.settings.myAvatar = userAvatarUrl;
+                        chat.settings.aiAvatar = charAvatarUrl;
+                        chat.settings.isCoupleAvatar = true;
+                        chat.settings.coupleAvatarDescription = msgData.description || '甜蜜的情侣头像';
+
+                        // 4. 存入情头库
+                        if (!chat.settings.coupleAvatarLibrary) {
+                            chat.settings.coupleAvatarLibrary = [];
+                        }
+                        const newPair = {
+                            id: 'couple_' + Date.now(),
+                            userAvatar: userAvatarUrl,
+                            charAvatar: charAvatarUrl,
+                            description: msgData.description || `保存于 ${new Date().toLocaleString()}`,
+                        };
+                        chat.settings.coupleAvatarLibrary.push(newPair);
+
+                        // 5. 保存数据库
+                        await db.chats.put(chat);
+
+                        // 6. 发送系统提示消息 (视觉反馈)
+                        const successTip = {
+                            role: 'system',
+                            type: 'pat_message',
+                            content: `[已更换情侣头像，并存入库中]`,
+                            timestamp: Date.now(),
+                        };
+                        chat.history.push(successTip);
+
+                        if (isViewingThisChat) {
+                            appendMessage(successTip, chat);
+                            renderChatInterface(chatId); // 立即刷新界面头像
+                        }
+                    }
+
+                    // 继续处理 (continue)，以便 AI 可以发出它生成的文本消息 (content)
+                    continue;
+                }
+                // ▲▲▲▲▲▲ 代码结束 ▲▲▲▲▲▲
 
                 case 'waimai_response':
                     const requestMessageIndex = chat.history.findIndex((m) => m.timestamp === msgData.for_timestamp);
@@ -6163,7 +6322,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
                 // 1. 将新消息存入历史记录
                 chat.history.push(aiMessage);
 
-                if (!isViewingThisChat && !notificationShown) {
+                if (!isViewingThisChat || document.hidden) {
                     let notificationText;
                     switch (aiMessage.type) {
                         case 'transfer':
@@ -6185,8 +6344,12 @@ window.triggerAiResponse = async function triggerAiResponse() {
                             notificationText = String(aiMessage.content || '');
                     }
                     const finalNotifText = chat.isGroup ? `${aiMessage.senderName}: ${notificationText}` : notificationText;
-                    showNotification(chatId, finalNotifText.substring(0, 40) + (finalNotifText.length > 40 ? '...' : ''));
-                    notificationShown = true; // 确保只通知一次
+
+                    showNotification(
+                        chatId,
+                        finalNotifText.substring(0, 60) + // 稍微加长了预览文字
+                        (finalNotifText.length > 60 ? '...' : ''),
+                    );
                 }
 
                 if (!isViewingThisChat) {
@@ -6197,7 +6360,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
                 // 2. 只有在当前聊天界面时，才执行带动画的添加
                 if (isViewingThisChat) {
                     appendMessage(aiMessage, chat);
-
+                    playNotificationSound();
                     await new Promise((resolve) => setTimeout(resolve, Math.random() * 1800 + 1000));
                 }
             }
@@ -6213,7 +6376,6 @@ window.triggerAiResponse = async function triggerAiResponse() {
                 alert('无人接听群聊邀请。');
             }
         }
-        playNotificationSound();
         await window.db.chats.put(chat);
         window.checkAndTriggerSummary(chatId);
 
