@@ -4463,6 +4463,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 			**3. "innerVoice" 键:**
 			- **类型**: JSON对象 {}。
 			- **必含字段**:
+                - "type": (字符串) 值固定为 "innervoice"。
                 - "clothing": (字符串) 对应标签【${ivTags.clothing_label}】。指令：${ivTags.clothing_prompt}
                 - "behavior": (字符串) 对应标签【${ivTags.behavior_label}】。指令：${ivTags.behavior_prompt}
                 - "thoughts": (字符串) 对应标签【${ivTags.thoughts_label}】。指令：${ivTags.thoughts_prompt}
