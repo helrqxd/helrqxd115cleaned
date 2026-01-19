@@ -2,6 +2,20 @@
 // Ensure db is defined globally to avoid ReferenceError in other scripts or early execution
 window.db = window.db || null;
 
+// ★★★ 注册 Service Worker 以支持系统通知 ★★★
+if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+        navigator.serviceWorker
+            .register('sw.js')
+            .then((registration) => {
+                console.log('ServiceWorker 注册成功，Scope:', registration.scope);
+            })
+            .catch((err) => {
+                console.log('ServiceWorker 注册失败:', err);
+            });
+    });
+}
+
 const BUILT_IN_SCRIPTS = [
     {
         id: 'built_in_1',
