@@ -1830,6 +1830,11 @@ document.addEventListener('DOMContentLoaded', async () => {
             state.globalSettings.imageCompressionQuality = 0.7;
         }
 
+        // 兼容旧数据：默认开启系统通知
+        if (typeof state.globalSettings.enableSystemNotifications === 'undefined') {
+            state.globalSettings.enableSystemNotifications = true;
+        }
+
         // 加载歌词栏设置，如果不存在则使用默认值
         lyricsBarSettings = state.globalSettings.lyricsBarSettings || lyricsBarSettings;
         // 兼容旧数据：初始化快捷回复 (默认为空)

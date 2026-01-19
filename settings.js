@@ -2438,6 +2438,57 @@ window.renderApiSettings = function () {
         });
     }
 
+    // 系统弹窗测试按钮逻辑
+    const testNotifBtn = document.getElementById('test-system-notification-btn');
+    if (testNotifBtn) {
+        // 移除旧的监听器 (如果为了避免重复绑定)
+        const newTestBtn = testNotifBtn.cloneNode(true);
+        testNotifBtn.parentNode.replaceChild(newTestBtn, testNotifBtn);
+
+        newTestBtn.addEventListener('click', async () => {
+            // 1. 检查支持性
+            if (!('Notification' in window)) {
+                alert('您的设备/浏览器不支持系统通知。');
+                return;
+            }
+
+            // 2. 检查权限状态
+            if (Notification.permission === 'granted') {
+                // 已有权限，直接发送
+                try {
+                    new Notification('系统弹窗测试', {
+                        body: '这是一条测试通知。如果您能看到它，说明配置成功！',
+                        icon: 'https://i.postimg.cc/Kj8JnRcp/267611-CC01-F8-A3-B4910-A2-C2-FFDE479-DC.jpg',
+                        silent: true, // 最好保持静音，免得和网页音效冲突
+                    });
+                    // 同时播放通知音效 (如果有)
+                    if (typeof window.playNotificationSound === 'function') {
+                        window.playNotificationSound();
+                    }
+                    // 提示用户
+                    // alert('测试通知已发送，请查看系统通知栏。'); 
+                    // (可选：不弹alert打断体验，或者用toast)
+                } catch (e) {
+                    alert('发送失败，错误信息: ' + e.message);
+                }
+            } else if (Notification.permission !== 'denied') {
+                // 3. 还没有权限，尝试请求
+                const permission = await Notification.requestPermission();
+                if (permission === 'granted') {
+                    new Notification('系统弹窗测试', {
+                        body: '权限获取成功！这是测试通知。',
+                        icon: 'https://i.postimg.cc/Kj8JnRcp/267611-CC01-F8-A3-B4910-A2-C2-FFDE479-DC.jpg',
+                    });
+                } else {
+                    alert('您拒绝了通知权限。');
+                }
+            } else {
+                // 4. 权限已被永久拒绝
+                alert('通知权限已被拒绝。请前往手机系统设置或浏览器设置中手动开启通知权限。');
+            }
+        });
+    }
+
 }
 
 // ===================================================================
