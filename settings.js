@@ -2414,16 +2414,28 @@ window.renderApiSettings = function () {
                     e.target.checked = false;
                 } else if (Notification.permission === 'granted') {
                     // 已有权限，直接开启成功
-                    new Notification('EPhone', {
-                        body: '系统通知已开启！别忘了点击底部的【保存】按钮哦。',
-                    });
+                    if (typeof window.sendSystemNotification === 'function') {
+                        window.sendSystemNotification('EPhone', {
+                            body: '系统通知已开启！别忘了点击底部的【保存】按钮哦。',
+                        });
+                    } else {
+                        new Notification('EPhone', {
+                            body: '系统通知已开启！别忘了点击底部的【保存】按钮哦。',
+                        });
+                    }
                 } else if (Notification.permission !== 'denied') {
                     // 请求权限
                     const permission = await Notification.requestPermission();
                     if (permission === 'granted') {
-                        new Notification('EPhone', {
-                            body: '权限获取成功！请点击【保存】。',
-                        });
+                        if (typeof window.sendSystemNotification === 'function') {
+                            window.sendSystemNotification('EPhone', {
+                                body: '权限获取成功！请点击【保存】。',
+                            });
+                        } else {
+                            new Notification('EPhone', {
+                                body: '权限获取成功！请点击【保存】。',
+                            });
+                        }
                     } else {
                         e.target.checked = false;
                         alert('权限被拒绝，无法开启。');
@@ -2456,31 +2468,29 @@ window.renderApiSettings = function () {
             if (Notification.permission === 'granted') {
                 // 已有权限，直接发送
                 try {
-                    const title = '系统弹窗测试';
-                    const options = {
-                        body: '这是一条测试通知。如果您能看到它，说明配置成功！',
-                        icon: 'https://i.postimg.cc/Kj8JnRcp/267611-CC01-F8-A3-B4910-A2-C2-FFDE479-DC.jpg',
-                        silent: true, // 最好保持静音，免得和网页音效冲突
-                    };
-
-                    // 兼容 ServiceWorker 写法
-                    let sent = false;
-                    if ('serviceWorker' in navigator) {
-                        const reg = await navigator.serviceWorker.getRegistration();
-                        if (reg) {
-                            await reg.showNotification(title, options);
-                            sent = true;
-                        }
-                    }
-
-                    if (!sent) {
-                        new Notification(title, options);
+                    // 使用 main-app.js 中定义的兼容函数
+                    if (typeof window.sendSystemNotification === 'function') {
+                        window.sendSystemNotification('系统弹窗测试', {
+                            body: '这是一条测试通知。如果您能看到它，说明配置成功！',
+                            icon: 'https://i.postimg.cc/Kj8JnRcp/267611-CC01-F8-A3-B4910-A2-C2-FFDE479-DC.jpg',
+                            silent: true, // 最好保持静音，免得和网页音效冲突
+                        });
+                    } else {
+                        // 备用：如果函数还没加载（极少情况），回退到旧方式
+                        new Notification('系统弹窗测试', {
+                            body: '这是一条测试通知。',
+                            icon: 'https://i.postimg.cc/Kj8JnRcp/267611-CC01-F8-A3-B4910-A2-C2-FFDE479-DC.jpg',
+                            silent: true,
+                        });
                     }
 
                     // 同时播放通知音效 (如果有)
                     if (typeof window.playNotificationSound === 'function') {
                         window.playNotificationSound();
                     }
+                    // 提示用户
+                    // alert('测试通知已发送，请查看系统通知栏。'); 
+                    // (可选：不弹alert打断体验，或者用toast)
                 } catch (e) {
                     alert('发送失败，错误信息: ' + e.message);
                 }

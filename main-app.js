@@ -1950,6 +1950,42 @@ document.addEventListener('DOMContentLoaded', async () => {
         return `${hours}:${minutes}`;
     }
 
+    /**
+     * 统一的系统通知发送函数，兼容 PWA/ServiceWorker
+     */
+    window.sendSystemNotification = function (title, options) {
+        options = options || {};
+
+        const dispatchLegacy = () => {
+            try {
+                new Notification(title, options);
+            } catch (e) {
+                console.warn('传统 Notification 构造失败:', e);
+                // 最后的兜底：如果是在不支持 new Notification 的环境下，且没有 SW，那确实无法发送
+            }
+        };
+
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.getRegistration().then((registration) => {
+                if (registration) {
+                    // Android Chrome PWA 环境下推荐使用此方式
+                    registration.showNotification(title, options).catch((e) => {
+                        console.warn('SW.showNotification 失败，尝试回退:', e);
+                        dispatchLegacy();
+                    });
+                } else {
+                    // 没有激活的 SW，尝试传统方式
+                    dispatchLegacy();
+                }
+            }).catch((e) => {
+                console.warn('获取 SW Registration 失败:', e);
+                dispatchLegacy();
+            });
+        } else {
+            dispatchLegacy();
+        }
+    };
+
     function showNotification(chatId, messageContent) {
         playNotificationSound();
         clearTimeout(notificationTimeout);
@@ -1970,33 +2006,13 @@ document.addEventListener('DOMContentLoaded', async () => {
 
             if (document.hidden || !isChatActive) {
                 try {
-                    // 尝试发送通知 (兼容 ServiceWorker 模式)
-                    const options = {
+                    // 尝试发送通知 (使用兼容函数)
+                    window.sendSystemNotification(notifName, {
                         body: messageContent,
                         icon: avatarUrl, // Android支持图标，iOS可能只显示应用图标
                         tag: chatId, // 防止同一角色的消息无限堆叠
                         silent: true, // 设为静音，因为我们已经有 playNotificationSound() 播放网页声音了
-                    };
-
-                    // 使用 IIFE 异步处理通知发送，优先尝试 ServiceWorker
-                    (async () => {
-                        let sent = false;
-                        if ('serviceWorker' in navigator) {
-                            try {
-                                const reg = await navigator.serviceWorker.getRegistration();
-                                if (reg) {
-                                    await reg.showNotification(notifName, options);
-                                    sent = true;
-                                }
-                            } catch (swError) {
-                                console.warn('ServiceWorker 通知尝试失败:', swError);
-                            }
-                        }
-
-                        if (!sent) {
-                            new Notification(notifName, options);
-                        }
-                    })();
+                    });
                 } catch (e) {
                     console.warn('系统通知发送失败:', e);
                 }
