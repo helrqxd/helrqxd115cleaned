@@ -4,16 +4,21 @@ window.db = window.db || null;
 
 // ★★★ 注册 Service Worker 以支持系统通知 ★★★
 if ('serviceWorker' in navigator) {
-    window.addEventListener('load', () => {
-        navigator.serviceWorker
-            .register('sw.js')
-            .then((registration) => {
-                console.log('ServiceWorker 注册成功，Scope:', registration.scope);
-            })
-            .catch((err) => {
-                console.log('ServiceWorker 注册失败:', err);
-            });
-    });
+    // 检测是否运行在支持 SW 的协议下 (http, https, chrome-extension 等，排除 file)
+    if (window.location.protocol === 'file:' || window.location.origin === 'null') {
+        console.warn('【注意】Service Worker 无法在 file:// 协议或本地文件模式下运行。系统通知功能将不可用。请使用 Web Server (如 VSCode Live Server) 或 localhost 访问。');
+    } else {
+        window.addEventListener('load', () => {
+            navigator.serviceWorker
+                .register('sw.js')
+                .then((registration) => {
+                    console.log('ServiceWorker 注册成功，Scope:', registration.scope);
+                })
+                .catch((err) => {
+                    console.log('ServiceWorker 注册失败:', err);
+                });
+        });
+    }
 }
 
 const BUILT_IN_SCRIPTS = [
