@@ -176,7 +176,6 @@ function selectGenericImagePrompt(productName) {
 async function generateTaobaoImage(prompt) {
     console.log(`[Debug] generateTaobaoImage 被调用 (Taobao专属)，Prompt:`, prompt);
     while (true) {
-        // ★★★ 核心修改：这是一个无限循环 ★★★
         try {
             const encodedPrompt = encodeURIComponent(prompt);
             const seed = Math.floor(Math.random() * 100000);
@@ -185,32 +184,26 @@ async function generateTaobaoImage(prompt) {
             const pollApiKey = state.apiConfig.pollinationsApiKey;
             console.log(`正在使用 API Key: ${pollApiKey}`);
 
-            // 2. 构建基础 URL (加了 nologo=true 去水印，通常加Key后支持更好)
-            const primaryUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=640&seed=${seed}&nologo=true`;
+            // 2. 构建基础 URL 
+            let primaryUrl = `https://gen.pollinations.ai/image/${encodedPrompt}?width=1024&height=640&seed=${seed}&model=flux`;
 
             // === 分支 A: 如果有 API Key，使用 fetch 发送带 Header 的请求 ===
             if (pollApiKey) {
+                primaryUrl += `&key=${pollApiKey}`;
+                console.log(`使用带Key的URL: ${primaryUrl}`);
                 console.log("正在使用 Pollinations API Key 生成图片...");
-                try {
-                    const response = await fetch(primaryUrl, {
-                        method: "GET",
-                        headers: {
-                            Authorization: `Bearer ${pollApiKey}`, // 关键：在这里放入 Key
-                        },
-                    });
+                const response = await fetch(primaryUrl, {
+                    method: "GET",
+                });
 
-                    if (!response.ok) {
-                        throw new Error(`API请求失败: ${response.status}`);
-                    }
-
-                    // 获取二进制数据并转换为 Blob URL
-                    const blob = await response.blob();
-                    const objectUrl = URL.createObjectURL(blob);
-                    return objectUrl; // 返回 Blob URL
-                } catch (fetchError) {
-                    console.warn("⚠️ 带Key请求失败 (可能是CORS跨域限制)，尝试自动降级为普通链接加载:", fetchError);
-                    // 不抛出错误，而是继续向下执行，使用“分支 B”的逻辑
+                if (!response.ok) {
+                    throw new Error(`API请求失败: ${response.status}`);
                 }
+
+                // 获取二进制数据并转换为 Blob URL
+                const blob = await response.blob();
+                const objectUrl = URL.createObjectURL(blob);
+                return objectUrl; // 返回 Blob URL
             }
 
             // === 分支 B: 如果没有 API Key 或 API Key 请求失败，走原来的公开接口逻辑 ===
