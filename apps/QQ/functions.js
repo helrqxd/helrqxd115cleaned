@@ -6003,6 +6003,29 @@ function initAuroraListeners() {
         document.getElementById('new-couple-char-avatar-preview').src = base64;
     });
 
+    // ==========================================
+    // ★★★ 新增功能：全局路人头像库逻辑 ★★★
+    // ==========================================
+    // (已移动到文件底部全局作用域)
+
+
+    // 5. 【核心工具函数】根据名字获取头像
+    // 如果名字相同，尽量返回相同的头像（伪随机）；如果没有库，返回默认。
+    window.getAvatarForName = function (name) {
+        const lib = window.state.passerbyAvatars || [];
+        if (lib.length === 0) return 'https://i.postimg.cc/PxZrFFFL/o-o-1.jpg'; // 默认头像
+
+        // 简单的哈希算法，将名字转为数字
+        let hash = 0;
+        for (let i = 0; i < name.length; i++) {
+            hash = name.charCodeAt(i) + ((hash << 5) - hash);
+        }
+
+        // 取绝对值并取模
+        const index = Math.abs(hash) % lib.length;
+        return lib[index].url;
+    };
+
     // 核心函数：打开管理弹窗
     function openCoupleAvatarLibraryModal() {
         if (!state.activeChatId) return;
@@ -6104,6 +6127,462 @@ function toggleTheme() {
     }
 }
 window.toggleTheme = toggleTheme;
+
+
+// ==========================================
+// ★★★ 全局路人头像库逻辑 (Moved to Global Scope) ★★★
+// ==========================================
+
+// 1. 打开管理界面
+async function openPasserbyManager() {
+    await renderPasserbyGrid();
+    document.getElementById('passerby-avatar-manager-modal').classList.add('visible');
+}
+window.openPasserbyManager = openPasserbyManager;
+
+// 2. 渲染网格
+async function renderPasserbyGrid() {
+    const grid = document.getElementById('passerby-avatar-grid');
+    const countSpan = document.getElementById('passerby-count');
+    grid.innerHTML = '';
+
+    // 从数据库获取所有
+    const avatars = await db.passerbyAvatars.toArray();
+    countSpan.textContent = avatars.length;
+
+    // 更新全局缓存 (重要)
+    window.state.passerbyAvatars = avatars;
+
+    if (avatars.length === 0) {
+        grid.innerHTML = '<p style="grid-column:1/-1; text-align:center; color:#999;">图库为空，快去添加一些吧！</p>';
+        return;
+    }
+
+    avatars.forEach((item) => {
+        const div = document.createElement('div');
+        div.className = 'sticker-item'; // 复用现有的贴纸样式
+        div.style.backgroundImage = `url(${item.url})`;
+        div.style.borderRadius = '8px';
+        div.style.aspectRatio = '1/1';
+
+        // 删除按钮
+        const delBtn = document.createElement('div');
+        delBtn.className = 'delete-btn';
+        delBtn.innerHTML = '×';
+        delBtn.style.display = 'block';
+        delBtn.onclick = async (e) => {
+            e.stopPropagation();
+            if (confirm('确定删除这张头像吗？')) {
+                await db.passerbyAvatars.delete(item.id);
+                renderPasserbyGrid();
+            }
+        };
+
+        div.appendChild(delBtn);
+        grid.appendChild(div);
+    });
+}
+window.renderPasserbyGrid = renderPasserbyGrid;
+
+// 3. 处理添加头像 (支持本地多选 和 URL)
+async function handleAddPasserbyAvatar() {
+    const choice = await showChoiceModal('添加方式', [
+        { text: '📁 本地上传 (支持多选)', value: 'local' },
+        { text: '🌐 网络图片URL', value: 'url' },
+    ]);
+
+    if (!choice) return;
+
+    if (choice === 'local') {
+        document.getElementById('passerby-upload-input').click();
+    } else if (choice === 'url') {
+        const url = await showCustomPrompt('输入URL', '请输入图片链接');
+        if (url && url.trim()) {
+            await db.passerbyAvatars.add({ url: url.trim() });
+            alert('添加成功');
+            // 如果管理界面开着，就刷新它
+            if (document.getElementById('passerby-avatar-manager-modal').classList.contains('visible')) {
+                renderPasserbyGrid();
+            }
+        }
+    }
+}
+window.handleAddPasserbyAvatar = handleAddPasserbyAvatar;
+
+// 4. 处理本地文件选择
+async function handlePasserbyFileChange(event) {
+    const files = event.target.files;
+    if (!files.length) return;
+
+    // 显示加载提示
+    const btn = document.getElementById('add-passerby-avatar-btn');
+    const originalText = btn.textContent;
+    btn.textContent = '处理中...';
+
+    const newItems = [];
+    for (const file of files) {
+        // 复用你的图片压缩函数 handleImageUploadAndCompress
+        try {
+            const base64 = await handleImageUploadAndCompress(file);
+            newItems.push({ url: base64 });
+        } catch (e) {
+            console.error('图片处理失败', e);
+        }
+    }
+
+    if (newItems.length > 0) {
+        await db.passerbyAvatars.bulkAdd(newItems);
+        alert(`成功添加 ${newItems.length} 张头像！`);
+        // 刷新缓存
+        window.state.passerbyAvatars = await db.passerbyAvatars.toArray();
+        // 如果管理界面开着，刷新
+        if (document.getElementById('passerby-avatar-manager-modal').classList.contains('visible')) {
+            renderPasserbyGrid();
+        }
+    }
+
+    btn.textContent = originalText;
+    event.target.value = null; // 清空
+}
+window.handlePasserbyFileChange = handlePasserbyFileChange;
+
+// ===================================================================
+// Character Card Import Functions (Moved from main-app.js)
+// ===================================================================
+
+/**
+ * Handle user selected character card file
+ * @param {File} file - User selected file object
+ */
+async function handleCharacterImport(file) {
+    if (!file) return;
+
+    try {
+        let characterData;
+        let avatarBase64;
+
+        if (file.name.toLowerCase().endsWith('.png')) {
+            // If PNG, call PNG parser
+            const result = await parseCharPng(file);
+            characterData = result.characterData;
+            avatarBase64 = result.avatarBase64;
+        } else if (file.name.toLowerCase().endsWith('.json')) {
+            // If JSON, call JSON parser
+            characterData = await parseCharJson(file);
+            // JSON cards usually don't have images, use default avatar
+            avatarBase64 = 'https://i.postimg.cc/PxZrFFFL/o-o-1.jpg';
+        } else {
+            alert('不支持的文件格式，请选择 .png 或 .json 文件。');
+            return;
+        }
+
+        if (characterData) {
+            // After successful parsing, create character
+            await createCharacterFromData(characterData, avatarBase64);
+        }
+    } catch (error) {
+        console.error('导入角色卡失败:', error);
+        alert(`导入失败: ${error.message}`);
+    }
+}
+
+/**
+ * Parse SillyTavern PNG character card, resolve Chinese encoding issues with byte-level operations.
+ * @param {File} file - PNG file
+ * @returns {Promise<{characterData: object, avatarBase64: string}>}
+ */
+async function parseCharPng(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            const arrayBuffer = e.target.result;
+            const dataView = new DataView(arrayBuffer);
+
+            if (dataView.getUint32(0) !== 0x89504e47 || dataView.getUint32(4) !== 0x0d0a1a0a) {
+                return reject(new Error('文件不是一个有效的PNG图片。'));
+            }
+
+            let offset = 8;
+            let characterJson = null;
+
+            while (offset < dataView.byteLength) {
+                const length = dataView.getUint32(offset);
+                const type = String.fromCharCode(dataView.getUint8(offset + 4), dataView.getUint8(offset + 5), dataView.getUint8(offset + 6), dataView.getUint8(offset + 7));
+
+                if (type === 'tEXt') {
+                    const chunkData = new Uint8Array(arrayBuffer, offset + 8, length);
+
+                    let text = '';
+                    for (let i = 0; i < chunkData.length; i++) {
+                        text += String.fromCharCode(chunkData[i]);
+                    }
+
+                    const keyword = 'chara' + String.fromCharCode(0);
+                    if (text.startsWith(keyword)) {
+                        const base64Data = text.substring(keyword.length);
+                        try {
+                            const binaryString = atob(base64Data);
+                            const bytes = new Uint8Array(binaryString.length);
+                            for (let i = 0; i < binaryString.length; i++) {
+                                bytes[i] = binaryString.charCodeAt(i);
+                            }
+                            const decodedJsonString = new TextDecoder('utf-8').decode(bytes);
+                            characterJson = JSON.parse(decodedJsonString);
+                            break;
+                        } catch (e) {
+                            return reject(new Error('解析图片内嵌的角色数据失败，可能是数据损坏。'));
+                        }
+                    }
+                }
+
+                if (type === 'IEND') break;
+                offset += 12 + length;
+            }
+
+            if (characterJson) {
+                const imageReader = new FileReader();
+                imageReader.onload = (imgEvent) => {
+                    resolve({
+                        characterData: characterJson,
+                        avatarBase64: imgEvent.target.result,
+                    });
+                };
+                imageReader.onerror = () => reject(new Error('读取图片作为头像失败。'));
+                imageReader.readAsDataURL(file);
+            } else {
+                reject(new Error('在这张PNG图片中没有找到SillyTavern角色数据。'));
+            }
+        };
+        reader.onerror = () => reject(new Error('读取PNG文件失败。'));
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+/**
+ * [Corrected] Parse JSON character card, force UTF-8 encoding
+ * @param {File} file - JSON file
+ * @returns {Promise<object>}
+ */
+async function parseCharJson(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const arrayBuffer = e.target.result;
+                const textDecoder = new TextDecoder('utf-8');
+                const jsonString = textDecoder.decode(arrayBuffer);
+                const data = JSON.parse(jsonString);
+                resolve(data.data || data);
+            } catch (error) {
+                reject(new Error('解析JSON文件失败，请检查文件格式或编码。'));
+            }
+        };
+        reader.onerror = () => reject(new Error('读取JSON文件失败。'));
+        reader.readAsArrayBuffer(file);
+    });
+}
+
+/**
+ * Create new character and worldbook from parsed data.
+ * @param {object} data - Raw JSON data parsed from card
+ * @param {string} avatarBase64 - Character avatar image (Base64)
+ */
+async function createCharacterFromData(data, avatarBase64) {
+    const charData = data.data || data;
+    const characterName = charData.name ? charData.name.trim() : '未命名角色';
+
+    const newChatId = 'chat_' + Date.now();
+
+    const newChat = {
+        id: newChatId,
+        name: characterName,
+        isGroup: false,
+        isPinned: false,
+        history: [],
+        unreadCount: 0,
+        musicData: { totalTime: 0 },
+        npcLibrary: [],
+        relationship: { status: 'friend', blockedTimestamp: null, applicationReason: '' },
+        status: { text: '在线', lastUpdate: Date.now(), isBusy: false },
+        weiboDms: [],
+        loversSpaceData: null,
+        settings: {
+            aiPersona: charData.description || '该角色没有描述。',
+            myPersona: '我是谁呀。',
+            maxMemory: 10,
+            aiAvatar: avatarBase64,
+            myAvatar: 'https://i.postimg.cc/PxZrFFFL/o-o-1.jpg',
+            background: '',
+            theme: 'default',
+            fontSize: 13,
+            customCss: '',
+            linkedWorldBookIds: [],
+            aiAvatarLibrary: [],
+            stickerLibrary: [],
+            summary: {
+                enabled: false,
+                mode: 'auto',
+                count: 20,
+                prompt: '请你以第三人称的视角，客观、冷静、不带任何感情色彩地总结以下对话的核心事件和信息。禁止进行任何角色扮演或添加主观评论。',
+                lastSummaryIndex: -1,
+            },
+            linkedMemories: [],
+            offlineMode: {
+                enabled: false,
+                prompt: '',
+                style: '',
+                wordCount: 300,
+                presets: [],
+            },
+            timePerceptionEnabled: true,
+            customTime: '',
+            isCoupleAvatar: false,
+            coupleAvatarDescription: '',
+            weiboProfession: '',
+            weiboInstruction: '',
+            visualVideoCallEnabled: false,
+            charVideoImage: '',
+            userVideoImage: '',
+            videoCallVoiceAccess: false,
+            petAdopted: false,
+            pet: null,
+        },
+        characterPhoneData: {
+            lastGenerated: null,
+            chats: {},
+            shoppingCart: [],
+            memos: [],
+            browserHistory: [],
+            photoAlbum: [],
+            bank: { balance: 0, transactions: [] },
+            trajectory: [],
+            appUsage: [],
+            diary: [],
+        },
+    };
+
+    await window.db.chats.put(newChat);
+    window.state.chats[newChatId] = newChat;
+
+    console.log('开始检测世界书数据...');
+    let worldBookFound = false;
+
+    if (charData.character_book && charData.character_book.entries && Array.isArray(charData.character_book.entries) && charData.character_book.entries.length > 0) {
+        console.log(`检测到最新的 character_book 格式 (${charData.character_book.entries.length}条)，开始导入...`);
+        const newCategory = { name: characterName };
+        const newCategoryId = await window.db.worldBookCategories.add(newCategory);
+
+        await window.WorldBookModule.saveWorldBookEntriesFromArray(charData.character_book.entries, newCategoryId);
+        worldBookFound = true;
+    }
+    else if (charData.world_entries && Array.isArray(charData.world_entries) && charData.world_entries.length > 0) {
+        console.log(`检测到旧版 world_entries 格式 (${charData.world_entries.length}条)，开始导入...`);
+        const newCategory = { name: characterName };
+        const newCategoryId = await window.db.worldBookCategories.add(newCategory);
+        await window.WorldBookModule.saveWorldBookEntriesFromArray(charData.world_entries, newCategoryId);
+        worldBookFound = true;
+    }
+    else if (data.world && typeof data.world === 'string' && data.world.trim()) {
+        console.log('检测到外层 world 字段格式，开始导入...');
+        const newCategory = { name: characterName };
+        const newCategoryId = await window.db.worldBookCategories.add(newCategory);
+        await window.WorldBookModule.parseAndSaveWorldBooks(data.world, newCategoryId);
+        worldBookFound = true;
+    }
+    else if (charData.world_info && typeof charData.world_info === 'string' && charData.world_info.trim()) {
+        console.log('检测到旧版 world_info 字段格式，开始导入...');
+        const newCategory = { name: characterName };
+        const newCategoryId = await window.db.worldBookCategories.add(newCategory);
+        await window.WorldBookModule.parseAndSaveWorldBooks(charData.world_info, newCategoryId);
+        worldBookFound = true;
+    }
+
+    if (!worldBookFound) {
+        console.log('诊断：在此角色卡中未找到任何可识别的世界书字段。');
+    }
+
+    await window.renderChatList();
+    await window.showCustomAlert('导入成功！', `角色“${characterName}”已成功创建！`);
+}
+
+function initCharacterImportEventListeners() {
+    const importBtn = document.getElementById('import-character-card-btn');
+    if (importBtn) {
+        importBtn.addEventListener('click', async () => {
+            const unlockKey = 'isCharacterImportUnlocked';
+
+            if (localStorage.getItem(unlockKey) === 'true') {
+                document.getElementById('character-card-input').click();
+                return;
+            }
+
+            const deviceCode = getDeviceCode();
+
+            const modalHtmlContent = `
+                    <p style="margin-bottom: 15px;">请前往取PIN网站，使用下面的设备码获取PIN。</p>
+                    <div style="background: #eee; padding: 10px; border-radius: 6px; margin-bottom: 15px; user-select: all; cursor: copy;" title="点击复制设备码">
+                        <strong>设备码:</strong> <span id="device-code-to-copy">${deviceCode}</span>
+                    </div>
+                    <p id="copy-device-code-feedback" style="height: 15px; font-size: 12px; color: green;"></p>
+                `;
+
+            const userPin = await window.showCustomPrompt(
+                '功能解锁',
+                '请在此输入获取到的PIN码...',
+                '',
+                'text',
+                modalHtmlContent
+            );
+
+            if (userPin === null) return;
+
+            const correctPin = generatePinFromDeviceCode(deviceCode);
+            if (userPin.trim().toUpperCase() === correctPin) {
+                localStorage.setItem(unlockKey, 'true');
+                await window.showCustomAlert('解锁成功！', '导入功能已解锁，此设备无需再次输入PIN码。');
+                document.getElementById('character-card-input').click();
+            } else {
+                await window.showCustomAlert('解锁失败', 'PIN码错误，请重新获取或输入。');
+            }
+        });
+    }
+
+    const customModalBody = document.getElementById('custom-modal-body');
+    if (customModalBody) {
+        customModalBody.addEventListener('click', (e) => {
+            const codeElement = e.target.closest('#device-code-to-copy');
+            if (codeElement) {
+                const deviceCode = codeElement.textContent;
+                const feedbackEl = document.getElementById('copy-device-code-feedback');
+                navigator.clipboard
+                    .writeText(deviceCode)
+                    .then(() => {
+                        if (feedbackEl) feedbackEl.textContent = '设备码已复制！';
+                        setTimeout(() => {
+                            if (feedbackEl) feedbackEl.textContent = '';
+                        }, 2000);
+                    })
+                    .catch((err) => {
+                        if (feedbackEl) feedbackEl.textContent = '复制失败，请手动复制。';
+                    });
+            }
+        });
+    }
+
+    const input = document.getElementById('character-card-input');
+    if (input) {
+        input.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                handleCharacterImport(file);
+            }
+            event.target.value = null;
+        });
+    }
+}
+
+document.addEventListener('DOMContentLoaded', initCharacterImportEventListeners);
+
 
 
 

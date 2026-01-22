@@ -45,6 +45,7 @@
 		<script src="apps/QQ/setting.js" defer></script>
 		<script src="apps/QQ/functions.js" defer></script>
 		<script src="apps/QQ/chat.js" defer></script>
+		<script src="apps/QQ/background.js" defer></script>
 		<script src="main-app.js" defer></script>
 		<script src="apps/game-hall.js" defer></script>
 		<script src="apps/forum.js" defer></script>
@@ -976,15 +977,15 @@
 							<div class="form-group" style="margin-top: 15px; padding-top: 15px; border-top: 1px dashed #eee; display: flex; justify-content: space-between; align-items: center">
 								<div>
 									<span class="toggle-switch-text" style="font-weight: bold">开启系统弹窗</span>
-									<div style="font-size: 12px; color: #888; margin-top: 4px">iOS需添加到主屏幕，安卓需授权</div>
+									<div style="font-size: 12px; color: #888; margin-top: 6px; display: flex; align-items: center">
+										<span>iOS需添加到主屏幕，安卓需授权</span>
+										<button id="test-system-notification-btn" style="margin-left: 5px; padding: 2px 10px; background-color: rgba(40, 167, 69, 0.1); color: #28a745; border: 1px solid rgba(40, 167, 69, 0.2); border-radius: 12px; font-size: 11px; cursor: pointer; display: flex; align-items: center; gap: 3px"><span>🔔</span> 测试发送</button>
+									</div>
 								</div>
 								<label class="toggle-switch">
 									<input type="checkbox" id="system-notification-switch" />
 									<span class="slider"></span>
 								</label>
-							</div>
-							<div class="form-group" style="margin-top: 5px; display: flex; justify-content: flex-end">
-								<button id="test-system-notification-btn" class="moe-btn secondary" style="font-size: 12px; padding: 4px 12px; height: auto">测试系统弹窗</button>
 							</div>
 							<div id="background-activity-details" style="display: none; margin-top: 10px">
 								<div class="form-group">
@@ -1056,7 +1057,20 @@
 							</div>
 						</div>
 					</div>
-
+					<!-- 4.5. Pollinations 生图卡片 (新增) -->
+					<div class="moe-card">
+						<div class="moe-card-header">
+							<span class="icon">🌸</span>
+							<h3>Pollinations 生图</h3>
+						</div>
+						<div class="moe-card-body">
+							<div class="form-group">
+								<label>API Key (可选，用于高级功能/去水印)</label>
+								<input type="password" id="pollinations-api-key" placeholder="Bearer ..." class="moe-input" />
+								<p style="font-size: 12px; color: #888; margin-top: 5px">* 如果留空，将使用免费公开接口 (可能包含水印或受限)。</p>
+							</div>
+						</div>
+					</div>
 					<!-- 5. 存储与备份卡片 -->
 					<div class="moe-card">
 						<div class="moe-card-header">
@@ -1130,6 +1144,13 @@
 
 					<div style="text-align: center; margin-bottom: 15px; margin-top: 5px">
 						<a href="https://jcny642xl7ll.feishu.cn/wiki/KGsnwECKji2xdxkCqDbcZNOnndd" target="_blank" style="display: inline-flex; align-items: center; gap: 6px; padding: 10px 20px; background-color: rgba(255, 255, 255, 0.9); color: var(--accent-color, #007bff); text-decoration: none; border-radius: 25px; font-size: 14px; font-weight: 600; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); border: 1px solid rgba(0, 0, 0, 0.05); transition: transform 0.2s"> <span>📖</span> 兔k写的一些教程 </a>
+					</div>
+
+					<div style="margin: 10px 0; text-align: center">
+						<button onclick="window.openBugStation()" style="background: #fff0f6; color: #eb2f96; border: 2px dashed #ffadd2; border-radius: 15px; padding: 8px 20px; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 5px">
+							🚑 报错急救站
+							<span style="font-size: 10px; opacity: 0.7">(点我复制错误)</span>
+						</button>
 					</div>
 
 					<!-- 底部留白，防止被悬浮按钮遮挡 -->
@@ -1722,6 +1743,7 @@
 							<button id="export-theme-btn" class="upload-btn-pill secondary">导出</button>
 							<button id="import-theme-btn" class="upload-btn-pill secondary">导入</button>
 							<button id="reset-theme-css-btn" class="upload-btn-pill danger" style="background-color: #ff3b30; color: white">重置</button>
+							<button id="manage-char-css-btn" class="upload-btn-pill" style="background-color: #ff9800; color: white">清理角色CSS</button>
 							<input type="file" id="import-theme-input" accept=".json, .txt, .css, .docx" hidden />
 						</div>
 					</div>
@@ -1793,6 +1815,18 @@
 									<input type="file" id="import-home-preset-input" accept=".json" hidden />
 								</div>
 							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- ★★★ 新增：路人头像库卡片 ★★★ -->
+				<div class="settings-group-card">
+					<div class="settings-section-title">👥 全局路人头像库</div>
+					<div class="setting-item">
+						<label>用于生成随机NPC、评论区的头像</label>
+						<div class="moe-btn-group">
+							<button id="manage-passerby-avatars-btn" class="moe-btn-secondary">📂 管理图库</button>
+							<button id="add-passerby-avatar-btn" class="moe-btn-secondary">➕ 添加头像</button>
 						</div>
 					</div>
 				</div>
@@ -3533,6 +3567,7 @@
 
 		<audio id="ringtone-player" loop></audio>
 		<audio id="notification-sound-player" preload="auto"></audio>
+		<audio id="strong-keep-alive-player" loop src="https://files.catbox.moe/7jn7bp.mp3"></audio>
 
 		<div id="create-post-modal" class="modal">
 			<div class="modal-content" style="height: auto; max-height: 90%">
@@ -8284,6 +8319,49 @@
 				<div class="modal-footer">
 					<button class="cancel" id="cancel-add-couple-avatar-btn">取消</button>
 					<button class="save" id="save-couple-avatar-btn">保存</button>
+				</div>
+			</div>
+		</div>
+
+		<div id="passerby-avatar-manager-modal" class="modal">
+			<div class="modal-content" style="height: 70%">
+				<div class="modal-header">
+					<span>路人头像库 (<span id="passerby-count">0</span>)</span>
+					<div class="header-actions">
+						<button id="bulk-add-passerby-btn" class="action-button" style="font-size: 14px">批量添加</button>
+					</div>
+				</div>
+				<div class="modal-body" style="padding: 15px; background-color: #f5f5f5">
+					<div id="passerby-avatar-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(60px, 1fr)); gap: 10px">
+						<!-- JS动态生成 -->
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button class="save" id="close-passerby-manager-btn" style="width: 100%">关闭</button>
+				</div>
+			</div>
+		</div>
+		<!-- 隐藏的文件上传控件 -->
+		<input type="file" id="passerby-upload-input" accept="image/*" multiple hidden />
+
+		<div id="bug-report-modal" class="modal">
+			<div class="modal-content" style="height: 70%; max-height: 600px">
+				<!-- 头部 -->
+				<div class="modal-header">
+					<span>🏩 报错急救站</span>
+					<button class="nurse-btn nurse-btn-clear" onclick="window.clearBugReport()">🧹 清扫</button>
+				</div>
+
+				<!-- 内容区 -->
+				<div class="modal-body" style="padding: 15px; background: #fff0f6; display: flex; flex-direction: column">
+					<p style="font-size: 12px; color: #eb2f96; margin-bottom: 5px">👇 如果遇到问题，请复制下方的红字发给开发者：</p>
+					<textarea id="error-log-viewer" readonly></textarea>
+				</div>
+
+				<!-- 底部按钮 -->
+				<div class="modal-footer" style="background: #fff0f6; justify-content: space-between">
+					<button class="nurse-btn nurse-btn-close" onclick="window.closeBugStation()">关 闭</button>
+					<button class="nurse-btn nurse-btn-copy" onclick="window.copyBugReport()">📋 一键复制报错</button>
 				</div>
 			</div>
 		</div>

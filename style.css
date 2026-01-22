@@ -26130,6 +26130,378 @@ input:checked + .slider::after {
   z-index: 1;
 }
 
+/* ================================================================= */
+/* === 💎 情侣空间 V12.0 终极重构：杂志封面·沉浸式布局 💎 === */
+/* ================================================================= */
+
+/* --- 1. 头部容器调整：给背景图留出展示空间 --- */
+#ls-header {
+  height: 320px !important; /* 不需要过高，320px 是展示背景图的黄金高度 */
+  display: flex !important;
+  flex-direction: column !important;
+  justify-content: flex-end; /* 关键：让内容沉底，留出上方空间看图 */
+  padding-bottom: 50px !important; /* 底部留白，给Tab栏腾位置 */
+  box-sizing: border-box !important;
+
+  /* 添加底部渐变遮罩，保证白色文字在浅色背景上也清晰 */
+  background: transparent !important;
+}
+
+/* --- 2. 顶部操作栏：保持在最上方 --- */
+.ls-header-top-bar {
+  position: absolute !important;
+  top: 0;
+  left: 0;
+  width: 100%;
+  box-sizing: border-box;
+  /* 增加一点顶部渐变，防止白色按钮看不清 */
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.3),
+    transparent
+  ) !important;
+  padding-bottom: 20px !important;
+}
+
+/* --- 3. 头像与计数器：居中沉底布局 --- */
+/* 这是最核心的改动：不再绝对定位，而是自然流式布局 */
+.ls-avatar-and-counter-wrapper {
+  position: static !important; /* 取消固定坐标 */
+  transform: none !important;
+
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  gap: 12px !important;
+
+  /* 给左右留出余地，防止在大屏iPad上太散 */
+  width: 100% !important;
+  margin-bottom: 10px !important; /* 和下方Tab栏的间距 */
+}
+
+/* --- 4. 头像组：精致重叠风 --- */
+.ls-header-avatars {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  position: relative !important; /* 为爱心图标定位 */
+}
+
+.ls-header-avatars img {
+  width: 68px !important;
+  height: 68px !important;
+  border-radius: 50% !important;
+  object-fit: cover !important;
+
+  /* 精致白边 + 柔光阴影 */
+  border: 3px solid rgba(255, 255, 255, 0.95) !important;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
+
+  /* 稍微分开一点，显得大气 */
+  margin: 0 15px !important;
+}
+
+/* 中间的爱心/音波图标：悬浮正中 */
+.ls-header-avatars .heart-icon {
+  position: absolute !important;
+  left: 50% !important;
+  top: 50% !important;
+  transform: translate(-50%, -50%) !important;
+
+  /* 调整尺寸，让它连接两个头像 */
+  width: 100px !important;
+  height: 30px !important;
+  background-size: contain !important;
+  z-index: 10 !important; /* 在头像上面 */
+  filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.3)); /* 增加立体感 */
+}
+
+/* --- 5. 天数计数器：精致胶囊风格 --- */
+#ls-days-counter {
+  font-size: 14px !important;
+  font-weight: 600 !important;
+  color: #fff !important;
+  letter-spacing: 1px;
+
+  /* 胶囊背景：半透明磨砂黑/白混合 */
+  background: rgba(255, 255, 255, 0.2) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+
+  padding: 6px 16px !important;
+  border-radius: 20px !important;
+  border: 1px solid rgba(255, 255, 255, 0.3) !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1) !important;
+
+  /* 移除之前的左边框样式，改为纯净胶囊 */
+  border-left: 1px solid rgba(255, 255, 255, 0.3) !important;
+  margin: 0 !important;
+}
+
+/* --- 6. Tab导航栏：嵌入式悬浮 --- */
+#ls-tab-bar {
+  /* 使用 margin-top 把它往上拉，卡在 Header 背景图的边缘 */
+  margin-top: -35px !important;
+
+  /* 左右边距 */
+  margin-left: 15px !important;
+  margin-right: 15px !important;
+  margin-bottom: 15px !important;
+
+  /* 视觉升级：更加清透 */
+  background: rgba(255, 255, 255, 0.85) !important;
+  backdrop-filter: blur(20px) saturate(180%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.6) !important;
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08) !important;
+
+  /* 圆角 */
+  border-radius: 22px !important;
+  padding: 6px !important;
+  z-index: 20 !important;
+}
+
+/* 激活的 Tab 按钮 */
+.ls-tab-item.active {
+  background: #fff !important;
+  border-radius: 16px !important;
+  box-shadow: 0 4px 12px rgba(255, 105, 180, 0.15) !important;
+  color: #ff6b81 !important; /* 珊瑚粉 */
+  transform: translateY(-1px); /* 微微浮起 */
+}
+
+/* 未激活的 Tab 图标颜色 */
+.ls-tab-item:not(.active) svg {
+  color: #888 !important;
+}
+
+/* --- 7. 下方内容区：微调顶部间距 --- */
+#ls-content-area,
+.ls-view {
+  padding-top: 5px !important; /* 不需要太多，紧凑一点更好看 */
+}
+/* === 修复记忆互通下拉框样式 === */
+
+/* 1. 列表容器：设置为绝对定位的浮层，限制高度并允许滚动 */
+#memory-link-checkboxes-container {
+  display: none; /* 默认隐藏 */
+  position: absolute;
+  width: 100%;
+  max-height: 200px;
+  overflow-y: auto;
+  background: #fff; /* 背景色 */
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  z-index: 1000; /* 确保浮在最上层 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  margin-top: 5px;
+  box-sizing: border-box;
+}
+
+/* 当 JS 添加 .visible 类时显示 */
+#memory-link-checkboxes-container.visible {
+  display: block;
+}
+
+/* 2. 列表项（每一行）：使用 Flex 布局垂直居中 */
+#memory-link-checkboxes-container label {
+  display: flex;
+  align-items: center; /* 关键：让勾选框、头像、文字垂直居中 */
+  padding: 8px 12px;
+  border-bottom: 1px solid #f5f5f5;
+  cursor: pointer;
+  transition: background 0.2s;
+  color: #333;
+}
+
+#memory-link-checkboxes-container label:hover {
+  background-color: #f0f2f5;
+}
+
+#memory-link-checkboxes-container label:last-child {
+  border-bottom: none;
+}
+
+/* 3. ★★★ 核心修复：限制头像图片的大小 ★★★ */
+#memory-link-checkboxes-container .avatar-preview {
+  width: 32px !important; /* 强制宽度 */
+  height: 32px !important; /* 强制高度 */
+  border-radius: 50%; /* 圆形头像 */
+  object-fit: cover; /* 防止图片变形 */
+  margin: 0 10px; /* 头像左右的间距 */
+  flex-shrink: 0; /* 防止头像被挤扁 */
+  border: 1px solid #eee;
+}
+
+/* 微调复选框样式 */
+#memory-link-checkboxes-container input[type="checkbox"] {
+  margin: 0;
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-color, #007bff);
+}
+/* --- 微博评论区头像样式 --- */
+.weibo-comment-item {
+  display: flex; /* 使用 Flex 布局 */
+  align-items: flex-start; /* 顶部对齐 */
+  gap: 8px; /* 头像和文字的间距 */
+  padding: 6px 0;
+}
+
+.weibo-comment-avatar {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0; /* 防止头像被挤压 */
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+.weibo-comment-content-wrapper {
+  flex: 1; /* 文字占据剩余空间 */
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+/* 调整原来的删除按钮位置 */
+.weibo-comment-item .comment-delete-btn {
+  margin-left: auto; /* 推到最右边 */
+  font-size: 16px;
+  color: #999;
+  background: none;
+  border: none;
+  cursor: pointer;
+  padding: 0 4px;
+  line-height: 1;
+}
+/* 1. 萌系弹窗样式 */
+#bug-report-modal .modal-content {
+    background-color: #fff0f6; /* 浅粉色背景 */
+    border: 3px solid #ffadd2; /* 深粉色边框 */
+    border-radius: 20px;
+    box-shadow: 0 10px 25px rgba(255, 107, 129, 0.2);
+}
+
+#bug-report-modal .modal-header {
+    background-color: #ffadd2;
+    color: white;
+    border-bottom: none;
+    border-radius: 16px 16px 0 0;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+/* 2. 日志显示区域：像一张处方单 */
+#error-log-viewer {
+    width: 100%;
+    height: 100%;
+    background-color: #ffffff;
+    color: #ff4d4f; /* 报错用红色字体 */
+    font-family: 'Consolas', 'Menlo', monospace;
+    font-size: 12px;
+    line-height: 1.6;
+    padding: 15px;
+    box-sizing: border-box;
+    border: 2px dashed #ffccc7; /* 虚线边框 */
+    border-radius: 12px;
+    resize: none;
+    outline: none;
+    white-space: pre-wrap;
+}
+
+/* 3. 按钮美化 */
+.nurse-btn {
+    padding: 8px 16px;
+    border-radius: 20px;
+    border: none;
+    cursor: pointer;
+    font-weight: bold;
+    transition: transform 0.2s;
+}
+.nurse-btn:active { transform: scale(0.95); }
+
+.nurse-btn-copy { background: #5cdbd3; color: white; } /* 蓝绿色 */
+.nurse-btn-clear { background: #fff; color: #ff85c0; border: 1px solid #ff85c0; }
+.nurse-btn-close { background: #ff7875; color: white; }
+/* 系统弹窗容器样式 */
+#notification-bar {
+    position: fixed;
+    top: 20px; /* 距离顶部稍微留点空隙，类似iOS灵动岛下方 */
+    left: 50%;
+    transform: translateX(-50%) translateY(-200%); /* 默认隐藏在屏幕上方 */
+    width: 90%;
+    max-width: 360px;
+    background: rgba(255, 255, 255, 0.95); /* 轻微透明的白色背景 */
+    backdrop-filter: blur(10px); /* 毛玻璃特效 */
+    border-radius: 16px; /* 圆角卡片 */
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12), 0 2px 5px rgba(0,0,0,0.05); /* 柔和的阴影 */
+    z-index: 10000; /* 确保在最顶层 */
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    gap: 12px; /* 头像和文字的间距 */
+    transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); /* 弹性动画 */
+    cursor: pointer;
+    border: 1px solid rgba(0,0,0,0.05);
+}
+
+/* 弹窗激活时的状态 */
+#notification-bar.visible {
+    transform: translateX(-50%) translateY(0); /* 滑入屏幕 */
+}
+
+/* 弹窗头像样式 */
+#notification-avatar {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%; /* 圆形头像 */
+    object-fit: cover; /* 防止图片变形 */
+    border: 1px solid rgba(0,0,0,0.1);
+    flex-shrink: 0; /* 防止被挤压 */
+    background-color: #eee;
+}
+
+/* 弹窗内容区域 */
+#notification-content {
+    flex: 1; /* 占满剩余空间 */
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    overflow: hidden; /* 防止文字溢出 */
+}
+
+/* 名字样式 */
+#notification-content .name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* 消息内容样式 */
+#notification-content .message {
+    font-size: 12px;
+    color: #666;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis; /* 文字太长显示省略号 */
+}
+
+/* --- 夜间模式适配 (如果有夜间模式的话) --- */
+.dark-mode #notification-bar {
+    background: rgba(30, 30, 30, 0.95);
+    border-color: rgba(255,255,255,0.1);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+}
+.dark-mode #notification-content .name {
+    color: #f0f0f0;
+}
+.dark-mode #notification-content .message {
+    color: #aaa;
+}
+
 #xhs-screen {
     background-color: var(--xhs-bg);
     color: var(--xhs-text-main);

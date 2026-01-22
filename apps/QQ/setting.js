@@ -13,26 +13,820 @@ window.initQQSettings = function (dependencies) {
         importChatHistory,
         handleImageUploadAndCompress,
         applyCustomFont,
-        updateSettingsPreview,
-        renderBubblePresetSelector,
-        handlePresetSelectChange,
-        openBubblePresetManager,
-        exportSelectedBubblePreset,
-        importBubblePreset,
-        renderOfflinePresetsSelector,
-        openFrameSelectorModal,
+        // updateSettingsPreview, // Moved internally
+        // renderBubblePresetSelector, // Moved internally
+        // handlePresetSelectChange, // Moved internally
+        // openBubblePresetManager, // Moved internally
+        // exportSelectedBubblePreset, // Moved internally
+        // importBubblePreset, // Moved internally
+        // renderOfflinePresetsSelector, // Moved internally
+        // openFrameSelectorModal, // Moved internally
         defaultAvatar,
         defaultGroupAvatar,
         defaultMyGroupAvatar,
         appendMessage,
         openCharStickerManager,
-        openNpcManager,
-        openManualSummaryOptions,
-        openMemberManagementScreen,
-        getEditingMemberId
+        // openNpcManager, // Moved internally
+        // openManualSummaryOptions, // Moved internally
+        // openMemberManagementScreen, // Moved internally
+        // getEditingMemberId, // Moved internally
+        showChoiceModal,
+        showCustomPrompt,
+        logSystemMessage,
+        toGeminiRequestData,
+        GEMINI_API_URL,
+        addLongPressListener,
+        closePersonaEditor,
+        toggleInnerVoiceHistory,
+        // renderMemberManagementList // Moved internally
     } = dependencies;
 
-    // editingMemberId removed (state is managed in main-app.js)
+    let editingMemberId = null;
+    let editingNpcId = null;
+    let selectedContacts = new Set();
+
+
+    // --- Member Management Functions Moved from main-app.js ---
+
+    function openMemberManagementScreen() {
+        if (!state.activeChatId || !state.chats[state.activeChatId].isGroup) return;
+        renderMemberManagementList();
+        window.showScreen('member-management-screen');
+    }
+
+    /**
+     * 渲染群成员管理列表
+     */
+    function renderMemberManagementList() {
+        const listEl = document.getElementById('member-management-list');
+        const chat = state.chats[state.activeChatId];
+        if (!chat || !chat.isGroup) {
+            listEl.innerHTML = '<p>错误：非群聊无法管理成员。</p>';
+            return;
+        }
+        listEl.innerHTML = ''; // 清空
+
+        // 1. 创建一个包含所有人的完整列表
+        const allParticipants = [
+            // 把你自己(user)作为一个普通参与者对象放进去
+            {
+                id: 'user',
+                avatar: chat.settings.myAvatar || defaultMyGroupAvatar,
+                groupNickname: chat.settings.myNickname || '我',
+                // 修复Bug 1：在这里正确地读取你自己的群头衔
+                groupTitle: chat.settings.myGroupTitle || '',
+            },
+            // 使用展开运算符(...)，把其他所有成员也加到这个列表里
+            ...(chat.members || []),
+        ];
+
+        // 2. (可选但推荐) 对列表进行排序，确保群主永远在最上面，其次是管理员
+        allParticipants.sort((a, b) => {
+            const isAOwner = a.id === chat.ownerId;
+            const isBOwner = b.id === chat.ownerId;
+            // 修复Bug 2：在这里正确地判断自己是不是管理员
+            const isAAdmin = a.id === 'user' ? chat.settings.isUserAdmin : a.isAdmin;
+            const isBAdmin = b.id === 'user' ? chat.settings.isUserAdmin : b.isAdmin;
+
+            if (isAOwner) return -1; // a是群主，排最前
+            if (isBOwner) return 1; // b是群主，排最前
+            if (isAAdmin && !isBAdmin) return -1; // a是管理员但b不是，a排前
+            if (!isAAdmin && isBAdmin) return 1; // b是管理员但a不是，b排前
+            return 0; // 其他情况保持原顺序
+        });
+
+        // 3. 遍历这个统一的列表，并渲染每一项
+        const isCurrentUserOwner = chat.ownerId === 'user';
+        allParticipants.forEach((participant) => {
+            const participantItem = createMemberManagementItem(participant, chat, isCurrentUserOwner);
+            listEl.appendChild(participantItem);
+        });
+    }
+
+    /**
+     * 创建一个成员管理列表项
+     */
+    function createMemberManagementItem(member, chat) {
+        const item = document.createElement('div');
+        item.className = 'member-management-item';
+
+        // --- 权限判断 ---
+        const isCurrentUserOwner = chat.ownerId === 'user';
+        const isCurrentUserAdmin = chat.settings.isUserAdmin;
+        const isThisMemberOwner = member.id === chat.ownerId;
+        const isThisMemberAdmin = (member.id === 'user' && chat.settings.isUserAdmin) || member.isAdmin;
+
+        // 权限计算：我能对TA做什么？
+        const canManageAdmin = isCurrentUserOwner && !isThisMemberOwner; // 只有群主能设置/取消管理员
+        const canManageTitle = isCurrentUserOwner || isCurrentUserAdmin; // 管理员和群主都能设置头衔
+        const canKick = (isCurrentUserOwner && member.id !== 'user') || (isCurrentUserAdmin && !isThisMemberOwner && !isThisMemberAdmin && member.id !== 'user');
+        const canMute = (isCurrentUserOwner && member.id !== 'user') || (isCurrentUserAdmin && !isThisMemberOwner && !isThisMemberAdmin && member.id !== 'user');
+
+        // --- 标签显示 ---
+        let roleTag = '';
+        if (isThisMemberOwner) {
+            roleTag = '<span class="role-tag owner">群主</span>';
+        } else if (isThisMemberAdmin) {
+            roleTag = '<span class="role-tag admin">管理员</span>';
+        }
+        const titleText = member.id === 'user' ? chat.settings.myGroupTitle || '' : member.groupTitle || '';
+        const titleTag = titleText ? `<span class="title-tag">${titleText}</span>` : '';
+        // 如果被禁言，显示一个特殊的标签
+        const muteTag = member.isMuted ? '<span class="group-title-tag" style="color: #ff3b30; background-color: #ffe5e5;">🚫已禁言</span>' : '';
+
+        // --- 动态生成按钮HTML ---
+        let actionsHtml = '';
+
+        // 用户自己的按钮
+        if (member.id === 'user') {
+            actionsHtml += `<button class="action-btn" data-action="set-nickname" data-member-id="user">改名</button>`;
+            // 用户被禁言时，显示“解除禁言”按钮
+            if (member.isMuted) {
+                actionsHtml += `<button class="action-btn" data-action="unmute-self" data-member-id="user">解除禁言</button>`;
+            }
+        }
+
+        // 管理员和群主的操作按钮
+        if (canManageTitle) {
+            actionsHtml += `<button class="action-btn" data-action="set-title" data-member-id="${member.id}">头衔</button>`;
+        }
+        if (canManageAdmin) {
+            const adminActionText = isThisMemberAdmin ? '取消管理' : '设为管理';
+            actionsHtml += `<button class="action-btn" data-action="toggle-admin" data-member-id="${member.id}">${adminActionText}</button>`;
+        }
+        if (isCurrentUserOwner && member.id !== 'user') {
+            actionsHtml += `<button class="action-btn" data-action="transfer-owner" data-member-id="${member.id}">转让</button>`;
+        }
+        // 禁言/解禁按钮
+        if (canMute) {
+            const muteButtonText = member.isMuted ? '解禁' : '禁言';
+            actionsHtml += `<button class="action-btn" data-action="mute-member" data-member-id="${member.id}">${muteButtonText}</button>`;
+        }
+        if (canKick) {
+            actionsHtml += `<button class="action-btn danger" data-action="remove-member" data-member-id="${member.id}">踢出</button>`;
+        }
+
+        // 最终拼接
+        item.innerHTML = `
+			        <img src="${member.avatar}" class="avatar">
+			        <div class="info">
+			            <span class="name">${member.groupNickname}</span>
+			            <div class="tags">
+			                ${roleTag}
+			                ${titleTag}
+			                ${muteTag}
+			            </div>
+			        </div>
+			        <div class="actions">${actionsHtml}</div>
+			    `;
+        return item;
+    }
+
+    async function handleMuteMember(memberId) {
+        const chat = state.chats[state.activeChatId];
+        if (!chat || !chat.isGroup) return;
+
+        const isOwner = chat.ownerId === 'user';
+        const isAdmin = chat.settings.isUserAdmin;
+        let targetMember, targetIsOwner, targetIsAdmin;
+
+        if (memberId === 'user') {
+            targetMember = { id: 'user', ...chat.settings };
+            targetIsOwner = isOwner;
+            targetIsAdmin = isAdmin;
+        } else {
+            targetMember = chat.members.find((m) => m.id === memberId);
+            if (!targetMember) return;
+            targetIsOwner = chat.ownerId === memberId;
+            targetIsAdmin = targetMember.isAdmin;
+        }
+
+        const canMute = (isOwner && !targetIsOwner) || (isAdmin && !targetIsOwner && !targetIsAdmin);
+
+        if (!canMute) {
+            alert('你没有权限操作该成员！');
+            return;
+        }
+
+        if (memberId === 'user') {
+            if (typeof chat.settings.isUserMuted === 'undefined') chat.settings.isUserMuted = false;
+            chat.settings.isUserMuted = !chat.settings.isUserMuted;
+        } else {
+            if (typeof targetMember.isMuted === 'undefined') targetMember.isMuted = false;
+            targetMember.isMuted = !targetMember.isMuted;
+        }
+
+        await db.chats.put(chat);
+        renderMemberManagementList();
+
+        const myNickname = chat.settings.myNickname || '我';
+        const targetNickname = memberId === 'user' ? chat.settings.myNickname || '我' : targetMember.groupNickname;
+        const actionText = (memberId === 'user' ? chat.settings.isUserMuted : targetMember.isMuted) ? '禁言' : '解除禁言';
+        await logSystemMessage(chat.id, `“${myNickname}”将“${targetNickname}”${actionText}。`);
+    }
+
+    async function handleUserUnmute() {
+        const chat = state.chats[state.activeChatId];
+        if (!chat || !chat.settings.isUserMuted) return;
+
+        const confirmed = await showCustomConfirm('解除禁言', '确定要为自己解除禁言吗？');
+        if (confirmed) {
+            chat.settings.isUserMuted = false;
+            await db.chats.put(chat);
+            await logSystemMessage(chat.id, `“${chat.settings.myNickname || '我'}”为自己解除了禁言。`);
+            renderMemberManagementList();
+        }
+    }
+
+    async function handleAddMembersToGroup() {
+        if (selectedContacts.size === 0) {
+            alert('请至少选择一个要添加的联系人。');
+            return;
+        }
+
+        const chat = state.chats[state.activeChatId];
+        const addedNames = [];
+
+        for (const contactId of selectedContacts) {
+            const contactChat = state.chats[contactId];
+            if (contactChat) {
+                chat.members.push({
+                    id: contactId,
+                    originalName: contactChat.name,
+                    groupNickname: contactChat.name,
+                    avatar: contactChat.settings.aiAvatar || defaultAvatar,
+                    persona: contactChat.settings.aiPersona,
+                    avatarFrame: contactChat.settings.aiAvatarFrame || '',
+                    isAdmin: false,
+                    groupTitle: '',
+                });
+                addedNames.push(`“${contactChat.name}”`);
+            } else {
+                let foundNpc = null;
+                for (const c of Object.values(state.chats)) {
+                    if (c.npcLibrary) {
+                        const npc = c.npcLibrary.find((n) => n.id === contactId);
+                        if (npc) {
+                            foundNpc = npc;
+                            break;
+                        }
+                    }
+                }
+                if (foundNpc) {
+                    chat.members.push({
+                        id: foundNpc.id,
+                        originalName: foundNpc.name,
+                        groupNickname: foundNpc.name,
+                        avatar: foundNpc.avatar || defaultGroupMemberAvatar,
+                        persona: foundNpc.persona,
+                        avatarFrame: '',
+                        isAdmin: false,
+                        groupTitle: '',
+                    });
+                    addedNames.push(`“${foundNpc.name}”`);
+                }
+            }
+        }
+
+        await db.chats.put(chat);
+        const myNickname = chat.settings.myNickname || '我';
+        await logSystemMessage(chat.id, `“${myNickname}”邀请 ${addedNames.join('、')} 加入了群聊。`);
+
+        if (window.closeScreen) window.closeScreen('contact-picker-screen');
+        else document.getElementById('contact-picker-screen').classList.remove('active');
+
+        openMemberManagementScreen();
+        if (window.renderGroupMemberSettings) window.renderGroupMemberSettings(chat.members);
+    }
+
+    async function handleSetUserNickname() {
+        const chat = state.chats[state.activeChatId];
+        const oldNickname = chat.settings.myNickname || '我';
+        const newNickname = await showCustomPrompt('修改我的群昵称', '请输入新的昵称', oldNickname);
+        if (newNickname !== null && newNickname.trim()) {
+            chat.settings.myNickname = newNickname.trim();
+            await db.chats.put(chat);
+            await logSystemMessage(chat.id, `“${oldNickname}”将群昵称修改为“${newNickname.trim()}”`);
+            renderMemberManagementList();
+        }
+    }
+
+    async function handleSetUserTitle() {
+        const chat = state.chats[state.activeChatId];
+        const oldTitle = chat.settings.myGroupTitle || '';
+        const newTitle = await showCustomPrompt('修改我的群头衔', '留空则为取消头衔', oldTitle);
+        if (newTitle !== null) {
+            chat.settings.myGroupTitle = newTitle.trim();
+            await db.chats.put(chat);
+            const myNickname = chat.settings.myNickname || '我';
+            await logTitleChange(chat.id, myNickname, myNickname, newTitle.trim());
+            renderMemberManagementList();
+        }
+    }
+
+    async function removeMemberFromGroup(memberId) {
+        const chat = state.chats[state.activeChatId];
+        const isOwner = chat.ownerId === 'user';
+        const isAdmin = chat.settings.isUserAdmin;
+        const memberToRemove = chat.members.find((m) => m.id === memberId);
+
+        if (!isOwner && !(isAdmin && !memberToRemove.isAdmin && memberToRemove.id !== chat.ownerId)) {
+            alert('你没有权限移出该成员！');
+            return;
+        }
+
+        const memberIndex = chat.members.findIndex((m) => m.id === memberId);
+        if (memberIndex === -1) return;
+
+        const memberName = memberToRemove.groupNickname;
+        const confirmed = await showCustomConfirm('移出成员', `确定要将“${memberName}”移出群聊吗？`, {
+            confirmButtonClass: 'btn-danger',
+        });
+
+        if (confirmed) {
+            chat.members.splice(memberIndex, 1);
+            await db.chats.put(chat);
+            const myNickname = chat.settings.myNickname || '我';
+            await logSystemMessage(chat.id, `“${myNickname}”将“${memberName}”移出了群聊。`);
+            renderMemberManagementList();
+        }
+    }
+
+    async function openContactPickerForAddMember() {
+        selectedContacts.clear();
+
+        const confirmBtn = document.getElementById('confirm-contact-picker-btn');
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+        newConfirmBtn.addEventListener('click', handleAddMembersToGroup);
+
+        const listEl = document.getElementById('contact-picker-list');
+        listEl.innerHTML = '';
+
+        const chat = state.chats[state.activeChatId];
+        const existingMemberIds = new Set(chat.members.map((m) => m.id));
+        existingMemberIds.add('user');
+
+        const allAvailablePeople = [];
+        Object.values(state.chats)
+            .filter((c) => !c.isGroup)
+            .forEach((c) => {
+                allAvailablePeople.push({
+                    id: c.id,
+                    name: c.name,
+                    avatar: c.settings.aiAvatar || defaultAvatar,
+                    isNpc: false,
+                });
+            });
+        const npcMap = new Map();
+        Object.values(state.chats).forEach((c) => {
+            if (c.npcLibrary) {
+                c.npcLibrary.forEach((npc) => {
+                    if (!npcMap.has(npc.id)) {
+                        npcMap.set(npc.id, {
+                            id: npc.id,
+                            name: npc.name,
+                            avatar: npc.avatar || defaultGroupMemberAvatar,
+                            isNpc: true,
+                        });
+                    }
+                });
+            }
+        });
+        allAvailablePeople.push(...Array.from(npcMap.values()));
+
+        const contacts = allAvailablePeople.filter((p) => !existingMemberIds.has(p.id));
+
+        if (contacts.length === 0) {
+            listEl.innerHTML = '<p style="text-align:center; color:#8a8a8a; margin-top:50px;">没有更多可以邀请的联系人了。</p>';
+        } else {
+            contacts.forEach((contact) => {
+                const item = document.createElement('div');
+                item.className = 'contact-picker-item';
+                item.dataset.contactId = contact.id;
+                item.innerHTML = `
+			                <div class="checkbox"></div>
+			                <img src="${contact.avatar}" class="avatar">
+			                <span class="name">${contact.name} ${contact.isNpc ? '<span style="color: #888; font-size: 12px;">(NPC)</span>' : ''}</span>
+			            `;
+
+                item.addEventListener('click', () => {
+                    const checkbox = item.querySelector('.checkbox');
+                    const id = item.dataset.contactId;
+                    if (selectedContacts.has(id)) {
+                        selectedContacts.delete(id);
+                        item.classList.remove('selected');
+                        checkbox.classList.remove('checked');
+                    } else {
+                        selectedContacts.add(id);
+                        item.classList.add('selected');
+                        checkbox.classList.add('checked');
+                    }
+                    updateContactPickerConfirmButton();
+                });
+                listEl.appendChild(item);
+            });
+        }
+
+        updateContactPickerConfirmButton();
+        if (window.showScreen) window.showScreen('contact-picker-screen');
+    }
+
+    function updateContactPickerConfirmButton() {
+        const btn = document.getElementById('confirm-contact-picker-btn');
+        btn.textContent = `完成(${selectedContacts.size})`;
+        if (selectedContacts.size > 0) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    }
+
+    async function createNewMemberInGroup() {
+        const name = await showCustomPrompt('创建新成员', '请输入新成员的名字 (这将是TA的“本名”，不可更改)');
+        if (!name || !name.trim()) return;
+
+        const chat = state.chats[state.activeChatId];
+        if (chat.members.some((m) => m.originalName === name.trim())) {
+            alert(`错误：群内已存在名为“${name.trim()}”的成员！`);
+            return;
+        }
+
+        const persona = await showCustomPrompt('设置人设', `请输入“${name}”的人设`, '', 'textarea');
+        if (persona === null) return;
+
+        const newMember = {
+            id: 'npc_' + Date.now(),
+            originalName: name.trim(),
+            groupNickname: name.trim(),
+            avatar: defaultGroupMemberAvatar,
+            persona: persona,
+            avatarFrame: '',
+        };
+
+        chat.members.push(newMember);
+        await db.chats.put(chat);
+
+        renderMemberManagementList();
+        if (window.renderGroupMemberSettings) window.renderGroupMemberSettings(chat.members);
+
+        alert(`新成员“${name}”已成功加入群聊！`);
+    }
+
+    async function handleToggleAdmin(memberId) {
+        const chat = state.chats[state.activeChatId];
+        if (!chat || chat.ownerId !== 'user') {
+            alert('你不是群主，没有权限执行此操作！');
+            return;
+        }
+
+        let targetNickname;
+        let isAdminNow;
+
+        if (memberId === 'user') {
+            chat.settings.isUserAdmin = !chat.settings.isUserAdmin;
+            targetNickname = chat.settings.myNickname || '我';
+            isAdminNow = chat.settings.isUserAdmin;
+        } else {
+            const member = chat.members.find((m) => m.id === memberId);
+            if (!member) return;
+
+            if (member.id === chat.ownerId) {
+                alert('不能对群主进行此操作。');
+                return;
+            }
+
+            member.isAdmin = !member.isAdmin;
+            targetNickname = member.groupNickname;
+            isAdminNow = member.isAdmin;
+        }
+
+        await db.chats.put(chat);
+        const actionText = isAdminNow ? '设为管理员' : '取消了管理员身份';
+        const myNickname = chat.settings.myNickname || '我';
+        await logSystemMessage(chat.id, `“${myNickname}”将“${targetNickname}”${actionText}。`);
+
+        renderMemberManagementList();
+    }
+
+    async function handleSetMemberTitle(memberId) {
+        const chat = state.chats[state.activeChatId];
+        const isOwner = chat.ownerId === 'user';
+        const isAdmin = chat.settings.isUserAdmin;
+
+        if (!chat || (!isOwner && !isAdmin)) {
+            alert('你不是群主或管理员，没有权限执行此操作！');
+            return;
+        }
+
+        let targetNickname;
+        let oldTitle;
+
+        if (memberId === 'user') {
+            targetNickname = chat.settings.myNickname || '我';
+            oldTitle = chat.settings.myGroupTitle || '';
+        } else {
+            const member = chat.members.find((m) => m.id === memberId);
+            if (!member) return;
+            targetNickname = member.groupNickname;
+            oldTitle = member.groupTitle || '';
+        }
+
+        const newTitle = await showCustomPrompt(`为“${targetNickname}”设置头衔`, '留空则为取消头衔', oldTitle);
+
+        if (newTitle !== null) {
+            const trimmedTitle = newTitle.trim();
+
+            if (memberId === 'user') {
+                chat.settings.myGroupTitle = trimmedTitle;
+            } else {
+                const member = chat.members.find((m) => m.id === memberId);
+                if (member) member.groupTitle = trimmedTitle;
+            }
+
+            await db.chats.put(chat);
+            const myNickname = chat.settings.myNickname || '我';
+            await logTitleChange(chat.id, myNickname, targetNickname, trimmedTitle);
+
+            renderMemberManagementList();
+        }
+    }
+
+    async function handleTransferOwnership(memberId) {
+        const chat = state.chats[state.activeChatId];
+        const newOwner = chat.members.find((m) => m.id === memberId);
+        if (!newOwner) return;
+
+        const oldOwnerNickname = chat.settings.myNickname || '我';
+        const confirmed = await showCustomConfirm('转让群主', `你确定要将群主身份转让给“${newOwner.groupNickname}”吗？\n此操作不可撤销，你将失去群主权限。`, { confirmButtonClass: 'btn-danger' });
+
+        if (confirmed) {
+            chat.ownerId = newOwner.id;
+            newOwner.isAdmin = true;
+            const message = `“${oldOwnerNickname}”已将群主转让给“${newOwner.groupNickname}”`;
+            await logSystemMessage(chat.id, message);
+            renderMemberManagementList();
+            await showCustomAlert('操作成功', `群主已成功转让给“${newOwner.groupNickname}”。`);
+        }
+    }
+
+    async function logTitleChange(chatId, actorName, targetName, newTitle) {
+        const messageContent = newTitle ? `${actorName} 将“${targetName}”的群头衔修改为“${newTitle}”` : `${actorName} 取消了“${targetName}”的群头衔`;
+        await logSystemMessage(chatId, messageContent);
+    }
+    // Expose logTitleChange
+    window.logTitleChange = logTitleChange;
+
+    // --- End Moved Member Management Functions ---
+
+    // --- Moved Functions from main-app.js ---
+
+    /**
+     * 打开NPC库管理界面
+     */
+    function openNpcManager() {
+        if (!state.activeChatId || state.chats[state.activeChatId].isGroup) return;
+        const chat = state.chats[state.activeChatId];
+        document.getElementById('npc-management-title').textContent = `“${chat.name}”的NPC库`;
+        renderNpcList();
+        window.showScreen('npc-management-screen');
+    }
+
+    /**
+     * 渲染NPC列表
+     */
+    function renderNpcList() {
+        const listEl = document.getElementById('npc-management-list');
+        const chat = state.chats[state.activeChatId];
+        const npcLibrary = chat.npcLibrary || [];
+        listEl.innerHTML = '';
+
+        if (npcLibrary.length === 0) {
+            listEl.innerHTML = '<p style="text-align:center; color: #8a8a8a; margin-top: 50px;">这里空空如也，点击右上角“+”添加第一个NPC吧！</p>';
+            return;
+        }
+
+        npcLibrary.forEach((npc) => {
+            const item = document.createElement('div');
+            item.className = 'chat-list-item';
+            item.style.cursor = 'pointer';
+            item.innerHTML = `
+			            <img src="${npc.avatar || defaultGroupMemberAvatar}" class="avatar">
+			            <div class="info">
+			                <span class="name">${npc.name}</span>
+			                <div class="last-msg">${npc.persona.substring(0, 30)}...</div>
+			            </div>
+			        `;
+            item.addEventListener('click', () => openNpcEditor(npc.id));
+            addLongPressListener(item, () => deleteNpc(npc.id, npc.name));
+            listEl.appendChild(item);
+        });
+    }
+
+    async function openNpcEditor(npcId = null) {
+        editingNpcId = npcId;
+        const chat = state.chats[state.activeChatId];
+        if (!chat) return;
+
+        let npc = { name: '', persona: '', avatar: defaultGroupMemberAvatar };
+
+        if (npcId) {
+            npc = (chat.npcLibrary || []).find((n) => n.id === npcId) || npc;
+            document.getElementById('persona-editor-title').textContent = `编辑NPC: ${npc.name}`;
+        } else {
+            document.getElementById('persona-editor-title').textContent = '添加新NPC';
+        }
+
+        document.getElementById('npc-editor-name-input').value = npc.name;
+        document.getElementById('preset-avatar-preview').src = npc.avatar;
+        document.getElementById('preset-persona-input').value = npc.persona;
+
+        document.getElementById('npc-editor-name-group').style.display = 'block';
+        document.getElementById('persona-editor-change-frame-btn').style.display = 'none';
+
+        const saveBtn = document.getElementById('save-persona-preset-btn');
+        // Remove old listeners to avoid stacking if any (though standard onclick overwrites)
+        saveBtn.onclick = saveNpc;
+
+        document.getElementById('persona-editor-modal').classList.add('visible');
+    }
+
+    async function saveNpc() {
+        const chat = state.chats[state.activeChatId];
+        const name = document.getElementById('npc-editor-name-input').value.trim();
+        const persona = document.getElementById('preset-persona-input').value.trim();
+        const avatar = document.getElementById('preset-avatar-preview').src;
+
+        if (!name) {
+            alert('NPC名字不能为空！');
+            return;
+        }
+
+        if (!chat.npcLibrary) chat.npcLibrary = [];
+
+        if (editingNpcId) {
+            const npc = chat.npcLibrary.find((n) => n.id === editingNpcId);
+            if (npc) {
+                npc.name = name;
+                npc.persona = persona;
+                npc.avatar = avatar;
+            }
+        } else {
+            const newNpc = {
+                id: 'npc_' + Date.now(),
+                name: name,
+                persona: persona,
+                avatar: avatar,
+            };
+            chat.npcLibrary.push(newNpc);
+        }
+
+        await db.chats.put(chat);
+        renderNpcList();
+        if (closePersonaEditor) closePersonaEditor();
+    }
+
+    async function deleteNpc(npcId, npcName) {
+        const confirmed = await showCustomConfirm('删除NPC', `确定要从“${state.chats[state.activeChatId].name}”的NPC库中删除 “${npcName}” 吗？`, { confirmButtonClass: 'btn-danger' });
+
+        if (confirmed) {
+            const chat = state.chats[state.activeChatId];
+            chat.npcLibrary = (chat.npcLibrary || []).filter((n) => n.id !== npcId);
+            await db.chats.put(chat);
+            renderNpcList();
+        }
+    }
+
+    function openAiGenerateMembersModal() {
+        document.getElementById('ai-member-count-input').value = '3';
+        document.getElementById('ai-member-prompt-input').value = '';
+        document.getElementById('ai-generate-members-modal').classList.add('visible');
+    }
+
+    async function handleGenerateMembers() {
+        if (!state.activeChatId) return;
+        const chat = state.chats[state.activeChatId];
+        if (!chat || !chat.isGroup) return;
+
+        const count = parseInt(document.getElementById('ai-member-count-input').value);
+        const requirements = document.getElementById('ai-member-prompt-input').value.trim();
+
+        if (isNaN(count) || count < 1 || count > 20) {
+            alert('请输入1到20之间的有效人数！');
+            return;
+        }
+
+        document.getElementById('ai-generate-members-modal').classList.remove('visible');
+        await showCustomAlert('请稍候...', `AI正在为“${chat.name}”创造 ${count} 位新朋友...`);
+
+        const systemPrompt = `
+			# 任务
+			你是一个群聊成员生成器。请根据用户的要求，为群聊“${chat.name}”创建${count}个新成员。
+
+			# 用户要求:
+			${requirements || '无特殊要求，请自由发挥。'}
+
+			# 核心规则
+			1.  你生成的每个成员都必须有独特的名字(name)和鲜明的性格人设(persona)。
+			2.  人设描述要生动、具体，能体现出角色的特点。
+			3.  【格式铁律】: 你的回复【必须且只能】是一个严格的JSON数组，直接以'['开头, 以']'结尾。数组中的每个元素都是一个代表成员的JSON对象。
+
+			# JSON输出格式示例:
+			[
+			  {
+			    "name": "林风",
+			    "persona": "一个阳光开朗的运动系少年，热爱篮球，性格直爽，是团队里的气氛担当。"
+			  },
+			  {
+			    "name": "陈雪",
+			    "persona": "文静内向的学霸少女，喜欢读书和画画，心思细腻，不善言辞但观察力敏锐。"
+			  }
+			]
+			`;
+
+        try {
+            const { proxyUrl, apiKey, model } = state.apiConfig;
+            let isGemini = proxyUrl === GEMINI_API_URL;
+            let messagesForApi = [{ role: 'user', content: systemPrompt }];
+            let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesForApi, isGemini);
+
+            const response = isGemini
+                ? await fetch(geminiConfig.url, geminiConfig.data)
+                : await fetch(`${proxyUrl}/v1/chat/completions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+                    body: JSON.stringify({ model: model, messages: messagesForApi, temperature: 1.0 }),
+                });
+
+            if (!response.ok) throw new Error(`API请求失败: ${response.status} - ${await response.text()}`);
+
+            const data = await response.json();
+            const rawContent = (isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content).replace(/^```json\s*|```$/g, '').trim();
+            const newMembersData = JSON.parse(rawContent);
+
+            if (Array.isArray(newMembersData) && newMembersData.length > 0) {
+                const addedNames = [];
+                newMembersData.forEach((memberData, index) => {
+                    if (memberData.name && memberData.persona) {
+                        const newMember = {
+                            id: 'npc_' + (Date.now() + index),
+                            originalName: memberData.name.trim(),
+                            groupNickname: memberData.name.trim(),
+                            avatar: defaultGroupMemberAvatar,
+                            persona: memberData.persona.trim(),
+                            avatarFrame: '',
+                            isAdmin: false,
+                            groupTitle: '',
+                        };
+                        chat.members.push(newMember);
+                        addedNames.push(`“${newMember.groupNickname}”`);
+                    }
+                });
+
+                if (addedNames.length > 0) {
+                    await db.chats.put(chat);
+                    await logSystemMessage(chat.id, `邀请了 ${addedNames.length} 位新成员: ${addedNames.join('、')}加入了群聊。`);
+                    await showCustomAlert('生成成功！', `${addedNames.length} 位新成员已加入群聊！`);
+                    // Call dependencies' renderMemberManagementList if available, or rely on opening screen
+                    if (renderMemberManagementList) renderMemberManagementList();
+                } else {
+                    throw new Error('AI返回的数据格式不正确，缺少name或persona字段。');
+                }
+            } else {
+                throw new Error('AI返回的数据不是有效的数组。');
+            }
+        } catch (error) {
+            console.error('AI生成群成员失败:', error);
+            await showCustomAlert('生成失败', `发生了一个错误：\n${error.message}`);
+        }
+    }
+
+    // --- End Moved Functions ---
+
+    // Register Listeners for moved functions
+    const newNpcBtn = document.getElementById('add-new-npc-btn');
+    if (newNpcBtn) {
+        // Remove old if needed or just add (if passing references from main is hard, we just add new and remove old in main)
+        newNpcBtn.addEventListener('click', () => openNpcEditor(null));
+    }
+    const backNpcBtn = document.getElementById('back-from-npc-management');
+    if (backNpcBtn) {
+        backNpcBtn.addEventListener('click', () => {
+            if (window.showScreen) window.showScreen('chat-interface-screen');
+            document.getElementById('chat-settings-btn').click();
+        });
+    }
+
+    const aiGenBtn = document.getElementById('ai-generate-members-btn');
+    if (aiGenBtn) aiGenBtn.addEventListener('click', openAiGenerateMembersModal);
+
+    const aiGenCancelBtn = document.getElementById('cancel-ai-generate-members-btn');
+    if (aiGenCancelBtn) aiGenCancelBtn.addEventListener('click', () => {
+        document.getElementById('ai-generate-members-modal').classList.remove('visible');
+    });
+
+    const aiGenConfirmBtn = document.getElementById('confirm-ai-generate-members-btn');
+    if (aiGenConfirmBtn) aiGenConfirmBtn.addEventListener('click', handleGenerateMembers);
 
     const chatSettingsModal = document.getElementById('chat-settings-modal');
     const worldBookSelectBox = document.querySelector('.custom-multiselect .select-box');
@@ -1067,4 +1861,1550 @@ window.initQQSettings = function (dependencies) {
             }
         });
     }
+
+    // --- Data & Functions Moved from main-app.js (Offline/Summary/Streak) ---
+
+    function renderOfflinePresetsSelector() {
+        const select = document.getElementById('offline-preset-select');
+        const presets = state.offlinePresets || [];
+        select.innerHTML = '<option value="">-- 使用自定义输入 --</option>';
+
+        presets.forEach((preset) => {
+            const option = document.createElement('option');
+            option.value = preset.id;
+            option.textContent = preset.name;
+            select.appendChild(option);
+        });
+    }
+
+    function handleOfflinePresetSelection() {
+        const select = document.getElementById('offline-preset-select');
+        const selectedId = parseInt(select.value);
+
+        if (selectedId) {
+            const preset = state.offlinePresets.find((p) => p.id === selectedId);
+            if (preset) {
+                document.getElementById('offline-prompt-input').value = preset.prompt;
+                document.getElementById('offline-style-input').value = preset.style;
+            }
+        }
+    }
+
+    async function openOfflinePresetManager() {
+        const select = document.getElementById('offline-preset-select');
+        const selectedId = select.value ? parseInt(select.value) : null;
+
+        const choice = await showChoiceModal('管理线下模式预设', [
+            { text: '💾 保存当前为新预设', value: 'save_new' },
+            { text: '✏️ 更新选中预设', value: 'update_selected', disabled: !selectedId },
+            { text: '🗑️ 删除选中预设', value: 'delete_selected', disabled: !selectedId },
+        ]);
+
+        switch (choice) {
+            case 'save_new':
+                await saveCurrentAsOfflinePreset();
+                break;
+            case 'update_selected':
+                if (selectedId) await updateSelectedOfflinePreset(selectedId);
+                break;
+            case 'delete_selected':
+                if (selectedId) await deleteSelectedOfflinePreset(selectedId);
+                break;
+        }
+    }
+
+    async function saveCurrentAsOfflinePreset() {
+        const name = await showCustomPrompt('保存新预设', '请输入预设名称：');
+
+        if (name && name.trim()) {
+            const newPreset = {
+                name: name.trim(),
+                prompt: document.getElementById('offline-prompt-input').value.trim(),
+                style: document.getElementById('offline-style-input').value.trim(),
+            };
+            const newId = await db.offlinePresets.add(newPreset);
+
+            if (!state.offlinePresets) state.offlinePresets = [];
+            state.offlinePresets.push({ id: newId, ...newPreset });
+
+            renderOfflinePresetsSelector();
+            document.getElementById('offline-preset-select').value = newId;
+            alert(`预设 "${name.trim()}" 已保存！`);
+        }
+    }
+
+    async function updateSelectedOfflinePreset(presetId) {
+        const preset = state.offlinePresets.find((p) => p.id === presetId);
+        if (!preset) return;
+
+        const confirmed = await showCustomConfirm('确认更新', `确定要用当前内容覆盖预设 "${preset.name}" 吗？`);
+        if (confirmed) {
+            const updatedData = {
+                prompt: document.getElementById('offline-prompt-input').value.trim(),
+                style: document.getElementById('offline-style-input').value.trim(),
+            };
+            await db.offlinePresets.update(presetId, updatedData);
+            preset.prompt = updatedData.prompt;
+            preset.style = updatedData.style;
+            alert('预设已更新！');
+        }
+    }
+
+    async function deleteSelectedOfflinePreset(presetId) {
+        const preset = state.offlinePresets.find((p) => p.id === presetId);
+        if (!preset) return;
+
+        const confirmed = await showCustomConfirm('确认删除', `确定要删除预设 "${preset.name}" 吗？`, {
+            confirmButtonClass: 'btn-danger',
+        });
+        if (confirmed) {
+            await db.offlinePresets.delete(presetId);
+            state.offlinePresets = state.offlinePresets.filter((p) => p.id !== presetId);
+
+            renderOfflinePresetsSelector();
+            document.getElementById('offline-prompt-input').value = '';
+            document.getElementById('offline-style-input').value = '';
+            alert('预设已删除。');
+        }
+    }
+
+    let isSummarizing = false;
+
+    window.checkAndTriggerSummary = checkAndTriggerSummary;
+    async function checkAndTriggerSummary(chatId) {
+        if (isSummarizing) return;
+
+        const chat = state.chats[chatId];
+        if (!chat || !chat.settings.summary || !chat.settings.summary.enabled) return;
+
+        const summarySettings = chat.settings.summary;
+        const lastSummaryIndex = summarySettings.lastSummaryIndex;
+        const messagesSinceLastSummary = chat.history.slice(lastSummaryIndex + 1);
+
+        if (messagesSinceLastSummary.length >= summarySettings.count) {
+            isSummarizing = true;
+            if (summarySettings.mode === 'auto') {
+                await performAutomaticSummary(chatId);
+            } else {
+                await notifyForManualSummary(chatId);
+            }
+            isSummarizing = false;
+        }
+    }
+
+    async function performAutomaticSummary(chatId) {
+        console.log(`自动总结触发 for chat: ${chatId}`);
+        const chat = state.chats[chatId];
+        const summarySettings = chat.settings.summary;
+
+        const messagesToSummarize = chat.history.slice(-summarySettings.count);
+
+        try {
+            const summaryText = await generateSummary(chatId, messagesToSummarize);
+            if (summaryText) {
+                await saveSummaryAsMemory(chatId, summaryText);
+            }
+        } catch (e) {
+            console.error('自动总结过程中发生未捕获的错误:', e);
+        }
+    }
+
+    async function notifyForManualSummary(chatId) {
+        console.log(`手动总结提醒触发 for chat: ${chatId}`);
+
+        await showCustomAlert('总结提醒', '对话已达到设定长度，你可以随时在“聊天设置”中点击“立即手动总结”来生成对话记忆。');
+
+        const chat = state.chats[chatId];
+        chat.settings.summary.lastSummaryIndex = chat.history.length - 1;
+        await db.chats.put(chat);
+    }
+
+    async function generateSummary(chatId, specificMessages = null) {
+        const chat = state.chats[chatId];
+        const { proxyUrl, apiKey, model } = state.apiConfig;
+
+        if (!proxyUrl || !apiKey || !model) {
+            throw new Error('API未配置，无法生成总结。');
+        }
+
+        const summarySettings = chat.settings.summary;
+        let messagesToSummarize;
+
+        if (specificMessages && specificMessages.length > 0) {
+            messagesToSummarize = specificMessages;
+        } else {
+            const lastSummaryIndex = summarySettings.lastSummaryIndex > -1 ? summarySettings.lastSummaryIndex : 0;
+            messagesToSummarize = chat.history.slice(lastSummaryIndex + 1);
+        }
+
+        const filteredMessagesForSummary = messagesToSummarize.filter((msg) => msg.type !== 'summary');
+
+        if (filteredMessagesForSummary.length === 0) {
+            if (!specificMessages) {
+                await showCustomAlert('无需总结', '自上次总结以来没有新的对话内容。');
+            }
+            return null;
+        }
+
+        const conversationText = filteredMessagesForSummary
+            .map((msg) => {
+                const sender = msg.role === 'user' ? (chat.isGroup ? chat.settings.myNickname || '我' : '我') : msg.senderName || chat.name;
+                let content = '';
+                if (typeof msg.content === 'string') {
+                    content = msg.content;
+                } else if (Array.isArray(msg.content)) {
+                    content = '[图片]';
+                } else if (msg.type) {
+                    content = `[${msg.type}]`;
+                }
+                const readableTime = new Date(msg.timestamp).toLocaleString('zh-CN', { hour12: false });
+                return `[${readableTime}] ${sender}: ${content}`;
+            })
+            .join('\n');
+
+        const systemPrompt = summarySettings.prompt + `\n\n重要提示：每条消息开头都有一个 [时间] 标记。你在总结时，【必须】参考这些时间，在总结关键事件时附上对应的时间范围或具体时间点，让总结包含时间线索。\n\n--- 对话开始 ---\n${conversationText}\n--- 对话结束 ---`;
+
+        try {
+            if (!specificMessages) {
+                await showCustomAlert('正在生成...', 'AI正在努力总结你们的对话，请稍候...');
+            }
+
+            const isGemini = proxyUrl === GEMINI_API_URL;
+            const messagesForApi = [{ role: 'user', content: systemPrompt }];
+            const geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesForApi, isGemini);
+
+            const response = isGemini
+                ? await fetch(geminiConfig.url, geminiConfig.data)
+                : await fetch(`${proxyUrl}/v1/chat/completions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: messagesForApi,
+                        temperature: parseFloat(state.apiConfig.temperature) || 0.3,
+                    }),
+                });
+
+            if (!response.ok) throw new Error(await response.text());
+            const data = await response.json();
+            const aiContent = isGemini ? data?.candidates?.[0]?.content?.parts?.[0]?.text : data?.choices?.[0]?.message?.content;
+
+            if (!aiContent) {
+                throw new Error('AI返回了空内容。');
+            }
+
+            return aiContent;
+        } catch (error) {
+            console.error('生成总结失败:', error);
+            await showCustomAlert('总结失败', `发生错误: ${error.message}`);
+            return null;
+        }
+    }
+
+    async function saveSummaryAsMemory(chatId, summaryText) {
+        const chat = state.chats[chatId];
+
+        const newLastSummaryIndex = chat.history.length - 1;
+
+        const summaryMessage = {
+            role: 'system',
+            type: 'summary',
+            content: summaryText,
+            timestamp: Date.now(),
+            isHidden: true,
+        };
+
+        chat.history.push(summaryMessage);
+        chat.settings.summary.lastSummaryIndex = newLastSummaryIndex;
+
+        await db.chats.put(chat);
+        console.log(`新的总结已作为记忆保存 for chat: ${chatId}`);
+    }
+
+    let editingSummaryTimestamp = null;
+
+    async function openSummaryViewer() {
+        const chat = state.chats[state.activeChatId];
+        document.getElementById('summary-viewer-title').textContent = `“${chat.name}”的对话记忆`;
+
+        const listEl = document.getElementById('summary-list');
+        listEl.innerHTML = '';
+
+        const summaries = chat.history.filter((msg) => msg.type === 'summary');
+
+        if (summaries.length === 0) {
+            listEl.innerHTML = '<p style="text-align:center; color: #8a8a8a;">还没有生成过任何总结。</p>';
+        } else {
+            [...summaries].reverse().forEach((summary) => {
+                const card = document.createElement('div');
+                card.className = 'summary-item-card';
+
+                card.innerHTML = `
+			                <div class="summary-actions">
+			                    <button class="concise-summary-btn" data-timestamp="${summary.timestamp}" title="精简总结">✨</button>
+			                    <button class="edit-summary-btn" data-timestamp="${summary.timestamp}" title="编辑">✏️</button>
+			                    <button class="delete-summary-btn" data-timestamp="${summary.timestamp}" title="删除">🗑️</button>
+			                </div>
+			                <div class="summary-content">${summary.content.replace(/\n/g, '<br>')}</div>
+			                <div class="summary-meta">
+			                    <span>生成于: ${new Date(summary.timestamp).toLocaleString('zh-CN', {
+                    dateStyle: 'short',
+                    timeStyle: 'short',
+                })}</span>
+			                </div>
+			            `;
+                listEl.appendChild(card);
+            });
+        }
+
+        document.getElementById('chat-settings-modal').classList.remove('visible');
+        document.getElementById('summary-viewer-modal').classList.add('visible');
+    }
+
+    async function editSummary(timestamp) {
+        const chat = state.chats[state.activeChatId];
+        const summary = chat.history.find((msg) => msg.timestamp === timestamp);
+        if (!summary) return;
+
+        const newContent = await showCustomPrompt('编辑总结', '修改总结内容:', summary.content, 'textarea');
+
+        if (newContent !== null) {
+            summary.content = newContent.trim();
+            await db.chats.put(chat);
+            openSummaryViewer();
+        }
+    }
+
+    async function deleteSummary(timestamp) {
+        const confirmed = await showCustomConfirm('确认删除', '确定要删除这条总结记忆吗？这可能会影响AI的长期记忆。', { confirmButtonClass: 'btn-danger' });
+        if (confirmed) {
+            const chat = state.chats[state.activeChatId];
+
+            chat.history = chat.history.filter((msg) => msg.timestamp !== timestamp);
+
+            const lastRemainingSummary = chat.history.filter((m) => m.type === 'summary').pop();
+
+            let newLastSummaryIndex;
+
+            if (lastRemainingSummary) {
+                const lastSummaryMessageIndexInHistory = chat.history.findIndex((m) => m.timestamp === lastRemainingSummary.timestamp);
+                newLastSummaryIndex = lastSummaryMessageIndexInHistory > 0 ? lastSummaryMessageIndexInHistory - 1 : -1;
+            } else {
+                newLastSummaryIndex = -1;
+            }
+
+            if (chat.settings.summary) {
+                chat.settings.summary.lastSummaryIndex = newLastSummaryIndex;
+            }
+
+            await db.chats.put(chat);
+            openSummaryViewer();
+            await showCustomAlert('操作成功', '总结已删除！');
+        }
+    }
+
+    async function generateConciseSummary(originalText) {
+        const { proxyUrl, apiKey, model } = state.apiConfig;
+        if (!proxyUrl || !apiKey || !model) {
+            throw new Error('API未配置，无法生成精简摘要。');
+        }
+
+        const systemPrompt = `请你将以下内容精简为一句话的核心摘要，保留最关键的人物、事件和结论，字数控制在20字以内：\n\n--- 内容开始 ---\n${originalText}\n--- 内容结束 ---`;
+
+        try {
+            const response = await fetch(`${proxyUrl}/v1/chat/completions`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+                body: JSON.stringify({
+                    model: model,
+                    messages: [{ role: 'user', content: systemPrompt }],
+                    temperature: parseFloat(state.apiConfig.temperature) || 0.5,
+                }),
+            });
+
+            if (!response.ok) throw new Error(await response.text());
+            const data = await response.json();
+            return data.choices[0].message.content;
+        } catch (error) {
+            console.error('生成精简摘要失败:', error);
+            await showCustomAlert('精简失败', `发生错误: ${error.message}`);
+            return null;
+        }
+    }
+
+    async function handleConciseSummary(timestamp) {
+        const chat = state.chats[state.activeChatId];
+        const summary = chat.history.find((msg) => msg.timestamp === timestamp);
+        if (!summary) return;
+
+        await showCustomAlert('请稍候...', 'AI正在努力为您精简内容...');
+
+        const conciseText = await generateConciseSummary(summary.content);
+
+        if (conciseText) {
+            summary.content = conciseText.trim();
+            await db.chats.put(chat);
+            await openSummaryViewer();
+            await showCustomAlert('成功', '本条总结已精简！');
+        }
+    }
+
+    async function handleConciseAllSummaries() {
+        const chat = state.chats[state.activeChatId];
+        const summaries = chat.history.filter((msg) => msg.type === 'summary');
+
+        if (summaries.length === 0) {
+            alert('没有可以精简的总结。');
+            return;
+        }
+
+        const confirmed = await showCustomConfirm('确认全部精简', `确定要精简全部 ${summaries.length} 条总结吗？此操作会覆盖原始内容且不可恢复。`, { confirmButtonClass: 'btn-danger' });
+        if (!confirmed) return;
+
+        await showCustomAlert('请稍候...', `正在批量精简 ${summaries.length} 条总结，这可能需要一些时间...`);
+
+        try {
+            for (const summary of summaries) {
+                const conciseText = await generateConciseSummary(summary.content);
+                if (conciseText) {
+                    summary.content = conciseText.trim();
+                }
+                await new Promise((resolve) => setTimeout(resolve, 500));
+            }
+
+            await db.chats.put(chat);
+            await openSummaryViewer();
+            await showCustomAlert('成功', '所有总结都已精简完毕！');
+        } catch (error) {
+            console.error('批量精简时出错:', error);
+        }
+    }
+
+    async function triggerManualSummaryNow(mode = 'latest', range = null) {
+        if (isSummarizing) {
+            alert('正在处理上一个总结任务，请稍候...');
+            return;
+        }
+
+        const chat = state.chats[state.activeChatId];
+        if (!chat) {
+            alert('错误：找不到当前聊天，无法总结。');
+            return;
+        }
+
+        isSummarizing = true;
+
+        try {
+            let messagesToSummarize = [];
+
+            if (mode === 'latest') {
+                const summarySettings = chat.settings.summary;
+                const count = summarySettings && summarySettings.count > 0 ? summarySettings.count : 20;
+                messagesToSummarize = chat.history.slice(-count);
+                console.log(`手动总结最新 ${count} 条消息...`);
+            } else if (mode === 'range' && range) {
+                messagesToSummarize = chat.history.slice(range.start - 1, range.end);
+                console.log(`手动总结从 ${range.start} 到 ${range.end} 的消息...`);
+            } else {
+                throw new Error('无效的总结模式或范围。');
+            }
+
+            if (messagesToSummarize.length === 0) {
+                alert('选定的范围内没有可总结的聊天记录。');
+                isSummarizing = false;
+                return;
+            }
+
+            const summaryText = await generateSummary(state.activeChatId, messagesToSummarize);
+
+            if (summaryText) {
+                await saveSummaryAsMemory(state.activeChatId, summaryText);
+                await showCustomAlert('总结完成', '新的对话记忆已生成！');
+                if (document.getElementById('summary-viewer-modal').classList.contains('visible')) {
+                    openSummaryViewer();
+                }
+            }
+        } catch (e) {
+            console.error('手动总结过程中发生未捕获的错误:', e);
+            await showCustomAlert('错误', '手动总结时发生错误，详情请查看控制台。');
+        } finally {
+            isSummarizing = false;
+        }
+    }
+
+    async function openManualSummaryOptions() {
+        const choice = await showChoiceModal('手动总结', [
+            { text: '总结最新内容', value: 'latest' },
+            { text: '总结指定范围', value: 'range' },
+        ]);
+
+        if (choice === 'latest') {
+            await triggerManualSummaryNow('latest');
+        } else if (choice === 'range') {
+            await promptForSummaryRange();
+        }
+    }
+
+    async function promptForSummaryRange() {
+        const chat = state.chats[state.activeChatId];
+        if (!chat) return;
+
+        const totalMessages = chat.history.length;
+        if (totalMessages === 0) {
+            alert('聊天记录为空，无法进行总结。');
+            return;
+        }
+
+        const startStr = await showCustomPrompt('指定范围', `请输入开始的消息序号 (1 - ${totalMessages})`, '1', 'number');
+        if (startStr === null) return;
+
+        const startNum = parseInt(startStr);
+        if (isNaN(startNum) || startNum < 1 || startNum > totalMessages) {
+            alert('请输入有效的开始序号。');
+            return;
+        }
+
+        const endStr = await showCustomPrompt('指定范围', `请输入结束的消息序号 (${startNum} - ${totalMessages})`, totalMessages, 'number');
+        if (endStr === null) return;
+
+        const endNum = parseInt(endStr);
+        if (isNaN(endNum) || endNum < startNum || endNum > totalMessages) {
+            alert('请输入有效的结束序号。');
+            return;
+        }
+
+        await triggerManualSummaryNow('range', { start: startNum, end: endNum });
+    }
+
+    const SYMBOL_THRESHOLDS = [
+        {
+            id: 'spark_starter',
+            level: 100,
+            symbol: 'https://i.postimg.cc/tCRF21C6/3F858229F806087E5A5A9031C588147E.png',
+            name: '初识之火',
+            description: '这是火花开始的地方，一段新关系的萌芽。',
+        },
+        {
+            id: 'shining_star',
+            level: 300,
+            symbol: 'https://i.postimg.cc/pd5WwXyP/3C35C33475985C1C85A3F70D26786D74.png',
+            name: '星光闪烁',
+            description: '你们的关系像星光一样开始闪耀。',
+        },
+        {
+            id: 'burning_passion',
+            level: 700,
+            symbol: 'https://i.postimg.cc/yNQcnRvT/BD0C0CC3C6692D736014BACE73C07F8E.png',
+            name: '热情如火',
+            description: '每一次互动都让感情升温。',
+        },
+        {
+            id: 'only_crown',
+            level: 1500,
+            symbol: 'https://i.postimg.cc/B6jDzvVh/92DD1E30EFEEC589E3BE0FFB630F8B4E.png',
+            name: '唯一王冠',
+            description: '在彼此的世界里，对方是独一无二的存在。',
+        },
+        {
+            id: 'eternal_diamond',
+            level: 5000,
+            symbol: 'https://i.postimg.cc/C1RD2KQc/B0E2B3034728540DA4198357D5B8131C.png',
+            name: '永恒之钻',
+            description: '你们的关系如钻石般坚固而璀璨。',
+        },
+    ];
+
+    function calculateIntimacy(chat) {
+        if (!chat || !chat.settings.streak) return 0;
+        const streakDays = chat.settings.streak.currentDays || 0;
+        const streakScore = streakDays * 15;
+        const stats = chat.interactionStats || {};
+        const totalMessages = Object.values(stats).reduce((sum, count) => sum + count, 0);
+        const messageScore = totalMessages * 0.2;
+        const intimacy = streakScore + messageScore;
+        return Math.floor(intimacy);
+    }
+
+    async function checkAndUnlockSymbols(chat, intimacyValue) {
+        let newUnlock = false;
+        if (!chat.unlockedSymbols) chat.unlockedSymbols = [];
+
+        SYMBOL_THRESHOLDS.forEach((threshold) => {
+            if (intimacyValue >= threshold.level && !chat.unlockedSymbols.some((s) => s.symbol === threshold.symbol)) {
+                chat.unlockedSymbols.push({
+                    symbol: threshold.symbol,
+                    name: threshold.name,
+                    unlockedAt: Date.now(),
+                });
+                newUnlock = true;
+                console.log(`徽章解锁！角色: ${chat.name}, 徽章: ${threshold.name}`);
+            }
+        });
+
+        if (newUnlock) {
+            await db.chats.put(chat);
+            const latestUnlock = chat.unlockedSymbols[chat.unlockedSymbols.length - 1];
+            await showCustomAlert('新徽章已解锁！', `恭喜你和“${chat.name}”解锁了新的亲密徽章：${latestUnlock.name}`);
+        }
+        return newUnlock;
+    }
+
+    async function openIntimacyPanel(chatId) {
+        const chat = state.chats[chatId];
+        if (!chat) return;
+
+        const intimacyValue = calculateIntimacy(chat);
+        await checkAndUnlockSymbols(chat, intimacyValue);
+
+        document.getElementById('intimacy-score-display').textContent = intimacyValue;
+        const today = new Date().toISOString().split('T')[0];
+        const todayMsgs = chat.interactionStats?.[today] || 0;
+        const totalMsgs = Object.values(chat.interactionStats || {}).reduce((sum, count) => sum + count, 0);
+        document.getElementById('intimacy-streak-days').textContent = `${chat.settings.streak?.currentDays || 0} 天`;
+        document.getElementById('intimacy-today-msgs').textContent = `${todayMsgs} 条`;
+        document.getElementById('intimacy-total-msgs').textContent = `${totalMsgs} 条`;
+
+        const symbolListContainer = document.getElementById('symbol-list-container');
+        symbolListContainer.innerHTML = '';
+
+        const noneItem = document.createElement('div');
+        noneItem.className = 'symbol-item unlocked';
+        if (!chat.settings.selectedIntimacyBadge) {
+            noneItem.classList.add('selected');
+        }
+        noneItem.innerHTML = `<div class="symbol-icon no-badge">🚫</div><div class="symbol-name">不佩戴</div>`;
+        noneItem.onclick = () => selectIntimacyBadge(chatId, '');
+        symbolListContainer.appendChild(noneItem);
+
+        SYMBOL_THRESHOLDS.forEach((threshold) => {
+            const isUnlocked = intimacyValue >= threshold.level;
+            const isSelected = chat.settings.selectedIntimacyBadge === threshold.symbol;
+
+            const item = document.createElement('div');
+            item.className = `symbol-item ${isUnlocked ? 'unlocked' : ''} ${isSelected ? 'selected' : ''}`;
+
+            item.innerHTML = `
+			            <div class="symbol-icon ${!isUnlocked ? 'not-unlocked' : ''}">
+			                <img src="${threshold.symbol}" alt="${threshold.name}">
+			            </div>
+			            <div class="symbol-name">${threshold.name}</div>
+			            <div class="symbol-level">${isUnlocked ? '已解锁' : `${threshold.level}分解锁`}</div>
+			        `;
+
+            if (isUnlocked) {
+                item.onclick = () => selectIntimacyBadge(chatId, threshold.symbol);
+            }
+
+            symbolListContainer.appendChild(item);
+        });
+
+        const recordsContainer = document.getElementById('unlocked-symbols-record');
+        recordsContainer.innerHTML = '';
+        if (chat.unlockedSymbols && chat.unlockedSymbols.length > 0) {
+            const sortedRecords = [...chat.unlockedSymbols].sort((a, b) => b.unlockedAt - a.unlockedAt);
+            sortedRecords.forEach((record) => {
+                const recordItem = document.createElement('div');
+                recordItem.className = 'record-item';
+                recordItem.innerHTML = `<span class="symbol"><img src="${record.symbol}" style="height:1em; vertical-align:middle;"></span><span>${record.name}</span><span class="date">${new Date(record.unlockedAt).toLocaleDateString()}</span>`;
+                recordsContainer.appendChild(recordItem);
+            });
+        } else {
+            recordsContainer.innerHTML = '<p style="text-align:center; color:#999; font-size:13px;">暂无已解锁的徽章</p>';
+        }
+
+        document.getElementById('intimacy-panel').classList.add('visible');
+    }
+
+    async function selectIntimacyBadge(chatId, symbol) {
+        const chat = state.chats[chatId];
+        if (!chat) return;
+
+        chat.settings.selectedIntimacyBadge = symbol;
+
+        await db.chats.put(chat);
+        await openIntimacyPanel(chatId);
+        await renderChatList();
+    }
+
+    window.incrementMessageCount = incrementMessageCount;
+    async function incrementMessageCount(chatId) {
+        const chat = state.chats[chatId];
+        if (!chat || chat.isGroup) return;
+
+        const today = new Date().toISOString().split('T')[0];
+
+        if (!chat.interactionStats) {
+            chat.interactionStats = {};
+        }
+
+        chat.interactionStats[today] = (chat.interactionStats[today] || 0) + 1;
+
+        await db.chats.put(chat);
+    }
+
+    // --- Event Listeners for Moved Functions ---
+
+    const offlinePresetSelect = document.getElementById('offline-preset-select');
+    if (offlinePresetSelect) offlinePresetSelect.addEventListener('change', handleOfflinePresetSelection);
+
+    const manageOfflinePresetsBtn = document.getElementById('manage-offline-presets-btn');
+    if (manageOfflinePresetsBtn) manageOfflinePresetsBtn.addEventListener('click', openOfflinePresetManager);
+
+    const viewSummariesBtn = document.getElementById('view-summaries-btn');
+    if (viewSummariesBtn) viewSummariesBtn.addEventListener('click', openSummaryViewer);
+
+    const closeSummaryViewerBtn = document.getElementById('close-summary-viewer-btn');
+    if (closeSummaryViewerBtn) {
+        closeSummaryViewerBtn.addEventListener('click', () => {
+            document.getElementById('summary-viewer-modal').classList.remove('visible');
+            document.getElementById('chat-settings-btn').click();
+        });
+    }
+
+    const summaryList = document.getElementById('summary-list');
+    if (summaryList) {
+        summaryList.addEventListener('click', (e) => {
+            const editBtn = e.target.closest('.edit-summary-btn');
+            if (editBtn) {
+                const timestamp = parseInt(editBtn.dataset.timestamp);
+                editSummary(timestamp);
+                return;
+            }
+
+            const deleteBtn = e.target.closest('.delete-summary-btn');
+            if (deleteBtn) {
+                const timestamp = parseInt(deleteBtn.dataset.timestamp);
+                deleteSummary(timestamp);
+                return;
+            }
+
+            const conciseBtn = e.target.closest('.concise-summary-btn');
+            if (conciseBtn) {
+                const timestamp = parseInt(conciseBtn.dataset.timestamp);
+                handleConciseSummary(timestamp);
+                return;
+            }
+        });
+    }
+
+    const conciseAllSummariesBtn = document.getElementById('concise-all-summaries-btn');
+    if (conciseAllSummariesBtn) conciseAllSummariesBtn.addEventListener('click', handleConciseAllSummaries);
+
+    const openIntimacyPanelBtn = document.getElementById('open-intimacy-panel-btn');
+    if (openIntimacyPanelBtn) openIntimacyPanelBtn.addEventListener('click', () => openIntimacyPanel(state.activeChatId));
+
+    // --- Moved from main-app.js: Visual Settings, Frame Manager, Bubble Presets ---
+
+    let currentFrameSelection = { type: null, url: '', target: null };
+
+    // Visual Preview Updater
+    function updateSettingsPreview() {
+        if (!state.activeChatId) return;
+        const chat = state.chats[state.activeChatId];
+        const previewArea = document.getElementById('settings-preview-area');
+        if (!previewArea) return;
+
+        const selectedTheme = document.querySelector('input[name="theme-select"]:checked')?.value || 'default';
+        const fontSize = document.getElementById('font-size-slider').value;
+        const customCss = document.getElementById('custom-css-input').value;
+        const background = chat.settings.background;
+
+        previewArea.dataset.theme = selectedTheme;
+        previewArea.style.setProperty('--chat-font-size', `${fontSize}px`);
+
+        if (background && background.startsWith('data:image')) {
+            previewArea.style.backgroundImage = `url(${background})`;
+            previewArea.style.backgroundColor = 'transparent';
+        } else {
+            previewArea.style.backgroundImage = 'none';
+            previewArea.style.background = background || '#f0f2f5';
+        }
+
+        previewArea.innerHTML = '';
+
+        // Create mock messages for preview
+        const aiMsg = { role: 'ai', content: '对方消息预览', timestamp: 1, senderName: chat.name };
+        const aiBubble = window.createMessageElement(aiMsg, chat);
+        if (aiBubble) previewArea.appendChild(aiBubble);
+
+        const userMsg = { role: 'user', content: '我的消息预览', timestamp: 2 };
+        const userBubble = window.createMessageElement(userMsg, chat);
+        if (userBubble) previewArea.appendChild(userBubble);
+
+        // Use dependency applyScopedCss
+        applyScopedCss(customCss, '#settings-preview-area', 'preview-bubble-style');
+    }
+
+    // --- Avatar Frame Logic ---
+
+    async function openFrameSelectorModal(type, targetId = null) {
+        const grid = document.getElementById('avatar-frame-grid');
+        grid.innerHTML = '';
+
+        currentFrameSelection.type = type;
+        currentFrameSelection.target = targetId;
+
+        const chat = state.chats[state.activeChatId];
+        let currentFrameUrl = '';
+        let previewAvatarUrl = '';
+
+        if (type === 'char-weibo') {
+            const pid = window.currentViewingWeiboProfileId;
+            if (pid && state.chats[pid]) {
+                const charChat = state.chats[pid];
+                currentFrameUrl = charChat.settings.weiboAvatarFrame || '';
+                previewAvatarUrl = charChat.settings.weiboAvatar || defaultAvatar;
+            }
+        } else if (type === 'home_profile') {
+            currentFrameUrl = state.globalSettings.homeAvatarFrame || '';
+            previewAvatarUrl = document.getElementById('profile-avatar-img') ? document.getElementById('profile-avatar-img').src : defaultAvatar;
+        } else if (type === 'weibo_profile') {
+            currentFrameUrl = state.qzoneSettings.weiboAvatarFrame || '';
+            previewAvatarUrl = state.qzoneSettings.weiboAvatar || defaultAvatar;
+        } else if (type === 'ai') {
+            currentFrameUrl = chat.settings.aiAvatarFrame || '';
+            previewAvatarUrl = chat.settings.aiAvatar || defaultAvatar;
+        } else if (type === 'my') {
+            currentFrameUrl = chat.settings.myAvatarFrame || '';
+            previewAvatarUrl = chat.settings.myAvatar || defaultAvatar;
+        } else if (type === 'member' && targetId) {
+            const member = chat.members.find((m) => m.id === targetId);
+            if (member) {
+                currentFrameUrl = member.avatarFrame || '';
+                previewAvatarUrl = member.avatar || defaultGroupMemberAvatar;
+            }
+        }
+
+        const customFrames = await db.customAvatarFrames.toArray();
+        const builtInFrames = window.avatarFrames || [];
+
+        const frameUrlSet = new Set();
+        const allFrames = [...builtInFrames, ...customFrames].filter((frame) => {
+            if (!frame.url || !frameUrlSet.has(frame.url)) {
+                frameUrlSet.add(frame.url);
+                return true;
+            }
+            return false;
+        });
+
+        allFrames.forEach((frame) => {
+            const item = createFrameItem(frame, previewAvatarUrl);
+            if (currentFrameUrl === frame.url) {
+                item.classList.add('selected');
+                currentFrameSelection.url = frame.url;
+            }
+            grid.appendChild(item);
+        });
+
+        document.getElementById('avatar-frame-modal').classList.add('visible');
+    }
+
+    function createFrameItem(frame, previewAvatarSrc) {
+        const item = document.createElement('div');
+        item.className = 'frame-item';
+        item.title = frame.name;
+        item.innerHTML = `
+			        <img src="${previewAvatarSrc}" class="preview-avatar">
+			        ${frame.url ? `<img src="${frame.url}" class="preview-frame" style="pointer-events: none;">` : ''}
+			    `;
+        item.addEventListener('click', () => {
+            document.querySelectorAll('#avatar-frame-grid .frame-item').forEach((el) => el.classList.remove('selected'));
+            item.classList.add('selected');
+            currentFrameSelection.url = frame.url;
+        });
+        return item;
+    }
+
+    async function saveSelectedFrames() {
+        const { type, url, target } = currentFrameSelection;
+
+        if (type === 'char-weibo') {
+            const pid = window.currentViewingWeiboProfileId;
+            if (pid && state.chats[pid]) {
+                const charChat = state.chats[pid];
+                charChat.settings.weiboAvatarFrame = url;
+                await db.chats.put(charChat);
+                if (window.renderWeiboCharProfile) window.renderWeiboCharProfile(pid);
+            }
+        } else if (type === 'home_profile') {
+            if (!state.globalSettings) state.globalSettings = {};
+            state.globalSettings.homeAvatarFrame = url;
+            await db.globalSettings.put(state.globalSettings);
+            if (window.renderHomeScreenProfileFrame) window.renderHomeScreenProfileFrame();
+        } else if (type === 'weibo_profile') {
+            if (!state.qzoneSettings) state.qzoneSettings = {};
+            state.qzoneSettings.weiboAvatarFrame = url;
+            if (window.saveQzoneSettings) await window.saveQzoneSettings();
+            if (window.renderWeiboProfile) await window.renderWeiboProfile();
+        }
+        else {
+            const chat = state.chats[state.activeChatId];
+            if (!chat) return;
+
+            if (type === 'ai') {
+                chat.settings.aiAvatarFrame = url;
+            } else if (type === 'my') {
+                chat.settings.myAvatarFrame = url;
+            } else if (type === 'member' && target) {
+                const member = chat.members.find((m) => m.id === target);
+                if (member) member.avatarFrame = url;
+            }
+        }
+        document.getElementById('avatar-frame-modal').classList.remove('visible');
+    }
+
+    function openFrameManager() {
+        renderFrameManager();
+        document.getElementById('custom-frame-manager-modal').classList.add('visible');
+    }
+
+    async function renderFrameManager() {
+        const grid = document.getElementById('custom-frame-grid');
+        grid.innerHTML = '';
+        const customFrames = await db.customAvatarFrames.toArray();
+        if (customFrames.length === 0) {
+            grid.innerHTML = '<p style="color: var(--text-secondary); grid-column: 1 / -1; text-align: center;">你还没有上传过头像框哦~</p>';
+            return;
+        }
+        customFrames.forEach((frame) => {
+            const item = document.createElement('div');
+            item.className = 'sticker-item';
+            item.style.backgroundImage = `url(${frame.url})`;
+            item.title = frame.name;
+
+            const deleteBtn = document.createElement('div');
+            deleteBtn.className = 'delete-btn';
+            deleteBtn.innerHTML = '×';
+            deleteBtn.style.display = 'block';
+            deleteBtn.onclick = async (e) => {
+                e.stopPropagation();
+                const confirmed = await showCustomConfirm('删除头像框', `确定要删除“${frame.name}”吗？`, {
+                    confirmButtonClass: 'btn-danger',
+                });
+                if (confirmed) {
+                    await db.customAvatarFrames.delete(frame.id);
+                    renderFrameManager();
+                }
+            };
+            item.appendChild(deleteBtn);
+            grid.appendChild(item);
+        });
+    }
+
+    function handleUploadCustomFrame() {
+        let uploadBtn = document.getElementById('custom-frame-upload-input');
+        if (!uploadBtn) return;
+
+        const newUploadBtn = uploadBtn.cloneNode(true);
+        if (uploadBtn.parentNode) uploadBtn.parentNode.replaceChild(newUploadBtn, uploadBtn);
+        uploadBtn = newUploadBtn;
+
+        uploadBtn.addEventListener(
+            'change',
+            async (event) => {
+                const files = event.target.files;
+                if (!files.length) return;
+
+                const newFrames = [];
+
+                for (const file of files) {
+                    const fileName = file.name.replace(/\.[^/.]+$/, '').substring(0, 8);
+                    const autoName = `${fileName}_${Date.now()}`;
+
+                    const base64Url = await new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = (e) => resolve(e.target.result);
+                        reader.readAsDataURL(file);
+                    });
+
+                    newFrames.push({
+                        id: 'frame_' + (Date.now() + newFrames.length),
+                        name: autoName,
+                        url: base64Url,
+                    });
+                }
+
+                if (newFrames.length > 0) {
+                    await db.customAvatarFrames.bulkAdd(newFrames);
+                    renderFrameManager();
+                    await showCustomAlert('上传成功', `已成功添加 ${newFrames.length} 个新头像框！`);
+                }
+
+                event.target.value = null;
+            }
+        );
+
+        uploadBtn.click();
+    }
+
+    // --- Bubble Preset Logic ---
+
+    function renderBubblePresetSelector() {
+        const selectEl = document.getElementById('bubble-style-preset-select');
+        const customCssInput = document.getElementById('custom-css-input');
+
+        selectEl.innerHTML = '<option value="">-- 无预设 --</option>';
+
+        if (state.bubbleStylePresets) {
+            state.bubbleStylePresets.forEach((preset) => {
+                const option = document.createElement('option');
+                option.value = preset.id;
+                option.textContent = preset.name;
+                selectEl.appendChild(option);
+            });
+        }
+
+        const currentCss = customCssInput.value.trim();
+        const matchingPreset = state.bubbleStylePresets ? state.bubbleStylePresets.find((p) => p.css.trim() === currentCss) : null;
+
+        if (matchingPreset) {
+            selectEl.value = matchingPreset.id;
+        } else {
+            selectEl.value = '';
+        }
+    }
+
+    function handlePresetSelectChange() {
+        const selectEl = document.getElementById('bubble-style-preset-select');
+        const customCssInput = document.getElementById('custom-css-input');
+        const selectedId = parseInt(selectEl.value);
+
+        if (selectedId && state.bubbleStylePresets) {
+            const selectedPreset = state.bubbleStylePresets.find((p) => p.id === selectedId);
+            if (selectedPreset) {
+                customCssInput.value = selectedPreset.css;
+            }
+        }
+        updateSettingsPreview();
+    }
+
+    async function openBubblePresetManager() {
+        const selectEl = document.getElementById('bubble-style-preset-select');
+        const selectedId = parseInt(selectEl.value);
+        const selectedPreset = state.bubbleStylePresets ? state.bubbleStylePresets.find((p) => p.id === selectedId) : null;
+
+        const modal = document.getElementById('preset-actions-modal');
+        const footer = modal.querySelector('.custom-modal-footer');
+
+        footer.innerHTML = `
+			        <button id="preset-action-save-new">保存</button>
+			        <button id="preset-action-update-current" ${!selectedPreset ? 'disabled' : ''}>更新</button>
+			        <button id="preset-action-delete-current" class="btn-danger" ${!selectedPreset ? 'disabled' : ''}>删除</button>
+			        <button id="preset-action-cancel" style="margin-top: 8px; border-radius: 8px; background-color: #f0f0f0;">取消</button>
+			    `;
+
+        document.getElementById('preset-action-save-new').addEventListener('click', saveCurrentCssAsPreset);
+        if (selectedPreset) {
+            document.getElementById('preset-action-update-current').addEventListener('click', () => updateSelectedPreset(selectedId));
+            document.getElementById('preset-action-delete-current').addEventListener('click', () => deleteSelectedPreset(selectedId));
+        }
+        document.getElementById('preset-action-cancel').addEventListener('click', () => modal.classList.remove('visible'));
+
+        modal.classList.add('visible');
+    }
+
+    async function saveCurrentCssAsPreset() {
+        const customCssInput = document.getElementById('custom-css-input');
+        const css = customCssInput.value.trim();
+        if (!css) {
+            alert('CSS内容不能为空！');
+            return;
+        }
+
+        const name = await showCustomPrompt('保存预设', '请为这个气泡样式命名：');
+        if (name && name.trim()) {
+            const newPreset = { name: name.trim(), css: css };
+            const newId = await db.bubbleStylePresets.add(newPreset);
+
+            if (!state.bubbleStylePresets) state.bubbleStylePresets = [];
+            state.bubbleStylePresets.push({ id: newId, ...newPreset });
+
+            renderBubblePresetSelector();
+            document.getElementById('bubble-style-preset-select').value = newId;
+            document.getElementById('preset-actions-modal').classList.remove('visible');
+            await showCustomAlert('成功', `预设 "${name.trim()}" 已保存！`);
+        }
+    }
+
+    async function updateSelectedPreset(presetId) {
+        const customCssInput = document.getElementById('custom-css-input');
+        const css = customCssInput.value.trim();
+
+        const preset = state.bubbleStylePresets.find((p) => p.id === presetId);
+        if (preset) {
+            preset.css = css;
+            await db.bubbleStylePresets.put(preset);
+            document.getElementById('preset-actions-modal').classList.remove('visible');
+            await showCustomAlert('成功', `预设 "${preset.name}" 已更新！`);
+        }
+    }
+
+    async function deleteSelectedPreset(presetId) {
+        const preset = state.bubbleStylePresets.find((p) => p.id === presetId);
+        if (preset) {
+            const confirmed = await showCustomConfirm('确认删除', `确定要删除预设 "${preset.name}" 吗？`, {
+                confirmButtonClass: 'btn-danger',
+            });
+            if (confirmed) {
+                await db.bubbleStylePresets.delete(presetId);
+                state.bubbleStylePresets = state.bubbleStylePresets.filter((p) => p.id !== presetId);
+
+                renderBubblePresetSelector();
+                document.getElementById('custom-css-input').value = '';
+                updateSettingsPreview();
+
+                document.getElementById('preset-actions-modal').classList.remove('visible');
+                await showCustomAlert('成功', '预设已删除。');
+            }
+        }
+    }
+
+    async function exportSelectedBubblePreset() {
+        const selectEl = document.getElementById('bubble-style-preset-select');
+        const selectedId = parseInt(selectEl.value);
+
+        if (!selectedId) {
+            alert('请先从下拉框中选择一个要导出的预设。');
+            return;
+        }
+
+        const preset = await db.bubbleStylePresets.get(selectedId);
+        if (!preset) {
+            alert('找不到选中的预设。');
+            return;
+        }
+
+        const exportData = {
+            presetName: preset.name,
+            presetCss: preset.css,
+        };
+
+        const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `[EPhone气泡]${preset.name}.json`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+    }
+
+    function importBubblePreset(file) {
+        if (!file) return;
+
+        const fileName = file.name.toLowerCase();
+        const customCssInput = document.getElementById('custom-css-input');
+
+        if (fileName.endsWith('.docx')) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                if (window.mammoth) {
+                    window.mammoth
+                        .extractRawText({ arrayBuffer: e.target.result })
+                        .then(function (result) {
+                            customCssInput.value = result.value;
+                            updateSettingsPreview();
+                            alert('已从Word提取CSS代码到输入框！(请点击“保存”以存为预设)');
+                        })
+                        .catch(function (err) {
+                            alert('读取Word文件失败');
+                        });
+                } else {
+                    alert('Mammoth library not loaded.');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+            return;
+        }
+
+        if (fileName.endsWith('.txt') || fileName.endsWith('.css')) {
+            const reader = new FileReader();
+            reader.onload = function (e) {
+                customCssInput.value = e.target.result;
+                updateSettingsPreview();
+                alert('已读取CSS代码到输入框！(请点击“保存”以存为预设)');
+            };
+            reader.readAsText(file);
+            return;
+        }
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const data = JSON.parse(e.target.result);
+                if (data.presetName && typeof data.presetCss !== 'undefined') {
+                    const newPreset = {
+                        name: `${data.presetName} (导入)`,
+                        css: data.presetCss,
+                    };
+                    const newId = await db.bubbleStylePresets.add(newPreset);
+
+                    if (!state.bubbleStylePresets) state.bubbleStylePresets = [];
+                    state.bubbleStylePresets.push({ id: newId, ...newPreset });
+
+                    renderBubblePresetSelector();
+                    document.getElementById('bubble-style-preset-select').value = newId;
+                    handlePresetSelectChange();
+                    await showCustomAlert('导入成功', `气泡预设 "${newPreset.name}" 已成功导入！`);
+                } else {
+                    customCssInput.value = e.target.result;
+                    updateSettingsPreview();
+                    alert('JSON格式不是标准预设，已将内容填入输入框。');
+                }
+            } catch (error) {
+                customCssInput.value = e.target.result;
+                updateSettingsPreview();
+                alert('已将文件内容填入输入框。');
+            }
+        };
+        reader.readAsText(file);
+    }
+
+    // Bind new listeners
+    const manageFramesBtn = document.getElementById('manage-custom-frames-btn');
+    if (manageFramesBtn) {
+        const newBtn = manageFramesBtn.cloneNode(true);
+        if (manageFramesBtn.parentNode) manageFramesBtn.parentNode.replaceChild(newBtn, manageFramesBtn);
+        newBtn.addEventListener('click', () => {
+            document.getElementById('avatar-frame-modal').classList.remove('visible');
+            openFrameManager();
+        });
+    }
+
+    const cancelFrameBtn = document.getElementById('cancel-frame-settings-btn');
+    if (cancelFrameBtn) {
+        const newBtn = cancelFrameBtn.cloneNode(true);
+        if (cancelFrameBtn.parentNode) cancelFrameBtn.parentNode.replaceChild(newBtn, cancelFrameBtn);
+        newBtn.addEventListener('click', () => document.getElementById('avatar-frame-modal').classList.remove('visible'));
+    }
+
+    const saveFrameBtn = document.getElementById('save-frame-settings-btn');
+    if (saveFrameBtn) {
+        const newBtn = saveFrameBtn.cloneNode(true);
+        if (saveFrameBtn.parentNode) saveFrameBtn.parentNode.replaceChild(newBtn, saveFrameBtn);
+        newBtn.addEventListener('click', saveSelectedFrames);
+    }
+
+    const uploadFrameBtn = document.getElementById('upload-custom-frame-btn');
+    if (uploadFrameBtn) {
+        const newBtn = uploadFrameBtn.cloneNode(true);
+        if (uploadFrameBtn.parentNode) uploadFrameBtn.parentNode.replaceChild(newBtn, uploadFrameBtn);
+        newBtn.addEventListener('click', handleUploadCustomFrame);
+    }
+
+    const closeFrameManagerBtn = document.getElementById('close-frame-manager-btn');
+    if (closeFrameManagerBtn) {
+        const newBtn = closeFrameManagerBtn.cloneNode(true);
+        if (closeFrameManagerBtn.parentNode) closeFrameManagerBtn.parentNode.replaceChild(newBtn, closeFrameManagerBtn);
+        newBtn.addEventListener('click', () => {
+            document.getElementById('custom-frame-manager-modal').classList.remove('visible');
+            openFrameSelectorModal(currentFrameSelection.type, currentFrameSelection.target);
+        });
+    }
+
+    // Expose functions required by main-app.js or other modules
+    window.openFrameSelectorModal = openFrameSelectorModal;
+    window.renderBubblePresetSelector = renderBubblePresetSelector;
+    window.updateSettingsPreview = updateSettingsPreview;
+
+    /* ==========================================================================
+       Voice & Video Logic (Moved completely from main-app.js)
+       ========================================================================== */
+
+    /**
+     * 播放来电铃声
+     */
+    window.playRingtone = function playRingtone() {
+        const ringtonePlayer = document.getElementById('ringtone-player');
+        // 优先使用用户在设置中保存的URL，如果没设置，就用我们预设的URL
+        const ringtoneUrl = state.globalSettings.ringtoneUrl || 'https://files.catbox.moe/3w7gla.mp3';
+
+        if (ringtonePlayer && ringtoneUrl) {
+            ringtonePlayer.src = ringtoneUrl;
+            // play() 返回一个 Promise，我们最好用 try...catch 包裹以防止浏览器报错
+            const playPromise = ringtonePlayer.play();
+            if (playPromise !== undefined) {
+                playPromise.catch((error) => {
+                    console.error('铃声播放失败:', error);
+                    // 可以在这里给用户一个静音提示，如果需要的话
+                });
+            }
+        }
+    }
+
+    /**
+     * 停止并重置来电铃声
+     */
+    window.stopRingtone = function stopRingtone() {
+        const ringtonePlayer = document.getElementById('ringtone-player');
+        if (ringtonePlayer) {
+            ringtonePlayer.pause();
+            ringtonePlayer.currentTime = 0; // 将播放进度重置到开头
+        }
+    }
+
+    /**
+     * 播放消息提示音，增加健壮性
+     */
+    function playNotificationSound() {
+        const soundUrl = state.globalSettings.notificationSoundUrl || 'https://laddy-lulu.github.io/Ephone-stuffs/message.mp3';
+
+        // 1. 增加安全检查：如果链接为空，直接返回，不执行任何操作
+        if (!soundUrl || !soundUrl.trim()) return;
+
+        try {
+            const audio = new Audio(soundUrl);
+            audio.volume = 0.7;
+
+            audio.play().catch((error) => {
+                // 2. 优化错误提示，现在能更准确地反映问题
+                if (error.name === 'NotAllowedError') {
+                    console.warn('播放消息提示音失败：用户需要先与页面进行一次交互（如点击）才能自动播放音频。');
+                } else {
+                    // 对于其他错误（比如我们这次遇到的），直接打印错误详情
+                    console.error(`播放消息提示音失败 (${error.name}): ${error.message}`, 'URL:', soundUrl);
+                }
+            });
+        } catch (error) {
+            console.error('创建提示音Audio对象时出错:', error);
+        }
+    }
+
+    // 音频上下文解锁函数
+    function unlockAudioContext() {
+        const ringtonePlayer = document.getElementById('ringtone-player');
+        // 检查播放器是否处于暂停状态，并且我们之前没有成功播放过
+        if (ringtonePlayer && ringtonePlayer.paused) {
+            // 尝试播放，然后立刻暂停。
+            // 这个操作对用户是无感知的，但能告诉浏览器用户已与音频交互。
+            ringtonePlayer.play().catch(() => { }); // play() 会返回一个 Promise，我们忽略任何可能发生的错误
+            ringtonePlayer.pause();
+            console.log("Ringtone audio context unlocked.");
+        }
+    }
+
+    // Expose needed internal functions globally if they weren't already
+    // (playRingtone/stopRingtone are already attached to window above)
+    window.playNotificationSound = playNotificationSound;
+    window.unlockAudioContext = unlockAudioContext;
+
+    // --- Listeners for Voice & Video Settings ---
+    const phoneScreen = document.getElementById('phone-screen');
+    if (phoneScreen) {
+        // Using 'once' option, so we need to be careful not to re-bind if already bound, 
+        // but since we are moving logic, we assume main-app.js will stop binding it.
+        phoneScreen.addEventListener('click', unlockAudioContext, { once: true });
+    }
+
+    const ringtoneInput = document.getElementById('ringtone-url-input');
+    if (ringtoneInput) {
+        // Remove old listeners by cloning
+        const newRingtoneInput = ringtoneInput.cloneNode(true);
+        if (ringtoneInput.parentNode) ringtoneInput.parentNode.replaceChild(newRingtoneInput, ringtoneInput);
+        newRingtoneInput.addEventListener('change', async (e) => {
+            state.globalSettings.ringtoneUrl = e.target.value;
+            await db.globalSettings.put(state.globalSettings);
+            // We can maybe play a preview here if desired, but original logic didn't seem to have it explicitly in the snippet I saw.
+        });
+    }
+
+    const notifInput = document.getElementById('notification-sound-url-input');
+    if (notifInput) {
+        const newNotifInput = notifInput.cloneNode(true);
+        if (notifInput.parentNode) notifInput.parentNode.replaceChild(newNotifInput, notifInput);
+        newNotifInput.addEventListener('change', async (e) => {
+            state.globalSettings.notificationSoundUrl = e.target.value;
+            await db.globalSettings.put(state.globalSettings);
+        });
+    }
+
+    // --- Visual Beautification (Inner Voice & Weibo Profile) - Moved from main-app.js ---
+
+    /**
+     * 当用户点击“更换背景”按钮时，弹出操作菜单
+     */
+    async function handleInnerVoiceBgChange() {
+        const choice = await showChoiceModal('更换心声背景', [
+            { text: '上传新背景', value: 'upload' },
+            { text: '恢复默认', value: 'reset' },
+        ]);
+
+        if (choice === 'upload') {
+            // 触发隐藏的文件选择器
+            const input = document.getElementById('inner-voice-bg-input');
+            if (input) input.click();
+        } else if (choice === 'reset') {
+            // 调用保存函数并传入空字符串，表示恢复默认
+            await saveInnerVoiceBackground('');
+        }
+    }
+
+    /**
+     * 保存新的背景图片URL到【当前角色】
+     * @param {string} url - 图片的URL (可以是网络链接或Base64)
+     */
+    async function saveInnerVoiceBackground(url) {
+        if (!state.activeChatId) return;
+        const chat = state.chats[state.activeChatId];
+        if (!chat) return;
+
+        // 1. 将背景URL保存在当前角色的数据中
+        chat.innerVoiceBackground = url;
+
+        // 2. 将更新后的整个 chat 对象保存回数据库
+        await db.chats.put(chat);
+
+        // 3. 立即应用新的背景
+        applyInnerVoiceBackground(url);
+
+        // 4. 给用户一个反馈
+        alert(url ? '当前角色背景已更新！' : '当前角色背景已恢复默认。');
+    }
+
+    /**
+     * 将指定的背景图应用到心声面板上
+     * @param {string} url - 图片的URL
+     */
+    function applyInnerVoiceBackground(url) {
+        const panel = document.getElementById('inner-voice-main-panel');
+        if (!panel) return;
+
+        if (url) {
+            panel.style.backgroundImage = `url(${url})`;
+        } else {
+            // 如果URL为空，就移除背景图，恢复CSS中定义的默认样式
+            panel.style.backgroundImage = 'none';
+        }
+    }
+
+    // --- Init Listeners for Visual Beautification ---
+
+    // 1. 角色微博编辑弹窗监听
+    const charWeiboModal = document.getElementById('char-weibo-editor-modal');
+    if (charWeiboModal) {
+        const newCharWeiboModal = charWeiboModal.cloneNode(true);
+        if (charWeiboModal.parentNode) charWeiboModal.parentNode.replaceChild(newCharWeiboModal, charWeiboModal);
+
+        newCharWeiboModal.addEventListener('click', (e) => {
+            if (e.target.classList.contains('change-frame-btn')) {
+                const type = e.target.dataset.type;
+                const targetId = window.currentViewingWeiboProfileId || currentViewingWeiboProfileId;
+                openFrameSelectorModal(type, targetId);
+            }
+            else if (e.target.id === 'cancel-char-weibo-editor-btn') {
+                newCharWeiboModal.classList.remove('visible');
+            }
+            else if (e.target.id === 'save-char-weibo-editor-btn') {
+                if (typeof saveCharWeiboProfile === 'function') {
+                    saveCharWeiboProfile();
+                } else if (typeof window.saveCharWeiboProfile === 'function') {
+                    window.saveCharWeiboProfile();
+                }
+            }
+        });
+    }
+
+    // 2. 角色微博图片上传
+    if (typeof setupFileUpload === 'function') {
+        setupFileUpload('char-weibo-editor-avatar-input', (base64) => {
+            const el = document.getElementById('char-weibo-editor-avatar-preview');
+            if (el) el.src = base64;
+        });
+        setupFileUpload('char-weibo-editor-bg-input', (base64) => {
+            const el = document.getElementById('char-weibo-editor-bg-preview');
+            if (el) el.src = base64;
+        });
+    }
+
+    // 3. 心声背景更换监听
+    const changeInnerVoiceBgBtn = document.getElementById('change-inner-voice-bg-btn');
+    if (changeInnerVoiceBgBtn) {
+        const newBtn = changeInnerVoiceBgBtn.cloneNode(true);
+        if (changeInnerVoiceBgBtn.parentNode) changeInnerVoiceBgBtn.parentNode.replaceChild(newBtn, changeInnerVoiceBgBtn);
+        newBtn.addEventListener('click', handleInnerVoiceBgChange);
+    }
+
+    const innerVoiceBgInput = document.getElementById('inner-voice-bg-input');
+    if (innerVoiceBgInput) {
+        const newInput = innerVoiceBgInput.cloneNode(true);
+        if (innerVoiceBgInput.parentNode) innerVoiceBgInput.parentNode.replaceChild(newInput, innerVoiceBgInput);
+
+        newInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const dataUrl = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.readAsDataURL(file);
+            });
+
+            await saveInnerVoiceBackground(dataUrl);
+            event.target.value = null;
+        });
+    }
+
+    // Expose functions to window for global usage (e.g. main-app.js needs applyInnerVoiceBackground)
+    window.handleInnerVoiceBgChange = handleInnerVoiceBgChange;
+    window.saveInnerVoiceBackground = saveInnerVoiceBackground;
+    window.applyInnerVoiceBackground = applyInnerVoiceBackground;
+
+    // --- Member Management Event Listeners ---
+
+    const memberManagementList = document.getElementById('member-management-list');
+    if (memberManagementList) {
+        const newList = memberManagementList.cloneNode(true);
+        memberManagementList.parentNode.replaceChild(newList, memberManagementList);
+
+        newList.addEventListener('click', (e) => {
+            const button = e.target.closest('.action-btn');
+            if (!button) return;
+
+            const action = button.dataset.action;
+            const memberId = button.dataset.memberId;
+
+            if (!action || !memberId) return;
+
+            if (memberId === 'user') {
+                if (action === 'set-nickname') handleSetUserNickname();
+                if (action === 'set-title') handleSetUserTitle();
+                if (action === 'unmute-self') handleUserUnmute();
+                return;
+            }
+
+            switch (action) {
+                case 'toggle-admin': handleToggleAdmin(memberId); break;
+                case 'set-title': handleSetMemberTitle(memberId); break;
+                case 'transfer-owner': handleTransferOwnership(memberId); break;
+                case 'remove-member': removeMemberFromGroup(memberId); break;
+                case 'mute-member': handleMuteMember(memberId); break;
+            }
+        });
+    }
+
+    const backFromMemberBtn = document.getElementById('back-from-member-management');
+    if (backFromMemberBtn) {
+        // Clone to ensure clean slate
+        const newBackBtn = backFromMemberBtn.cloneNode(true);
+        backFromMemberBtn.parentNode.replaceChild(newBackBtn, backFromMemberBtn);
+
+        newBackBtn.addEventListener('click', () => {
+            document.getElementById('member-management-screen').classList.remove('active');
+            document.getElementById('chat-settings-modal').classList.add('visible');
+        });
+    }
+
+    const addExistingContactBtn = document.getElementById('add-existing-contact-btn');
+    if (addExistingContactBtn) {
+        addExistingContactBtn.addEventListener('click', openContactPickerForAddMember);
+    }
+
+    const createNewMemberBtn = document.getElementById('create-new-member-btn');
+    if (createNewMemberBtn) {
+        createNewMemberBtn.addEventListener('click', createNewMemberInGroup);
+    }
+
+
 };
+

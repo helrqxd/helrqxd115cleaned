@@ -401,6 +401,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     const commenterChar = Object.values(state.chats).find(c => c.name === comment.author);
                     if (commenterChar) {
                         commenterAvatarUrl = commenterChar.settings.aiAvatar;
+                    } else {
+
+                        commenterAvatarUrl = window.getAvatarForName
+                            ? window.getAvatarForName(comment.author)
+                            : "https://i.postimg.cc/PxZrFFFL/o-o-1.jpg";
                     }
                 }
 

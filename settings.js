@@ -392,10 +392,15 @@ window.renderIconSettings = function () {
 
     // 这里复用 DEFAULT_APP_LABELS 作为显示的名称
     const appLabels = window.DEFAULT_APP_LABELS;
+    const currentIcons = state.globalSettings.appIcons || {};
 
-    for (const iconId in state.globalSettings.appIcons) {
-        const iconUrl = state.globalSettings.appIcons[iconId];
-        const labelText = appLabels[iconId] || '未知App';
+    // 修改为遍历 DEFAULT_APP_LABELS，确保只显示当前系统支持的App
+    for (const iconId in appLabels) {
+        if (!appLabels.hasOwnProperty(iconId)) continue;
+
+        // 优先使用用户设置的图标，如果没有则使用默认图标
+        const iconUrl = currentIcons[iconId] || window.DEFAULT_APP_ICONS[iconId] || 'https://i.postimg.cc/qRqpK5kP/anime-avatar.jpg';
+        const labelText = appLabels[iconId];
 
         const item = document.createElement('div');
         item.className = 'icon-setting-item';
@@ -411,7 +416,7 @@ window.renderIconSettings = function () {
 }
 
 window.renderAppNameSettings = function () {
-    const grid = document.getElementById('app-name-settings-grid');
+    const grid = document.getElementById('icon-rename-grid'); // Fixed ID to match index.html
     if (!grid) return;
     grid.innerHTML = '';
 
@@ -433,6 +438,39 @@ window.renderAppNameSettings = function () {
         }
     }
 }
+
+/**
+ * 处理图标上传的核心逻辑
+ * @param {string} iconId - App的唯一标识符
+ */
+window.handleIconUpload = function (iconId) {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        try {
+            const base64 = await window.handleImageUploadAndCompress(file);
+            if (!state.globalSettings.appIcons) {
+                state.globalSettings.appIcons = {};
+            }
+            state.globalSettings.appIcons[iconId] = base64;
+
+            // 刷新显示
+            window.renderIconSettings();
+            // 实时应用
+            window.applyAppIcons();
+
+            alert('图标已更新！记得保存设置哦。');
+        } catch (error) {
+            console.error('更换图标失败:', error);
+            alert('更换图标失败: ' + error.message);
+        }
+    };
+    input.click();
+};
 
 window.saveAppLabels = function () {
     const inputs = document.querySelectorAll('.app-rename-input');
@@ -602,6 +640,7 @@ window.saveNovelAISettings = function () {
     localStorage.setItem('novelai-enabled', novelaiEnabled);
     localStorage.setItem('novelai-model', novelaiModel);
     localStorage.setItem('novelai-api-key', novelaiApiKey);
+    document.getElementById('novelai-details').style.display = novelaiEnabled ? 'block' : 'none';
 
     // 保存高级参数配置
     const settings = {
@@ -692,6 +731,90 @@ window.handleAutoBackupTimer = function () {
 
 window.initSettingsListeners = function () {
     console.log('Initializing Settings Listeners...');
+
+    // 0. App图标与名称设置的相关监听 (新增/迁移)
+    const iconSettingsGrid = document.getElementById('icon-settings-grid');
+    if (iconSettingsGrid) {
+        iconSettingsGrid.addEventListener('click', (e) => {
+            if (e.target.classList.contains('change-icon-btn')) {
+                const item = e.target.closest('.icon-setting-item');
+                if (item && item.dataset.iconId) {
+                    window.handleIconUpload(item.dataset.iconId);
+                }
+            }
+        });
+    }
+
+    const iconRenameGrid = document.getElementById('icon-rename-grid');
+    if (iconRenameGrid) {
+        iconRenameGrid.addEventListener('change', (e) => {
+            if (e.target.classList.contains('app-rename-input')) {
+                // 实时保存到内存中，点击保存按钮时才写入数据库
+                window.saveAppLabels();
+            }
+        });
+    }
+
+    // 0.5 全局聊天背景设置 (补充监听)
+    const globalBgUploadInput = document.getElementById('global-bg-upload-input');
+    if (globalBgUploadInput) {
+        globalBgUploadInput.addEventListener('change', async (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                try {
+                    const dataUrl = await window.handleImageUploadAndCompress(file);
+                    window.newGlobalBgBase64 = dataUrl;
+
+                    // 手动更新预览
+                    const preview = document.getElementById('global-bg-preview');
+                    if (preview) {
+                        preview.style.backgroundImage = `url(${dataUrl})`;
+                        preview.textContent = '';
+                    }
+                } catch (err) {
+                    alert('背景图片处理失败: ' + err.message);
+                }
+            }
+        });
+    }
+
+    const removeGlobalBgBtn = document.getElementById('remove-global-bg-btn');
+    if (removeGlobalBgBtn) {
+        removeGlobalBgBtn.addEventListener('click', () => {
+            window.newGlobalBgBase64 = 'REMOVED'; // 设置一个特殊标记
+            const preview = document.getElementById('global-bg-preview');
+            if (preview) {
+                preview.style.backgroundImage = 'none';
+                preview.textContent = '已移除 (保存后生效)';
+            }
+        });
+    }
+
+    const clearAllSingleBgsBtn = document.getElementById('clear-all-single-bgs-btn');
+    if (clearAllSingleBgsBtn) {
+        clearAllSingleBgsBtn.addEventListener('click', async () => {
+            const confirmed = await window.showCustomConfirm('由于该操作不可逆，请确认', '确定要清除所有单人角色的独立聊天背景，并恢复为全局默认背景吗？', {
+                confirmButtonClass: 'btn-danger'
+            });
+
+            if (confirmed) {
+                let count = 0;
+                // 遍历所有 activeChats
+                for (const chatId in state.chats) {
+                    const chat = state.chats[chatId];
+                    if (!chat.isGroup && chat.settings && chat.settings.background) {
+                        chat.settings.background = ''; // 清空
+                        await db.chats.put(chat);
+                        count++;
+                    }
+                }
+                alert(`操作成功！已清空 ${count} 个角色的独立背景。`);
+
+                // 如果当前已经打开了某个聊天窗口，且正好它是被清理的对象之一，最好立即刷新一下它的背景
+                // 但因为这里是在设置页，用户通常不在聊天界面，所以主要只是提醒一下
+            }
+        });
+    }
 
     // 1. 外观设置保存
     const wallpaperUploadInput = document.getElementById('wallpaper-upload-input');
@@ -827,6 +950,8 @@ window.initSettingsListeners = function () {
             state.apiConfig.githubAutoBackup = document.getElementById('github-auto-backup-switch').checked;
             state.apiConfig.githubBackupMode = document.getElementById('github-backup-mode').value;
             state.apiConfig.githubBackupInterval = parseInt(document.getElementById('github-backup-interval').value) || 30;
+
+            state.apiConfig.pollinationsApiKey = document.getElementById('pollinations-api-key').value.trim();
 
             window.handleAutoBackupTimer();
             await db.apiConfig.put(state.apiConfig);
@@ -1905,6 +2030,153 @@ window.saveAsNewTheme = async function () {
 }
 
 /**
+                 * 打开清除角色CSS的管理菜单
+                 */
+async function openCharCssManager() {
+    const choice = await showChoiceModal('清理角色气泡样式', [
+        { text: '🧹 一键清除所有角色的CSS', value: 'clear_all' },
+        { text: '🔍 选择特定角色清除', value: 'select_char' },
+    ]);
+
+    if (!choice) return;
+
+    if (choice === 'clear_all') {
+        await clearAllCharsCustomCss();
+    } else if (choice === 'select_char') {
+        await openCharCssSelector();
+    }
+}
+
+/**
+ * 清除所有单聊角色的自定义CSS
+ */
+async function clearAllCharsCustomCss() {
+    // 检查是否有任何角色设置了CSS
+    let hasAny = false;
+    for (const chatId in state.chats) {
+        const chat = state.chats[chatId];
+        if (!chat.isGroup && chat.settings && chat.settings.customCss) {
+            hasAny = true;
+            break;
+        }
+    }
+
+    if (!hasAny) {
+        alert('当前没有任何角色设置了自定义CSS，无需清理。');
+        return;
+    }
+
+    const confirmed = await showCustomConfirm('确认全清', '确定要清除【所有】角色的自定义气泡样式(CSS)吗？\n此操作将使所有角色恢复默认或全局样式，且不可恢复。', { confirmButtonClass: 'btn-danger' });
+
+    if (!confirmed) return;
+
+    let count = 0;
+    for (const chatId in state.chats) {
+        const chat = state.chats[chatId];
+        if (!chat.isGroup && chat.settings && chat.settings.customCss) {
+            chat.settings.customCss = ''; // 清空
+            count++;
+            await db.chats.put(chat);
+        }
+    }
+
+    // 如果当前正在聊天的角色被清除了，刷新一下界面
+    if (state.activeChatId && !state.chats[state.activeChatId].isGroup) {
+        renderChatInterface(state.activeChatId);
+    }
+
+    alert(`已清除 ${count} 个角色的自定义样式。`);
+}
+
+/**
+ * 打开选择器，勾选要清除的角色
+ */
+async function openCharCssSelector() {
+    // 1. 筛选出所有设置了customCss的角色
+    const chatsWithCss = Object.values(state.chats).filter((c) => !c.isGroup && c.settings && c.settings.customCss);
+
+    if (chatsWithCss.length === 0) {
+        alert('当前没有任何角色设置了自定义CSS。');
+        return;
+    }
+
+    // 2. 复用现有的自定义模态框来显示列表
+    const modal = document.getElementById('custom-modal-overlay');
+    const modalTitle = document.getElementById('custom-modal-title');
+    const modalBody = document.getElementById('custom-modal-body');
+    const confirmBtn = document.getElementById('custom-modal-confirm');
+    const cancelBtn = document.getElementById('custom-modal-cancel');
+
+    modalTitle.textContent = '选择要清除样式的角色';
+    modalBody.innerHTML = '<div id="css-char-list" style="max-height: 300px; overflow-y: auto; text-align: left;"></div>';
+
+    const listEl = document.getElementById('css-char-list');
+
+    // 3. 生成列表
+    chatsWithCss.forEach((chat) => {
+        const item = document.createElement('div');
+        item.style.cssText = 'display:flex; align-items:center; padding:10px; border-bottom:1px solid #eee; cursor:pointer;';
+        item.innerHTML = `
+            <input type="checkbox" class="css-clear-checkbox" value="${chat.id}" style="margin-right:10px; transform: scale(1.2);">
+            <img src="${chat.settings.aiAvatar || defaultAvatar}" style="width:30px; height:30px; border-radius:50%; margin-right:10px; object-fit: cover;">
+            <div style="flex:1;">
+                <div style="font-weight:bold;">${chat.name}</div>
+                <div style="font-size:10px; color:#888; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width: 150px;">
+                    ${chat.settings.customCss.substring(0, 30).replace(/\n/g, '')}...
+                </div>
+            </div>
+        `;
+        // 点击行即可勾选
+        item.addEventListener('click', (e) => {
+            if (e.target.type !== 'checkbox') {
+                const cb = item.querySelector('input');
+                cb.checked = !cb.checked;
+            }
+        });
+        listEl.appendChild(item);
+    });
+
+    // 4. 设置按钮样式和事件
+    confirmBtn.textContent = '清除选中';
+    confirmBtn.classList.add('btn-danger');
+    cancelBtn.style.display = 'block';
+
+    // 克隆按钮以移除旧的监听器
+    const newConfirmBtn = confirmBtn.cloneNode(true);
+    confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+
+    newConfirmBtn.addEventListener('click', async () => {
+        const selectedCheckboxes = document.querySelectorAll('.css-clear-checkbox:checked');
+        if (selectedCheckboxes.length === 0) {
+            alert('请至少选择一个角色。');
+            return;
+        }
+
+        const ids = Array.from(selectedCheckboxes).map((cb) => cb.value);
+        for (const id of ids) {
+            const chat = state.chats[id];
+            if (chat) {
+                chat.settings.customCss = ''; // 清空
+                await db.chats.put(chat);
+            }
+        }
+
+        modal.classList.remove('visible');
+        confirmBtn.classList.remove('btn-danger'); // 恢复样式
+
+        // 如果当前聊天的角色被清除了，刷新界面
+        if (state.activeChatId && ids.includes(state.activeChatId)) {
+            renderChatInterface(state.activeChatId);
+        }
+
+        alert(`已清除 ${ids.length} 个角色的样式。`);
+    });
+
+    // 显示模态框
+    modal.classList.add('visible');
+}
+
+/**
  * 重命名当前选中的主题
  */
 window.renameSelectedTheme = async function () {
@@ -2252,12 +2524,21 @@ window.importHomeScreenPreset = function (file) {
 window.renderApiSettings = function () {
     if (!state.apiConfig) return;
 
+    // 渲染 API 预设下拉框
+    if (window.renderApiPresetSelector) {
+        window.renderApiPresetSelector();
+    }
+
     // 1. 通用 API 设置
     const proxyInput = document.getElementById('proxy-url');
     if (proxyInput) proxyInput.value = state.apiConfig.proxyUrl || '';
 
     const apiKeyInput = document.getElementById('api-key');
     if (apiKeyInput) apiKeyInput.value = state.apiConfig.apiKey || '';
+
+    // Pollinations Key 回显
+    const polliKeyInput = document.getElementById('pollinations-api-key');
+    if (polliKeyInput) polliKeyInput.value = state.apiConfig.pollinationsApiKey || '';
 
     // 模型选择
     const modelSelect = document.getElementById('model-select');
@@ -4021,4 +4302,446 @@ window.handleFactoryReset = async function () {
         }
     }
 };
+
+// ===================================================================
+// 9. 高级导入导出功能 (Advanced Import/Export)
+// ===================================================================
+
+/**
+ * 获取或生成当前设备的唯一设备码 (一致性修复)
+ * @returns {string} - 一长串唯一的设备码
+ */
+window.getDeviceCode = function () {
+    const deviceIdKey = 'ephone-device-code';
+    let deviceId = localStorage.getItem(deviceIdKey);
+    if (!deviceId) {
+        if (typeof crypto !== 'undefined' && crypto.randomUUID) {
+            deviceId = crypto.randomUUID();
+        } else {
+            // Fallback for environments without crypto.randomUUID
+            deviceId = 'device_' + Math.random().toString(36).substr(2, 9);
+        }
+        localStorage.setItem(deviceIdKey, deviceId);
+    }
+    return deviceId;
+};
+
+/**
+ * 根据设备码生成对应的PIN码
+ * @param {string} deviceCode - 设备码
+ * @returns {string} - 6位大写的PIN码
+ */
+window.generatePinFromDeviceCode = function (deviceCode) {
+    if (!deviceCode || deviceCode.length < 6) return 'INVALID';
+    // 算法：将设备码反转，取前6位，转大写
+    return deviceCode.split('').reverse().join('').substring(0, 6).toUpperCase();
+};
+
+/**
+ * 打开高级导入导出模态框，并动态生成选项列表
+ */
+window.openAdvancedTransferModal = async function () {
+    const appsListEl = document.getElementById('export-apps-list');
+    const charactersListEl = document.getElementById('export-characters-list');
+    if (!appsListEl || !charactersListEl) return;
+
+    appsListEl.innerHTML = '';
+    charactersListEl.innerHTML = '';
+
+    // 1. 定义可独立导出的App数据及其关联的数据库表
+    const appsToExport = [
+        { id: 'weibo', name: '微博 (全部帖子/角色资料/粉丝数等)', tables: ['weiboPosts', 'qzoneSettings'] },
+        {
+            id: 'forum',
+            name: '圈子 (小组/帖子/评论/分类/连载)',
+            tables: ['forumGroups', 'forumPosts', 'forumComments', 'forumCategories', 'forumSeries', 'forumChapters'],
+        },
+        {
+            id: 'taobao',
+            name: '桃宝 (所有商品/订单/购物车/余额记录)',
+            tables: ['taobaoProducts', 'taobaoOrders', 'taobaoCart', 'userWalletTransactions'],
+        },
+        { id: 'worldBooks', name: '世界书 (全部书籍及分类)', tables: ['worldBooks', 'worldBookCategories'] },
+
+        {
+            id: 'dateALive',
+            name: '约会大作战 (场景/预设/立绘/历史)',
+            tables: ['datingScenes', 'datingPresets', 'datingSpriteGroups', 'datingSprites', 'datingHistory'],
+        },
+
+        {
+            id: 'tukeyAccounting',
+            name: '兔k记账 (账户/群聊/账单/设置)',
+            tables: ['tukeyAccounts', 'tukeyAccountingGroups', 'tukeyAccountingRecords', 'tukeyAccountingReplies', 'tukeyUserSettings', 'tukeyCustomConfig'],
+        },
+
+        {
+            id: 'studio',
+            name: '小剧场 (所有剧本/演绎记录)',
+            tables: ['studioScripts', 'studioHistory'],
+        },
+
+        { id: 'userStickers', name: '我的表情包 (包含分类)', tables: ['userStickers', 'userStickerCategories'] },
+        { id: 'charStickers', name: '角色通用表情包', tables: ['charStickers'] },
+        {
+            id: 'gameData',
+            name: '游戏大厅数据 (剧本杀/飞行棋题库等)',
+            tables: ['scriptKillScripts', 'ludoQuestionBanks', 'ludoQuestions'],
+        },
+        {
+            id: 'appearance',
+            name: '通用外观预设 (主题/字体/头像框等)',
+            tables: ['themes', 'fontPresets', 'homeScreenPresets', 'customAvatarFrames', 'apiPresets', 'bubbleStylePresets'],
+        },
+    ];
+
+    appsToExport.forEach((app) => {
+        appsListEl.innerHTML += `
+                    <label style="display: block; margin-bottom: 5px;">
+                        <input type="checkbox" class="export-app-checkbox" value="${app.id}"> ${app.name}
+                    </label>
+                `;
+    });
+
+    // 2. 加载所有单聊角色
+    const characters = Object.values(window.state && window.state.chats ? window.state.chats : {}).filter((chat) => !chat.isGroup);
+    if (characters.length === 0) {
+        charactersListEl.innerHTML = '<p>没有可导出的角色</p>';
+    } else {
+        characters.forEach((char) => {
+            charactersListEl.innerHTML += `
+                        <label style="display: block; margin-bottom: 5px;">
+                            <input type="checkbox" class="export-char-checkbox" value="${char.id}"> ${char.name}
+                        </label>
+                    `;
+        });
+    }
+
+    // 重置并绑定全选框
+    const selectAllCheckbox = document.getElementById('select-all-characters-checkbox');
+    if (selectAllCheckbox) {
+        selectAllCheckbox.checked = false;
+
+        // 使用克隆节点技巧，防止事件重复绑定
+        const newSelectAllCheckbox = selectAllCheckbox.cloneNode(true);
+        selectAllCheckbox.parentNode.replaceChild(newSelectAllCheckbox, selectAllCheckbox);
+        newSelectAllCheckbox.addEventListener('change', (e) => {
+            document.querySelectorAll('.export-char-checkbox').forEach((cb) => {
+                cb.checked = e.target.checked;
+            });
+        });
+    }
+
+    // 3. 显示模态框
+    const modal = document.getElementById('advanced-transfer-modal');
+    if (modal) modal.classList.add('visible');
+};
+
+/**
+ * 初始化高级导入导出相关的所有事件监听器
+ */
+window.initAdvancedImportExportListeners = function () {
+    console.log('[Settings] 初始化高级导入导出监听器...');
+
+    // 打开高级导入导出模态框 (UI上的按钮)
+    const advTransferBtn = document.getElementById('advanced-transfer-btn');
+    if (advTransferBtn) {
+        advTransferBtn.addEventListener('click', window.openAdvancedTransferModal);
+    }
+
+    // 关闭高级导入导出模态框
+    const closeAdvBtn = document.getElementById('close-advanced-transfer-btn');
+    if (closeAdvBtn) {
+        closeAdvBtn.addEventListener('click', () => {
+            const modal = document.getElementById('advanced-transfer-modal');
+            if (modal) modal.classList.remove('visible');
+        });
+    }
+
+    // 导出选中的数据 (分块导出)
+    const exportSelBtn = document.getElementById('export-selected-data-btn');
+    if (exportSelBtn) {
+        exportSelBtn.addEventListener('click', window.exportChunkedData);
+    }
+
+    // 补充式导入按钮 (触发文件选择)
+    const importChunkBtn = document.getElementById('import-chunked-data-btn');
+    if (importChunkBtn) {
+        importChunkBtn.addEventListener('click', () => {
+            const input = document.getElementById('import-chunked-data-input');
+            if (input) input.click();
+        });
+    }
+
+    // 补充式导入文件选择变化
+    const importChunkInput = document.getElementById('import-chunked-data-input');
+    if (importChunkInput) {
+        importChunkInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                window.importChunkedData(file);
+            }
+            e.target.value = null; // 清空以便下次选择
+        });
+    }
+
+    // 兼容330格式导出
+    const export330Btn = document.getElementById('export-for-330-btn');
+    if (export330Btn) {
+        export330Btn.addEventListener('click', window.exportDataFor330);
+    }
+
+    // 兼容330格式导入按钮 (触发文件选择)
+    const import330Btn = document.getElementById('import-from-330-btn');
+    if (import330Btn) {
+        import330Btn.addEventListener('click', () => {
+            const input = document.getElementById('import-from-330-input');
+            if (input) input.click();
+        });
+    }
+
+    // 兼容330格式导入文件选择变化
+    const import330Input = document.getElementById('import-from-330-input');
+    if (import330Input) {
+        import330Input.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                window.importFrom330Format(file);
+            }
+            e.target.value = null;
+        });
+    }
+
+    // 压缩图片
+    const compressBtn = document.getElementById('compress-all-images-btn');
+    if (compressBtn) {
+        compressBtn.addEventListener('click', window.compressAllImagesInDB);
+    }
+
+    // 流式导出 (大数据导出)
+    const streamExportBtn = document.getElementById('export-data-stream-btn');
+    if (streamExportBtn) {
+        streamExportBtn.addEventListener('click', window.exportDataStream);
+    }
+
+    // 恢复出厂设置按钮
+    const factoryResetBtn = document.getElementById('factory-reset-btn');
+    if (factoryResetBtn) {
+        factoryResetBtn.addEventListener('click', window.handleFactoryReset);
+    }
+
+    // 备份到GitHub
+    const backupGithubBtn = document.getElementById('backup-to-github-btn');
+    if (backupGithubBtn) {
+        backupGithubBtn.addEventListener('click', () => window.uploadBackupToGitHubStream(false));
+    }
+
+    // 从GitHub恢复
+    const restoreGithubBtn = document.getElementById('restore-from-github-btn');
+    if (restoreGithubBtn) {
+        restoreGithubBtn.addEventListener('click', window.restoreBackupFromGitHubStream);
+    }
+
+    // 开始修复数据
+    const startRepairBtn = document.getElementById('start-repair-btn');
+    if (startRepairBtn) {
+        startRepairBtn.addEventListener('click', window.repairAllData);
+    }
+};
+
+// 注入到现有的 initSettingsListeners 中
+if (typeof window.initSettingsListeners === 'function') {
+    const originalInit = window.initSettingsListeners;
+    window.initSettingsListeners = function () {
+        originalInit();
+        window.initAdvancedImportExportListeners();
+    };
+} else {
+    window.initSettingsListeners = window.initAdvancedImportExportListeners;
+}
+
+// ===================================================================
+// 10. QQ Chat Character Presets (Moved from main-app.js)
+// ===================================================================
+
+let editingPersonaPresetId = null;
+const PRESET_DEFAULT_AVATAR = 'https://i.postimg.cc/PxZrFFFL/o-o-1.jpg'; // Defined here for local use within this module scope
+
+function renderPersonaLibrary() {
+    const grid = document.getElementById('persona-library-grid');
+    if (!grid) return;
+    grid.innerHTML = '';
+
+    // Ensure state.personaPresets exists
+    if (!state.personaPresets) state.personaPresets = [];
+
+    if (state.personaPresets.length === 0) {
+        grid.innerHTML = '<p style="color: var(--text-secondary); grid-column: 1 / -1; text-align: center; margin-top: 20px;">空空如也~ 点击右上角"添加"来创建你的第一个人设预设吧！</p>';
+        return;
+    }
+    state.personaPresets.forEach((preset) => {
+        const item = document.createElement('div');
+        item.className = 'persona-preset-item';
+        item.style.backgroundImage = `url(${preset.avatar})`;
+        item.dataset.presetId = preset.id;
+        item.addEventListener('click', () => applyPersonaPreset(preset.id));
+
+        // Use global addLongPressListener if available
+        if (typeof window.addLongPressListener === 'function') {
+            window.addLongPressListener(item, () => showPresetActions(preset.id));
+        } else if (typeof addLongPressListener === 'function') {
+            addLongPressListener(item, () => showPresetActions(preset.id));
+        }
+
+        grid.appendChild(item);
+    });
+}
+window.renderPersonaLibrary = renderPersonaLibrary;
+
+function openPersonaLibrary() {
+    const personaLibraryModal = document.getElementById('persona-library-modal');
+    renderPersonaLibrary();
+    if (personaLibraryModal) personaLibraryModal.classList.add('visible');
+}
+window.openPersonaLibrary = openPersonaLibrary;
+
+function closePersonaLibrary() {
+    const personaLibraryModal = document.getElementById('persona-library-modal');
+    if (personaLibraryModal) personaLibraryModal.classList.remove('visible');
+}
+window.closePersonaLibrary = closePersonaLibrary;
+
+function showPresetActions(presetId) {
+    editingPersonaPresetId = presetId;
+    const presetActionsModal = document.getElementById('preset-actions-modal');
+    if (presetActionsModal) presetActionsModal.classList.add('visible');
+}
+
+function hidePresetActions() {
+    const presetActionsModal = document.getElementById('preset-actions-modal');
+    if (presetActionsModal) presetActionsModal.classList.remove('visible');
+    editingPersonaPresetId = null;
+}
+window.hidePresetActions = hidePresetActions;
+
+function applyPersonaPreset(presetId) {
+    const preset = state.personaPresets.find((p) => p.id === presetId);
+    if (preset) {
+        const avatarPreview = document.getElementById('my-avatar-preview');
+        const personaInput = document.getElementById('my-persona');
+        if (avatarPreview) avatarPreview.src = preset.avatar;
+        if (personaInput) personaInput.value = preset.persona;
+    }
+    closePersonaLibrary();
+}
+window.applyPersonaPreset = applyPersonaPreset;
+
+async function savePersonaPreset() {
+    const preview = document.getElementById('preset-avatar-preview');
+    const input = document.getElementById('preset-persona-input');
+
+    const avatar = preview ? preview.src : PRESET_DEFAULT_AVATAR;
+    const persona = input ? input.value.trim() : '';
+
+    if (avatar === PRESET_DEFAULT_AVATAR && !persona) {
+        alert('头像和人设不能都为空哦！');
+        return;
+    }
+    if (editingPersonaPresetId) {
+        const preset = state.personaPresets.find((p) => p.id === editingPersonaPresetId);
+        if (preset) {
+            preset.avatar = avatar;
+            preset.persona = persona;
+            await db.personaPresets.put(preset);
+        }
+    } else {
+        const newPreset = { id: 'preset_' + Date.now(), avatar: avatar, persona: persona };
+        await db.personaPresets.add(newPreset);
+        state.personaPresets.push(newPreset);
+    }
+    renderPersonaLibrary();
+    closePersonaEditor();
+}
+window.savePersonaPreset = savePersonaPreset;
+
+function openPersonaEditorForCreate() {
+    editingPersonaPresetId = null;
+
+    const title = document.getElementById('persona-editor-title');
+    const preview = document.getElementById('preset-avatar-preview');
+    const input = document.getElementById('preset-persona-input');
+
+    if (title) title.textContent = '添加人设预设';
+    if (preview) preview.src = PRESET_DEFAULT_AVATAR;
+    if (input) input.value = '';
+
+    // 根据用户人设模式，显隐特定UI元素
+    const nameGroup = document.getElementById('npc-editor-name-group');
+    const changeBtn = document.getElementById('persona-editor-change-frame-btn');
+    if (nameGroup) nameGroup.style.display = 'none';
+    if (changeBtn) changeBtn.style.display = 'inline-block';
+
+    // 直接覆盖保存按钮的 onclick 事件，强制它只执行保存用户人设的函数
+    const saveBtn = document.getElementById('save-persona-preset-btn');
+    if (saveBtn) saveBtn.onclick = savePersonaPreset;
+
+    const personaEditorModal = document.getElementById('persona-editor-modal');
+    if (personaEditorModal) personaEditorModal.classList.add('visible');
+}
+window.openPersonaEditorForCreate = openPersonaEditorForCreate;
+
+function openPersonaEditorForEdit() {
+    // Need access to editingPersonaPresetId. It is module-scoped in this file now.
+
+    const preset = state.personaPresets.find((p) => p.id === editingPersonaPresetId);
+    if (!preset) return;
+
+    const title = document.getElementById('persona-editor-title');
+    const preview = document.getElementById('preset-avatar-preview');
+    const input = document.getElementById('preset-persona-input');
+
+    if (title) title.textContent = '编辑人设预设';
+    if (preview) preview.src = preset.avatar;
+    if (input) input.value = preset.persona;
+
+    // 根据用户人设模式，显隐特定UI元素
+    const nameGroup = document.getElementById('npc-editor-name-group');
+    const changeBtn = document.getElementById('persona-editor-change-frame-btn');
+    if (nameGroup) nameGroup.style.display = 'none';
+    if (changeBtn) changeBtn.style.display = 'inline-block';
+
+    // 直接覆盖保存按钮的 onclick 事件，强制它只执行保存用户人设的函数
+    const saveBtn = document.getElementById('save-persona-preset-btn');
+    if (saveBtn) saveBtn.onclick = savePersonaPreset;
+
+    const presetActionsModal = document.getElementById('preset-actions-modal');
+    if (presetActionsModal) presetActionsModal.classList.remove('visible'); // hide actions
+
+    const personaEditorModal = document.getElementById('persona-editor-modal');
+    if (personaEditorModal) personaEditorModal.classList.add('visible');
+}
+window.openPersonaEditorForEdit = openPersonaEditorForEdit;
+
+async function deletePersonaPreset() {
+    // Assuming showCustomConfirm is global.
+    const showConfirm = window.showCustomConfirm || showCustomConfirm;
+
+    const confirmed = await showConfirm('删除预设', '确定要删除这个人设预设吗？此操作不可恢复。', {
+        confirmButtonClass: 'btn-danger',
+    });
+    if (confirmed && editingPersonaPresetId) {
+        await db.personaPresets.delete(editingPersonaPresetId);
+        state.personaPresets = state.personaPresets.filter((p) => p.id !== editingPersonaPresetId);
+        hidePresetActions();
+        renderPersonaLibrary();
+    }
+}
+window.deletePersonaPreset = deletePersonaPreset;
+
+function closePersonaEditor() {
+    const personaEditorModal = document.getElementById('persona-editor-modal');
+    if (personaEditorModal) personaEditorModal.classList.remove('visible');
+    editingPersonaPresetId = null;
+}
+window.closePersonaEditor = closePersonaEditor;
 

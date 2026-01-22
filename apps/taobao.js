@@ -19,10 +19,14 @@ const logisticsTimelineTemplate = [
     { text: '您的快件已签收，感谢您在桃宝购物，期待再次为您服务！', delay: 1000 * 60 * 60 * 28 }, // 28小时后
 ];
 
-const addProductChoiceModal = document.getElementById('add-product-choice-modal');
-const aiGeneratedProductsModal = document.getElementById('ai-generated-products-modal');
-const productSearchInput = document.getElementById('product-search-input');
-const productSearchBtn = document.getElementById('product-search-btn');
+const addProductChoiceModal = document.getElementById(
+    "add-product-choice-modal",
+);
+const aiGeneratedProductsModal = document.getElementById(
+    "ai-generated-products-modal",
+);
+const productSearchInput = document.getElementById("product-search-input");
+const productSearchBtn = document.getElementById("product-search-btn");
 
 // 全局的、通用的商品图片提示词模板库
 // 我们会根据商品名称的关键词来智能匹配这些模板
@@ -96,12 +100,17 @@ const GENERIC_PRODUCT_PROMPTS = [
  * 这个函数会一个接一个地为队列中的商品/美食生成图片，避免并发请求。
  */
 async function processImageQueue() {
+    console.log(`[Debug] 尝试启动队列处理。当前 isProcessingImage=${isProcessingImage}, 队列长度=${imageGenerationQueue.length}`);
+
     // 如果当前有其他任务正在处理，就直接返回，让它处理完再说
-    if (isProcessingImage) return;
+    if (isProcessingImage) {
+        console.log('[Debug] 队列正在处理中，本次调用跳过。');
+        return;
+    }
 
     // 标记为“正在处理中”，锁上开关
     isProcessingImage = true;
-    console.log(`队列开始处理，当前有 ${imageGenerationQueue.length} 个图片生成任务。`);
+    console.log(`[Debug] 队列锁定，开始处理。任务数: ${imageGenerationQueue.length}`);
 
     // 只要队列里还有任务，就一直循环
     while (imageGenerationQueue.length > 0) {
@@ -164,17 +173,50 @@ function selectGenericImagePrompt(productName) {
  * @param {string} prompt - 用于生成图片的英文提示词
  * @returns {Promise<string>} - 返回一个Promise，它最终会resolve为一个有效的图片URL
  */
-async function generateAndLoadImage(prompt) {
+async function generateTaobaoImage(prompt) {
+    console.log(`[Debug] generateTaobaoImage 被调用 (Taobao专属)，Prompt:`, prompt);
     while (true) {
         // ★★★ 核心修改：这是一个无限循环 ★★★
         try {
             const encodedPrompt = encodeURIComponent(prompt);
             const seed = Math.floor(Math.random() * 100000);
 
-            // 尝试主域名
-            const primaryUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=640&seed=${seed}`;
+            // 1. 获取 API Key (从全局状态获取)
+            const pollApiKey = state.apiConfig.pollinationsApiKey;
+            console.log(`正在使用 API Key: ${pollApiKey}`);
 
-            const loadImage = url =>
+            // 2. 构建基础 URL (加了 nologo=true 去水印，通常加Key后支持更好)
+            const primaryUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=640&seed=${seed}&nologo=true`;
+
+            // === 分支 A: 如果有 API Key，使用 fetch 发送带 Header 的请求 ===
+            if (pollApiKey) {
+                console.log("正在使用 Pollinations API Key 生成图片...");
+                try {
+                    const response = await fetch(primaryUrl, {
+                        method: "GET",
+                        headers: {
+                            Authorization: `Bearer ${pollApiKey}`, // 关键：在这里放入 Key
+                        },
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`API请求失败: ${response.status}`);
+                    }
+
+                    // 获取二进制数据并转换为 Blob URL
+                    const blob = await response.blob();
+                    const objectUrl = URL.createObjectURL(blob);
+                    return objectUrl; // 返回 Blob URL
+                } catch (fetchError) {
+                    console.warn("⚠️ 带Key请求失败 (可能是CORS跨域限制)，尝试自动降级为普通链接加载:", fetchError);
+                    // 不抛出错误，而是继续向下执行，使用“分支 B”的逻辑
+                }
+            }
+
+            // === 分支 B: 如果没有 API Key 或 API Key 请求失败，走原来的公开接口逻辑 ===
+
+            // 定义加载器辅助函数
+            const loadImage = (url) =>
                 new Promise((resolve, reject) => {
                     const img = new Image();
                     img.src = url;
@@ -188,52 +230,13 @@ async function generateAndLoadImage(prompt) {
                 return await loadImage(fallbackUrl);
             });
 
-            // 如果任何一个URL成功加载，就返回结果，并跳出循环
+            // 如果成功加载，返回 URL
             return imageUrl;
         } catch (error) {
-            // 如果主域名和备用域名都失败了...
-            console.error(`图片生成彻底失败，将在5秒后重试。错误: ${error.message}`);
-            // 等待5秒钟，然后循环会继续，开始下一次尝试
-            await new Promise(resolve => setTimeout(resolve, 5000));
-        }
-    }
-}
-
-/**
- * 为Prompt生成并加载图片
- * @param {string} prompt - 用于生成图片的英文提示词
- * @returns {Promise<string>} - 返回一个Promise，它最终会resolve为一个有效的图片URL
- */
-async function generateAndLoadImage(prompt) {
-    while (true) {
-        try {
-            const encodedPrompt = encodeURIComponent(prompt);
-            const seed = Math.floor(Math.random() * 100000);
-
-            // 尝试主域名
-            const primaryUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=640&seed=${seed}`;
-
-            const loadImage = url =>
-                new Promise((resolve, reject) => {
-                    const img = new Image();
-                    img.src = url;
-                    img.onload = () => resolve(url);
-                    img.onerror = () => reject(new Error(`URL加载失败: ${url}`));
-                });
-
-            const imageUrl = await loadImage(primaryUrl).catch(async () => {
-                console.warn(`主URL加载失败，尝试备用URL for: ${prompt}`);
-                const fallbackUrl = `https://pollinations.ai/p/${encodedPrompt}?width=1024&height=640&seed=${seed}`;
-                return await loadImage(fallbackUrl);
-            });
-
-            // 如果任何一个URL成功加载，就返回结果，并跳出循环
-            return imageUrl;
-        } catch (error) {
-            // 如果主域名和备用域名都失败了...
-            console.error(`图片生成彻底失败，将在5秒后重试。错误: ${error.message}`);
-            // 等待5秒钟，然后循环会继续，开始下一次尝试
-            await new Promise(resolve => setTimeout(resolve, 5000));
+            // 如果彻底失败（Fetch失败 或 Image加载失败）
+            console.error(`图片生成失败，将在5秒后重试。错误: ${error.message}`);
+            // 等待5秒钟，然后循环继续，开始下一次尝试 (无限重试机制)
+            await new Promise((resolve) => setTimeout(resolve, 5000));
         }
     }
 }
@@ -243,6 +246,7 @@ async function generateAndLoadImage(prompt) {
  * @param {object} product - 商品对象
  */
 async function processProductImage(product) {
+    console.log(`[Debug] processProductImage 被调用，商品: ${product.name}`);
     try {
         // 智能决策，决定使用哪个提示词
         let imagePrompt;
@@ -257,7 +261,7 @@ async function processProductImage(product) {
         }
 
         // 2. 调用我们那个“永不放弃”的核心生图函数
-        const imageUrl = await generateAndLoadImage(imagePrompt);
+        const imageUrl = await generateTaobaoImage(imagePrompt);
 
         // 3. 将生成好的图片URL保存回“桃宝”的数据库，实现持久化
         await db.taobaoProducts.update(product.id, { imageUrl: imageUrl });
@@ -300,7 +304,7 @@ async function processFoodImage(food) {
         }
 
         // 2. 调用我们那个“永不放弃”的核心生图函数
-        const imageUrl = await generateAndLoadImage(imagePrompt);
+        const imageUrl = await generateTaobaoImage(imagePrompt);
 
         // 3. 将生成好的图片URL保存回“饿了么”的数据库，实现持久化
         await db.elemeFoods.update(food.id, { imageUrl: imageUrl });
@@ -338,7 +342,7 @@ async function generateImageForProduct(productName) {
     // 2. 调用已具备“无限重试”功能的核心图片生成函数
     // 这个函数会一直尝试，直到成功返回一个图片URL
     try {
-        const imageUrl = await generateAndLoadImage(imagePrompt);
+        const imageUrl = await generateTaobaoImage(imagePrompt);
         return imageUrl;
     } catch (error) {
         // 理论上，由于 generateAndLoadImage 是无限循环，代码不会执行到这里。
@@ -407,7 +411,7 @@ async function renderChatList() {
         `;
         const contentEl = groupContainer.querySelector('.chat-group-content');
 
-        groupChats.forEach(chat => {
+        groupChats.forEach((chat) => {
             const item = createChatListItem(chat);
             contentEl.appendChild(item);
         });
@@ -419,7 +423,7 @@ async function renderChatList() {
         .filter(chat => chat.isGroup || (!chat.isGroup && !chat.groupId))
         .sort((a, b) => (b.history.slice(-1)[0]?.timestamp || 0) - (a.history.slice(-1)[0]?.timestamp || 0));
 
-    remainingChats.forEach(chat => {
+    remainingChats.forEach((chat) => {
         const item = createChatListItem(chat);
         chatListEl.appendChild(item);
     });
@@ -1710,6 +1714,7 @@ async function handleCheckout() {
  * 渲染商品列表，按需生成并永久保存图片
  */
 async function renderTaobaoProducts(category = null) {
+    console.log('[Debug] renderTaobaoProducts 被调用');
     const gridEl = document.getElementById('product-grid');
     gridEl.innerHTML = '';
 
@@ -1744,6 +1749,7 @@ async function renderTaobaoProducts(category = null) {
         if (product.imageUrl) {
             imageContainer.innerHTML = `<img src="${product.imageUrl}" class="product-image" alt="${product.name}">`;
         } else {
+            console.log(`[Debug] 商品 "${product.name}" 无图片，加入生成队列。`);
             imageContainer.innerHTML = `<div class="loading-spinner"></div>`;
             imageGenerationQueue.push({ type: 'taobao', item: product });
         }
@@ -2096,12 +2102,22 @@ function displayAiGeneratedProducts(products, title) {
  * @param {HTMLElement} cardElement - 对应的商品卡片DOM元素
  */
 async function loadAndDisplayAiProductImage(productData, cardElement) {
+    console.log(`[Debug] loadAndDisplayAiProductImage 被调用, 商品: ${productData.name}, Prompt: ${productData.imagePrompt}`);
     const imageContainer = cardElement.querySelector('.product-image-container');
-    if (!imageContainer) return;
+    if (!imageContainer) {
+        console.error('[Debug] ❌ 找不到 product-image-container! Card HTML:', cardElement.innerHTML);
+        return;
+    }
+    console.log('[Debug] ✅ 找到容器，准备调用生图函数...');
+
+    if (typeof generateTaobaoImage !== 'function') {
+        console.error('[Debug] ❌ generateTaobaoImage 不是一个函数!', generateTaobaoImage);
+        return;
+    }
 
     try {
         // 1. 【联动】调用具备“无限重试”功能的图片生成函数，并传入AI给的专属Prompt
-        const imageUrl = await generateAndLoadImage(productData.imagePrompt);
+        const imageUrl = await generateTaobaoImage(productData.imagePrompt);
 
         // 2. 将生成好的图片URL【回写】到商品数据中，方便“添加到主页”时使用
         productData.imageUrl = imageUrl;
