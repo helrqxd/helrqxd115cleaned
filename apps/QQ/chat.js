@@ -9400,6 +9400,34 @@ function applyLyricsSettings() {
     }
 }
 
+function hexToRgb(hex) {
+    if (!hex || hex.length < 4) return '255, 255, 255';
+    let result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? `${parseInt(result[1], 16)}, ${parseInt(result[2], 16)}, ${parseInt(result[3], 16)}` : '255, 255, 255';
+}
+
+function applySavedInnerVoiceStyles() {
+    // Falls back to window.state if state is not defined in scope
+    const s = (typeof state !== 'undefined') ? state : window.state;
+    if (!s.activeChatId) return;
+    const chat = s.chats[s.activeChatId];
+    if (!chat || !chat.settings.innerVoiceStyles) return;
+
+    const styles = chat.settings.innerVoiceStyles;
+    const panel = document.getElementById('inner-voice-main-panel');
+    if (!panel) return;
+
+    panel.style.setProperty('--iv-color-clothing', styles.clothingColor);
+    panel.style.setProperty('--iv-color-behavior', styles.behaviorColor);
+    panel.style.setProperty('--iv-color-thoughts', styles.thoughtsColor);
+    panel.style.setProperty('--iv-color-naughty', styles.naughtyColor);
+    panel.style.setProperty('--iv-card-bg-rgb', hexToRgb(styles.cardBgColor));
+    panel.style.setProperty('--iv-card-opacity', styles.cardOpacity);
+
+    // 应用保存的图标颜色
+    panel.style.setProperty('--iv-icon-color', styles.iconColor || '#ff8a80');
+}
+
 function openInnerVoiceModal() {
     if (!state.activeChatId) return;
     const chat = state.chats[state.activeChatId];
