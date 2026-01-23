@@ -631,27 +631,13 @@ function formatChatListTimestamp(timestamp) {
     return `${year}/${month}/${day}`;
 }
 
-function showNotification(chatId, messageContent) {
-    playNotificationSound();
-    clearTimeout(notificationTimeout);
-    const chat = state.chats[chatId];
-    if (!chat) return;
-    const bar = document.getElementById('notification-bar');
-    document.getElementById('notification-avatar').src =
-        chat.settings.aiAvatar || chat.settings.groupAvatar || defaultAvatar;
-    document.getElementById('notification-content').querySelector('.name').textContent = chat.name;
-    document.getElementById('notification-content').querySelector('.message').textContent = messageContent;
-    const newBar = bar.cloneNode(true);
-    bar.parentNode.replaceChild(newBar, bar);
-    newBar.addEventListener('click', () => {
-        openChat(chatId);
-        newBar.classList.remove('visible');
-    });
-    newBar.classList.add('visible');
-    notificationTimeout = setTimeout(() => {
-        newBar.classList.remove('visible');
-    }, 4000);
-}
+// function showNotification(chatId, messageContent) {
+//     // Create/Update frontend notification bar (using global logic now)
+//     if (window.showNotification) {
+//         window.showNotification(chatId, messageContent);
+//         return;
+//     }
+// }
 function addLongPressListener(element, callback) {
     let pressTimer;
     const startPress = e => {

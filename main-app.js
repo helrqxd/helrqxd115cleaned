@@ -1761,6 +1761,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     };
 
+    window.showNotification = showNotification; // Expose to global
+
     function showNotification(chatId, messageContent) {
         playNotificationSound();
         clearTimeout(notificationTimeout);
