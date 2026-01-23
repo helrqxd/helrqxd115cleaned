@@ -2575,6 +2575,46 @@ window.triggerAiResponse = async function triggerAiResponse() {
         if (chat.isGroup) {
             const countdownContext = await window.getCountdownContext(chatId); // <--- 把chatId传进去
             const streakContext = await window.getStreakContext(chat); // <-- 全新添加：获取火花状态
+            const myNickname = chat.settings.myNickname || '我';
+
+            // 3. 构建跨群聊列表上下文 (New Feature)
+            let crossChatContext = '';
+            try {
+                const allChats = Object.values(window.state.chats);
+                const crossChatMap = {}; // name -> Available Chats string
+
+                chat.members.forEach((member) => {
+                    const myOtherChats = allChats.filter((c) => {
+                        if (c.id === chat.id) return false; // Skip current chat
+                        if (c.isGroup) {
+                            return c.members.some((m) => m.originalName === member.originalName);
+                        } else {
+                            // DM with User
+                            return c.name === member.originalName;
+                        }
+                    });
+
+                    if (myOtherChats.length > 0) {
+                        const targets = myOtherChats.map((c) => (c.isGroup ? `[群聊: ${c.name}]` : `[私聊用户]`)).join(', ');
+                        crossChatMap[member.originalName] = targets;
+                    }
+                });
+
+                if (Object.keys(crossChatMap).length > 0) {
+                    crossChatContext = `
+			# 跨群聊功能 (Cross-Chat Capability)
+			- 角色可以向他们所在的【其他群聊】或【与用户的私聊】发送消息。
+			- 指令: \`{"type": "cross_chat_message", "name": "角色名", "target_chat_name": "【目标群聊名称】或【${myNickname}】", "content": "消息内容"}\`
+			- **可用目标列表**:
+            所有角色都可以发送消息给${myNickname} (用户本人)。
+			${Object.entries(crossChatMap)
+                            .map(([name, targets]) => `- ${name} 可以发送给: ${targets}`)
+                            .join('\n')}
+			`;
+                }
+            } catch (err) {
+                console.error('Gen Cross Chat Context Error', err);
+            }
 
             const membersList = chat.members
                 .map((m) => {
@@ -2583,7 +2623,6 @@ window.triggerAiResponse = async function triggerAiResponse() {
                 })
                 .join('\n');
 
-            const myNickname = chat.settings.myNickname || '我';
             // 1. 获取群公告内容
             const announcement = chat.settings.groupAnnouncement || '';
             let announcementContext = '';
@@ -2602,7 +2641,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
 			你是一个群聊AI，负责扮演【除了用户以外】的所有角色。
 			# 【对话节奏铁律 (至关重要！)】
 			你的回复【必须】模拟真人的打字和思考习惯。不要一次性发送一大段文字，每条消息最好不要超过30个字。这会让对话看起来更自然、更真实。
-			**角色回复顺序不固定，【必须】交叉回复，例如角色A、角色B、角色B、角色A、角色C这样的交叉顺序。一定不要一个人全部说完了才轮到下一个人。角色之间【必须】有互动对话。**
+			**角色回复顺序不固定，【必须】交叉回复，例如角色A、角色B、角色B、角色A、角色C这样的交叉顺序。【绝对不要】不要一个人全部说完了才轮到下一个人。角色之间【必须】有互动对话。**
 			# 【【【身份铁律：这是最高指令，必须严格遵守】】】
 			1.  **核心任务**: 你的唯一任务是扮演【且仅能扮演】下方“群成员列表”中明确列出的角色。【绝对禁止】扮演任何未在“群成员列表”中出现的角色。严格遵守“群成员列表及人设”中的每一个角色的设定。
             # 群成员列表及人设 (name字段是你要使用的【本名】)
@@ -2685,7 +2724,8 @@ window.triggerAiResponse = async function triggerAiResponse() {
 			2.  **响应请求**: 当历史记录中出现【其他成员】发起的 "waimai_request" 请求时，你可以根据自己扮演的角色的性格和与发起人的关系，决定是否为Ta买单。
 			3.  **响应方式**: 如果你决定买单，你【必须】使用以下指令：\`{"type": "waimai_response", "name": "你的角色名", "status": "paid", "for_timestamp": (被代付请求的原始时间戳)}\`
 			4.  **【【【至关重要】】】**: 一旦历史记录中出现了针对某个代付请求的【任何一个】"status": "paid" 的响应（无论是用户支付还是其他角色支付），就意味着该订单【已经完成】。你【绝对不能】再对【同一个】订单发起支付。你可以选择对此事发表评论，但不能再次支付。
-			${summaryContext}
+			${crossChatContext}
+            ${summaryContext}
 			${announcementContext}
 			${redPacketContext}
 			${worldBookContent}
@@ -2841,6 +2881,27 @@ window.triggerAiResponse = async function triggerAiResponse() {
 
             console.log(messagesPayload);
         } else {
+            // 3. 构建跨群聊列表上下文 (New Feature for Single Chat)
+            let crossChatContext = '';
+            try {
+                const allChats = Object.values(window.state.chats);
+                // In single chat, the character name is chat.name
+                const myName = chat.name;
+                const myGroups = allChats.filter((c) => c.isGroup && c.members.some((m) => m.originalName === myName));
+
+                if (myGroups.length > 0) {
+                    const targets = myGroups.map((c) => `[群聊: ${c.name}]`).join(', ');
+                    crossChatContext = `
+			# 跨群聊功能 (Cross-Chat Capability)
+			- 你可以向你所在的【群聊】发送与当前对话相关的消息。
+			- 指令: \`{"type": "cross_chat_message", "target_chat_name": "目标群聊名称", "content": "消息内容"}\`
+			- **可用目标列表**: ${targets}
+			`;
+                }
+            } catch (err) {
+                console.error('Gen Cross Chat Context Error (Single)', err);
+            }
+
             const npcLibrary = chat.npcLibrary || [];
             let npcContext = '';
             if (npcLibrary.length > 0) {
@@ -3134,6 +3195,7 @@ ${libraryList}
 			- **拍一拍用户**: \`{"type": "pat_user", "suffix": "(可选后缀，如“的脑袋”)"}\`
 			- **发送后立刻撤回**: \`{"type": "send_and_recall", "content": "说错话或想表达犹豫的内容"}\`
 			- **与宠物互动**: \`{"type": "interact_with_pet", "action": "feed" | "play" | "touch", "response": "你互动后想说的话..."}\`
+            ${crossChatContext}
 			**二、 状态与环境指令**
 			- **更新状态**: \`{"type": "update_status", "status_text": "我去做什么了", "is_busy": false}\` (is_busy: true为忙碌, false为空闲)
 			- **更换头像**: \`{"type": "change_avatar", "name": "头像名"}\`(头像名需在头像库列表中)
@@ -3846,6 +3908,75 @@ ${libraryList}
                         console.warn(`AI在群聊中杜撰了不存在的表情: "${stickerName}"，已自动拦截。`);
                     }
                     break;
+                }
+                case 'cross_chat_message': {
+                    // 1. 提取参数
+                    const targetName = msgData.target_chat_name;
+                    const content = msgData.content;
+                    const senderName = msgData.name || chat.name; // 群聊需提供name，单聊默认chat.name
+
+                    if (!targetName || !content) {
+                        console.warn('Cross chat message missing target or content', msgData);
+                        continue;
+                    }
+
+                    // 2. 寻找目标聊天
+                    let targetChat = null;
+                    if (targetName === myNickname || targetName === 'Private Chat') {
+                        // 寻找与该角色的单聊
+                        targetChat = Object.values(window.state.chats).find((c) => !c.isGroup && c.name === senderName);
+                    } else {
+                        // 寻找群聊 (格式可能是 "[群聊: Name]" 或 just "Name")
+                        let cleanTargetName = targetName
+                            .replace(/^\[群聊:\s*/, '')
+                            .replace(/\]$/, '')
+                            .trim();
+                        targetChat = Object.values(window.state.chats).find((c) => c.isGroup && c.name === cleanTargetName);
+                    }
+
+                    if (targetChat) {
+                        // 3. 验证角色是否在目标聊天中
+                        let isMember = false;
+                        if (targetChat.isGroup) {
+                            isMember = targetChat.members.some((m) => m.originalName === senderName);
+                        } else {
+                            // 私聊的目标肯定是User，发送者肯定是Character
+                            isMember = targetChat.name === senderName;
+                        }
+
+                        if (isMember) {
+                            // 4. 构建消息
+                            const newMsg = {
+                                role: 'assistant',
+                                senderName: senderName,
+                                content: content,
+                                timestamp: Date.now(),
+                            };
+                            targetChat.history.push(newMsg);
+                            if (typeof targetChat.unreadCount === 'number') {
+                                targetChat.unreadCount++;
+                            } else {
+                                targetChat.unreadCount = 1;
+                            }
+
+                            await window.db.chats.put(targetChat);
+
+                            // 5. 反馈给当前聊天 (User might not see the other chat immediately)
+                            const sysMsg = {
+                                role: 'system',
+                                type: 'pat_message', // Use gray bubble
+                                content: `[${senderName} 向 "${targetName}" 发送了一条消息]`,
+                                timestamp: Date.now(),
+                            };
+                            chat.history.push(sysMsg);
+                            if (isViewingThisChat) appendMessage(sysMsg, chat);
+                        } else {
+                            console.warn(`Character ${senderName} is not in target chat ${targetName}`);
+                        }
+                    } else {
+                        console.warn(`Target chat ${targetName} not found`);
+                    }
+                    continue; // Done
                 }
                 case 'change_couple_avatar': {
                     const pairId = msgData.avatar_id;
