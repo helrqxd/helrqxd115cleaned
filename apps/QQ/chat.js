@@ -1645,6 +1645,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
     if (!window.state.activeChatId) return;
     const chatId = window.state.activeChatId;
     const chat = window.state.chats[window.state.activeChatId];
+    const myNickname = chat.settings.myNickname || '我';
     const messagesContainer = document.getElementById('chat-messages');
 
     let summaryContext = '';
@@ -2492,7 +2493,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
                 // 格式化这些消息
                 const formattedMessages = recentHistory.map((msg) => `  - ${formatMessageForContext(msg, freshLinkedChat)}`).join('\n');
 
-                return `\n## 附加上下文：来自与“${linkedChat.name}”的最近对话内容 (仅你可见)\n${formattedMessages}`;
+                return `\n## 附加上下文：来自与“${linkedChat.name}”的最近对话内容 (仅相关角色可见)\n${formattedMessages}`;
             });
 
             // 等待所有链接都处理完毕
@@ -2575,7 +2576,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
         if (chat.isGroup) {
             const countdownContext = await window.getCountdownContext(chatId); // <--- 把chatId传进去
             const streakContext = await window.getStreakContext(chat); // <-- 全新添加：获取火花状态
-            const myNickname = chat.settings.myNickname || '我';
+
 
             // 3. 构建跨群聊列表上下文 (New Feature)
             let crossChatContext = '';
@@ -2595,7 +2596,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
                     });
 
                     if (myOtherChats.length > 0) {
-                        const targets = myOtherChats.map((c) => (c.isGroup ? `[群聊: ${c.name}]` : `[私聊用户]`)).join(', ');
+                        const targets = myOtherChats.map((c) => (c.isGroup ? `[群聊: ${c.name}]` : `[${myNickname}]`)).join(', ');
                         crossChatMap[member.originalName] = targets;
                     }
                 });
@@ -2823,12 +2824,14 @@ window.triggerAiResponse = async function triggerAiResponse() {
 			- **世界观设定集**:
 			${worldBookContent}
 
-            # **对话历史**
+            - **其他相关聊天记录（剧情参考）**:
+            ${linkedMemoryContext}
+
+            - **对话历史**
             ${recentContextSummary}
             ${summaryContext}
             ${redPacketContext}
 			${sharedContext}
-            ${linkedMemoryContext}
 
 			- **可用表情包**:
 			${stickerContext}`;
@@ -3411,10 +3414,12 @@ ${contextSummaryForApproval}
             ${auroraContext}
             ${weiboContext}
             ${postsContext}
-
-            # **对话历史**
-            ${recentContextSummary}
+            
+            - **其他相关聊天记录（剧情参考）**:
             ${linkedMemoryContext}
+
+            - **对话历史**
+            ${recentContextSummary}
             ${sharedContextSection}
             ${friendRequestInstruction}
 

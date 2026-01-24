@@ -506,19 +506,29 @@ async function triggerInactiveAiAction(chatId) {
         # 供你决策的参考信息：
         -   **你的角色设定**: ${chat.settings.aiPersona}
         - 情侣空间状态: ${chat.loversSpaceData ? '已开启' : '未开启'}
-        ${npcContextForAction}
-        ${weiboContextForAction}
-        ${countdownContext}
-        ${worldBookContext}
-        -   **当前时间**: ${currentTime}
-        -   **你们最近的对话摘要**:
-        ${recentContextSummary}
-        ${summaryContext}
-        ${linkedMemoryContext}
         -   **【【【微博专属设定(必须严格遵守)】】】**
             - 你的微博职业: ${chat.settings.weiboProfession || '无'}
             - 你的微博指令: ${chat.settings.weiboInstruction || '无特殊指令'}
+
+		- **近期约定与倒计时**:
+		${countdownContext}
+
+		- **最近的微博互动**:
+		${weiboContextForAction}
+
+        - **近期动态**:
         ${postsContext}
+
+		- **世界观设定集**:
+		${worldBookContext}
+
+        - **其他相关聊天记录（剧情参考）**:
+        ${linkedMemoryContext}
+
+        - **对话历史**
+        ${recentContextSummary}
+        ${summaryContext}
+
         `;
     let messagesPayload = [
         { role: 'system', content: systemPrompt },
@@ -964,18 +974,25 @@ async function triggerGroupAiAction(chatId) {
         -   例如: \`{"type": "pat_user", "name": "角色A", "targetName": "角色B"}\`
         -   系统会自动生成 "角色A 拍了拍 角色B" 的提示。
 
-        ${worldBookContent}
-        ${musicContext}
-        ${countdownContext} 
-        ${sharedContext}
-        # 群成员列表及人设
-        ${membersList}
-        # 用户的角色
-        - **${myNickname}**: ${chat.settings.myPersona}
-        # 对话历史参考
+        - **对话者(用户)角色设定**:
+		- **${myNickname}**: ${chat.settings.myPersona}
+
+		- **当前音乐情景**:
+		${musicContext}
+
+		- **近期约定与倒计时**:
+		${countdownContext}
+
+		- **世界观设定集**:
+		${worldBookContent}
+
+        - **其他相关聊天记录（剧情参考）**:
+        ${linkedMemoryContext}
+
+        - **对话历史**
         ${recentContextSummary}
         ${summaryContext}
-        ${linkedMemoryContext}
+		${sharedContext}
 
         现在，请严格遵守以上所有规则，开始你的模拟。`;
 
