@@ -732,12 +732,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     function showCustomModal() {
         modalOverlay.classList.add('visible');
     }
+    window.showCustomModal = showCustomModal;
 
     function hideCustomModal() {
         modalOverlay.classList.remove('visible');
         modalConfirmBtn.classList.remove('btn-danger');
         if (modalResolve) modalResolve(null);
     }
+    window.hideCustomModal = hideCustomModal;
 
     window.showCustomConfirm = function (title, message, options = {}) {
         return new Promise((resolve) => {

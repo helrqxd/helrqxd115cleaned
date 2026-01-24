@@ -2636,6 +2636,87 @@ window.triggerAiResponse = async function triggerAiResponse() {
 			`;
             }
             // updated by lrq 251027
+
+            // [New Logic] Prepare Context Variables for Group Chat
+            const recentContextSummary = historySlice
+                .map((msg) => {
+                    const date = new Date(msg.timestamp);
+                    const timestampStr = date.toLocaleString();
+
+                    if (msg.isHidden) {
+                        return `${timestampStr} [系统隐藏信息]: ${msg.content}`;
+                    }
+
+                    if (msg.type === 'share_card') return null;
+
+                    if (msg.type === 'narrative') {
+                        return `${timestampStr} [剧情/环境旁白: ${msg.content}]`;
+                    }
+
+                    if (msg.role === 'assistant') {
+                        return formatMessageForContext(msg, chat);
+                    }
+
+                    const myNickname = chat.settings.myNickname || '我';
+                    let contentStr = '';
+
+                    // 1. Polls
+                    if (msg.type === 'poll') {
+                        return `${timestampStr} [系统提示：用户 (${myNickname}) 发起了一个投票。问题：“${msg.question}”, 选项：“${msg.options.join('", "')}”。你可以使用 'vote' 指令参与投票。]`;
+                    }
+
+                    // 2. Quotes and Content
+                    if (msg.quote) {
+                        const quotedSender = msg.quote.senderName || '未知用户';
+                        // Keep full content as in previous code? Previous code: String(msg.quote.content || '')
+                        const fullQuotedContent = String(msg.quote.content || '');
+                        contentStr += `(回复 ${quotedSender} 的消息: "${fullQuotedContent}"): ${msg.content}`;
+                    } else {
+                        contentStr += msg.content;
+                    }
+
+                    // 3. Special Types
+                    if (msg.type === 'user_photo')
+                        contentStr = `[你收到了一张用户描述的照片，内容是：'${msg.content}']`;
+                    else if (msg.type === 'voice_message')
+                        contentStr = `[用户发来一条语音消息，内容是：'${msg.content}']`;
+                    else if (msg.type === 'transfer') {
+                        if (msg.status === 'accepted') {
+                            contentStr = `[系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已收款)]`;
+                        } else if (msg.status === 'declined') {
+                            contentStr = `[系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已拒收)]`;
+                        } else {
+                            contentStr = `[系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。请你决策并使用 'accept_transfer' 或 'decline_transfer' 指令回应。]`;
+                        }
+                    }
+                    else if (msg.type === 'waimai_request') {
+                        if (msg.status === 'paid') {
+                            contentStr = `[系统提示：外卖代付请求已完成，支付者：${msg.paidBy}。商品“${msg.productInfo}”。]`;
+                        } else if (msg.status === 'rejected') {
+                            contentStr = `[系统提示：外卖代付请求已被拒绝。商品“${msg.productInfo}”。]`;
+                        } else {
+                            contentStr = `[系统提示：用户于时间戳 ${msg.timestamp} 发起了外卖代付请求，商品是“${msg.productInfo}”，金额是 ${msg.amount} 元。请你决策并使用 waimai_response 指令回应。]`;
+                        }
+                    }
+                    else if (Array.isArray(msg.content) && msg.content[0]?.type === 'image_url') {
+                        contentStr = `[用户发送了图片内容]`;
+                    }
+                    else if (msg.type === 'sticker' || msg.meaning || (typeof msg.content === 'string' && STICKER_REGEX.test(msg.content))) {
+                        let stickerMeaning = msg.meaning;
+                        if (!stickerMeaning && typeof msg.content === 'string') {
+                            const allStickers = [...(window.state.userStickers || []), ...(window.state.charStickers || []), ...(chat.settings.stickerLibrary || [])];
+                            const found = allStickers.find((s) => s.url === msg.content);
+                            if (found) stickerMeaning = found.name;
+                        }
+                        if (!stickerMeaning) stickerMeaning = '表情包';
+                        contentStr = `[用户发送了一个表情: ${stickerMeaning}]`;
+                    }
+
+                    return `${timestampStr} ${myNickname}: ${contentStr}`;
+                })
+                .filter(Boolean)
+                .join('\n');
+
             systemPrompt = `
 			# 角色
 			你是一个群聊AI，负责扮演【除了用户以外】的所有角色。
@@ -2725,161 +2806,39 @@ window.triggerAiResponse = async function triggerAiResponse() {
 			3.  **响应方式**: 如果你决定买单，你【必须】使用以下指令：\`{"type": "waimai_response", "name": "你的角色名", "status": "paid", "for_timestamp": (被代付请求的原始时间戳)}\`
 			4.  **【【【至关重要】】】**: 一旦历史记录中出现了针对某个代付请求的【任何一个】"status": "paid" 的响应（无论是用户支付还是其他角色支付），就意味着该订单【已经完成】。你【绝对不能】再对【同一个】订单发起支付。你可以选择对此事发表评论，但不能再次支付。
 			${crossChatContext}
-            ${summaryContext}
-			${announcementContext}
-			${redPacketContext}
-			${worldBookContent}
-			${musicContext}
-			${countdownContext} 
-			${sharedContext}
-			${stickerContext}
-			${linkedMemoryContext}
 
-			# 用户的角色
+			- **对话者(用户)角色设定**:
 			- **${myNickname}**: ${chat.settings.myPersona}
 
-			现在，请根据以上所有规则和下方的对话历史，继续这场群聊。`;
+			- **当前情景**:
+			${timeContext}
+            ${announcementContext}
 
-            messagesPayload = historySlice
-                .map((msg, index) => {
-                    if (msg.isHidden) {
-                        return { role: 'system', content: msg.content };
-                    }
+			- **当前音乐情景**:
+			${musicContext}
 
-                    if (msg.type === 'share_card') return null;
-                    if (msg.type === 'narrative') {
-                        // 将旁白包装成系统指令发送给AI，强调这是剧情/环境描述
-                        return {
-                            role: 'user',
-                            content: `(Timestamp: ${msg.timestamp}) [剧情/环境旁白: ${msg.content}]`,
-                        };
-                    }
-                    if (msg.role === 'assistant') {
-                        // AI消息的处理逻辑保持不变...
-                        let assistantMsgObject = { type: msg.type || 'text' };
-                        assistantMsgObject.name = msg.senderName;
-                        if (msg.type === 'sticker') {
-                            assistantMsgObject.url = msg.content;
-                            assistantMsgObject.meaning = msg.meaning;
-                        } else if (msg.type === 'transfer') {
-                            assistantMsgObject.amount = msg.amount;
-                            assistantMsgObject.note = msg.note;
-                        } else if (msg.type === 'waimai_request') {
-                            assistantMsgObject.productInfo = msg.productInfo;
-                            assistantMsgObject.amount = msg.amount;
-                        } else {
-                            if (msg.quote) {
-                                assistantMsgObject.quote_reply = {
-                                    target_sender: msg.quote.senderName,
-                                    target_content: msg.quote.content,
-                                    reply_content: msg.content,
-                                };
-                            } else {
-                                assistantMsgObject.content = msg.content;
-                            }
-                        }
-                        const assistantContent = JSON.stringify([assistantMsgObject]);
-                        return { role: 'assistant', content: `(Timestamp: ${msg.timestamp}) ${assistantContent}` };
-                    }
+			- **近期约定与倒计时**:
+			${countdownContext}
 
-                    // --- 用户消息处理 ---
-                    const myNickname = chat.isGroup ? chat.settings.myNickname || '我' : '我';
-                    let contentStr = '';
+			- **世界观设定集**:
+			${worldBookContent}
 
-                    // 1. 在处理所有用户消息前，优先检查它是不是一个投票
-                    if (msg.type === 'poll') {
-                        // 2. 如果是，就把它转换成AI能看懂的系统提示文本
-                        const pollInfoText = `(Timestamp: ${msg.timestamp}) [系统提示：用户 (${myNickname}) 发起了一个投票。问题：“${msg.question}”, 选项：“${msg.options.join('", "')}”。你可以使用 'vote' 指令参与投票。]`;
-                        // 3. 返回一个被AI识别为用户发出的、但内容是指令的消息
-                        return { role: 'user', content: pollInfoText };
-                    }
+            # **对话历史**
+            ${recentContextSummary}
+            ${summaryContext}
+            ${redPacketContext}
+			${sharedContext}
+            ${linkedMemoryContext}
 
-                    // 如果不是投票，再执行原来的其他消息类型判断
-                    contentStr += `(Timestamp: ${msg.timestamp}) `;
+			- **可用表情包**:
+			${stickerContext}`;
 
-                    if (msg.quote) {
-                        // 1. 获取被引用者的名字
-                        const quotedSender = msg.quote.senderName || '未知用户';
-                        // 2. 获取完整的被引用内容 (移除了截断)
-                        const fullQuotedContent = String(msg.quote.content || '');
-                        // 3. 构造成AI能理解的、清晰的上下文
-                        contentStr += `(回复 ${quotedSender} 的消息: "${fullQuotedContent}"): ${msg.content}`;
-                    } else {
-                        contentStr += msg.content;
-                    }
+            messagesPayload = [
+                { role: 'system', content: systemPrompt },
+                { role: 'user', content: '请严格按照system prompt中的所有规则，特别是输出格式铁律，立即开始你的行动。' }
+            ];
 
-                    if (msg.type === 'user_photo')
-                        return {
-                            role: 'user',
-                            content: `(Timestamp: ${msg.timestamp}) [你收到了一张用户描述的照片，内容是：'${msg.content}']`,
-                        };
-                    if (msg.type === 'voice_message')
-                        return {
-                            role: 'user',
-                            content: `(Timestamp: ${msg.timestamp}) [用户发来一条语音消息，内容是：'${msg.content}']`,
-                        };
-                    if (msg.type === 'transfer') {
-                        if (msg.status === 'accepted') {
-                            return {
-                                role: 'user',
-                                content: `(Timestamp: ${msg.timestamp}) [系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已收款)]`,
-                            };
-                        } else if (msg.status === 'declined') {
-                            return {
-                                role: 'user',
-                                content: `(Timestamp: ${msg.timestamp}) [系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已拒收)]`,
-                            };
-                        }
-                        return {
-                            role: 'user',
-                            content: `(Timestamp: ${msg.timestamp}) [系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。请你决策并使用 'accept_transfer' 或 'decline_transfer' 指令回应。]`,
-                        };
-                    }
-                    if (msg.type === 'waimai_request') {
-                        if (msg.status === 'paid') {
-                            return {
-                                role: 'user',
-                                content: `(Timestamp: ${msg.timestamp}) [系统提示：外卖代付请求已完成，支付者：${msg.paidBy}。商品“${msg.productInfo}”。]`,
-                            };
-                        } else if (msg.status === 'rejected') {
-                            return {
-                                role: 'user',
-                                content: `(Timestamp: ${msg.timestamp}) [系统提示：外卖代付请求已被拒绝。商品“${msg.productInfo}”。]`,
-                            };
-                        }
-                        return {
-                            role: 'user',
-                            content: `(Timestamp: ${msg.timestamp}) [系统提示：用户于时间戳 ${msg.timestamp} 发起了外卖代付请求，商品是“${msg.productInfo}”，金额是 ${msg.amount} 元。请你决策并使用 waimai_response 指令回应。]`,
-                        };
-                    }
-
-                    if (Array.isArray(msg.content) && msg.content[0]?.type === 'image_url') {
-                        const prefix = `(Timestamp: ${msg.timestamp}) `;
-                        return { role: 'user', content: [{ type: 'text', text: prefix }, ...msg.content] };
-                    }
-
-                    if (msg.type === 'sticker' || msg.meaning || (typeof msg.content === 'string' && STICKER_REGEX.test(msg.content))) {
-                        let stickerMeaning = msg.meaning;
-
-                        if (!stickerMeaning && typeof msg.content === 'string') {
-                            const allStickers = [...(window.state.userStickers || []), ...(window.state.charStickers || []), ...(chat.settings.stickerLibrary || [])];
-                            const found = allStickers.find((s) => s.url === msg.content);
-                            if (found) stickerMeaning = found.name;
-                        }
-
-                        if (!stickerMeaning) stickerMeaning = '表情包';
-
-                        return {
-                            role: 'user',
-                            content: `(Timestamp: ${msg.timestamp}) [用户发送了一个表情: ${stickerMeaning}]`,
-                        };
-                    }
-
-                    return { role: msg.role, content: contentStr };
-                })
-                .filter(Boolean);
-
-            console.log(messagesPayload);
+            console.log(systemPrompt);
         } else {
             // 3. 构建跨群聊列表上下文 (New Feature for Single Chat)
             let crossChatContext = '';
@@ -3024,6 +2983,164 @@ ${libraryList}
             } catch (error) {
                 console.error('加载饿了么菜单失败:', error);
                 elemeContext += '【注意：饿了么菜单加载失败。】';
+            }
+
+            // ==================================================================================
+            // [New Logic] Prepare Context Variables (History, Weibo, Posts, etc.)
+            // ==================================================================================
+
+            // 1. History Summary
+            const recentContextSummary = historySlice
+                .map((msg) => {
+                    const myNickname = chat.isGroup ? chat.settings.myNickname || '我' : '我';
+
+                    // Modified to match linkedMemoryContext format
+                    const date = new Date(msg.timestamp);
+                    const timestampStr = date.toLocaleString();
+
+                    if (msg.isHidden) {
+                        return `${timestampStr} [系统隐藏信息]: ${msg.content}`;
+                    }
+                    if (msg.type === 'share_card') return null;
+                    if (msg.type === 'red_packet') {
+                        const isDirect = msg.packetType === 'direct';
+                        const target = isDirect ? `专属红包 (指定给: ${msg.receiverName})` : '群红包 (拼手气)';
+                        const status = msg.isFullyClaimed ? '已领完' : '未领完';
+                        return `${timestampStr} [系统提示: 用户发了一个${target}，金额: ${msg.totalAmount}元。状态: ${status}。]`;
+                    }
+                    if (msg.role === 'assistant') {
+                        // Use standard format for assistant lines
+                        return formatMessageForContext(msg, chat);
+                    }
+                    if (msg.type === 'poll') {
+                        return `${timestampStr} [系统提示：用户 (${myNickname}) 发起了一个投票。问题：“${msg.question}”, 选项：“${msg.options.join('", "')}”。你可以使用 'vote' 指令参与投票。]`;
+                    }
+                    let contentStr = '';
+                    if (msg.quote) {
+                        const quotedSender = msg.quote.senderName || '未知用户';
+                        const fullQuotedContent = String(msg.quote.content || '');
+                        contentStr += `(回复 ${quotedSender} 的消息: "${fullQuotedContent}"): ${msg.content}`;
+                    } else {
+                        contentStr += msg.content;
+                    }
+                    if (msg.type === 'user_photo')
+                        contentStr = `[你收到了一张用户描述的照片，内容是：'${msg.content}']`;
+                    else if (msg.type === 'voice_message')
+                        contentStr = `[用户发来一条语音消息，内容是：'${msg.content}']`;
+                    else if (msg.type === 'transfer') {
+                        if (msg.status === 'accepted') {
+                            contentStr = `[系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已收款)]`;
+                        } else if (msg.status === 'declined') {
+                            contentStr = `[系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已拒收)]`;
+                        } else {
+                            contentStr = `[系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。请你决策并使用 'accept_transfer' 或 'decline_transfer' 指令回应。]`;
+                        }
+                    } else if (msg.type === 'waimai_request') {
+                        if (msg.status === 'paid') {
+                            contentStr = `[系统提示：外卖代付请求已完成，支付者：${msg.paidBy}。商品“${msg.productInfo}”。]`;
+                        } else if (msg.status === 'rejected') {
+                            contentStr = `[系统提示：外卖代付请求已被拒绝。商品“${msg.productInfo}”。]`;
+                        } else {
+                            contentStr = `[系统提示：用户于时间戳 ${msg.timestamp} 发起了外卖代付请求，商品是“${msg.productInfo}”，金额是 ${msg.amount} 元。请你决策并使用 waimai_response 指令回应。]`;
+                        }
+                    } else if (Array.isArray(msg.content) && msg.content[0]?.type === 'image_url') {
+                        contentStr = `[用户发送了图片内容]`;
+                    } else if (msg.meaning) {
+                        contentStr = `[用户发送了一个表情，意思是：'${msg.meaning}']`;
+                    }
+                    return `${timestampStr} ${myNickname}: ${contentStr}`;
+                })
+                .filter(Boolean)
+                .join('\n');
+
+            // 2. Friend Request
+            let friendRequestInstruction = '';
+            if (!chat.isGroup && chat.relationship?.status === 'pending_ai_approval') {
+                const contextSummaryForApproval = chat.history
+                    .filter((m) => !m.isHidden)
+                    .slice(-10)
+                    .map((msg) => {
+                        const sender = msg.role === 'user' ? '用户' : chat.name;
+                        return `${sender}: ${String(msg.content).substring(0, 50)}...`;
+                    })
+                    .join('\n');
+                friendRequestInstruction = `
+\n[系统重要指令]
+用户向你发送了好友申请，理由是：“${chat.relationship.applicationReason}”。
+作为参考，这是你们之前的最后一段聊天记录：
+---
+${contextSummaryForApproval}
+---
+请你根据以上所有信息，以及你的人设，使用 friend_request_response 指令，并设置 decision 为 'accept' 或 'reject' 来决定是否通过。
+`;
+            }
+
+            // 3. Shared Context
+            const sharedContextSection = sharedContext ? `\n\n# 附加上下文\n${sharedContext}` : '';
+
+            // 4. Weibo Context (Async Mock)
+            let weiboContext = '';
+            try {
+                const userLatestPosts = await window.db.weiboPosts.where('authorId').equals('user').reverse().limit(3).toArray();
+                if (userLatestPosts.length > 0) {
+                    weiboContext += '\n\n# 最近的微博互动 (这是你和用户在微博上的最新动态，请优先回应)\n\n## 用户最新发布的微博:\n';
+                    userLatestPosts.forEach((post) => {
+                        const likes = (post.baseLikesCount || 0) + (post.likes || []).length;
+                        const comments = (post.baseCommentsCount || 0) + (post.comments || []).length;
+                        const contentPreview = (post.content || post.hiddenContent || '(图片微博)').substring(0, 30);
+                        weiboContext += `- (ID: ${post.id}) [${formatPostTimestamp(post.timestamp)}] 内容: "${contentPreview}..." [👍${likes} 💬${comments}]\n`;
+                    });
+                }
+                const charLatestPosts = await window.db.weiboPosts.where('authorId').equals(chatId).reverse().limit(5).toArray();
+                let userCommentsOnMyPosts = '';
+                const myNickname = window.state.qzoneSettings.weiboNickname || window.state.qzoneSettings.nickname || '我';
+                charLatestPosts.forEach((post) => {
+                    if (post.comments && Array.isArray(post.comments) && post.comments.length > 0) {
+                        const userComments = post.comments.filter((c) => c.authorNickname === myNickname).slice(-3);
+                        if (userComments.length > 0) {
+                            const postContentPreview = (post.content || '(图片微博)').substring(0, 20);
+                            userCommentsOnMyPosts += `- 在你的微博 (ID: ${post.id}) "${postContentPreview}..." 下:\n`;
+                            userComments.forEach((comment) => {
+                                const hasReplied = post.comments.some((reply) => reply.authorNickname === chat.name && reply.replyToId === comment.commentId);
+                                const replyStatus = hasReplied ? '[你已回复]' : '[你未回复]';
+                                userCommentsOnMyPosts += `  └ (评论ID: ${comment.commentId}) 用户: "${comment.commentText}" ${replyStatus}\n`;
+                            });
+                        }
+                    }
+                });
+                if (userCommentsOnMyPosts) {
+                    if (!weiboContext) weiboContext = '\n\n# 最近的微博互动 (这是你和用户在微博上的最新动态，请优先回应)\n';
+                    weiboContext += '\n## 用户在你微博下的新评论:\n' + userCommentsOnMyPosts;
+                }
+            } catch (e) { console.error('Weibo Context Error', e); }
+
+            // 5. Posts Context
+            let postsContext = '';
+            if (!chat.isGroup) {
+                try {
+                    const allRecentPosts = await window.db.qzonePosts.orderBy('timestamp').reverse().limit(5).toArray();
+                    const visiblePosts = window.filterVisiblePostsForAI(allRecentPosts, chat);
+                    if (visiblePosts.length > 0) {
+                        postsContext = '\n\n# 最近的动态列表 (供你参考和评论):\n';
+                        const aiName = chat.name;
+                        const userNickname = window.state.qzoneSettings.nickname;
+                        for (const post of visiblePosts) {
+                            let authorName = post.authorId === 'user' ? userNickname : window.state.chats[post.authorId]?.name || '一位朋友';
+                            let interactionStatus = '';
+                            if (post.likes && post.likes.includes(aiName)) interactionStatus += ' [你已点赞]';
+                            if (post.comments && post.comments.some((c) => c.commenterName === aiName)) interactionStatus += ' [你已评论]';
+                            if (typeof formatPostTimestamp === 'function') {
+                                const timeAgo = formatPostTimestamp(post.timestamp);
+                                postsContext += `- (ID: ${post.id}) [${timeAgo}] 作者: ${authorName}, 内容: "${(post.publicText || post.content || '图片动态').substring(0, 30)}..."${interactionStatus}`;
+                            } else {
+                                postsContext += `- (ID: ${post.id}) [${post.timestamp}] 作者: ${authorName}, 内容: "${(post.publicText || post.content || '图片动态').substring(0, 30)}..."${interactionStatus}`;
+                            }
+
+                            const { contextString: commentsContext, visibilityFlag } = buildCommentsContextForAI(post, chat, userNickname);
+                            postsContext += ` ${visibilityFlag}\n${commentsContext}`;
+                        }
+                    }
+                } catch (e) { console.error('Posts Context Error', e); }
             }
 
             systemPrompt = `### **【第一部分：角色核心设定】**
@@ -3264,11 +3381,11 @@ ${libraryList}
 			- **提问**: \`{"type": "ls_ask_question", "questionText": "你想问的问题..."}\`
 			- **回答**: \`{"type": "ls_answer_question", "questionId": "q_123456789", "answerText": "你的回答..."}\`
 			- **写情书/回信**: \`{"type": "ls_letter", "content": "情书的正文内容..."}\` (收到情书后必须用此指令回信)
-			-   **分享歌曲**:\`{"type": "ls_share", "shareType": "song", "title": "歌曲名", "artist": "歌手", "thoughts": "在这里写下你分享这首歌的感想..."}\`
-			-   **分享电影**: \`{"type": "ls_share", "shareType": "movie", "title": "电影名", "summary": "在这里写下这部电影的简介...", "thoughts": "在这里写下你分享这部电影的感想..."}\`
-			-   **分享书籍**: \`{"type": "ls_share", "shareType": "book", "title": "书名", "summary": "在这里写下这本书的简介...", "thoughts": "在这里写下你分享这本书的感想..."}\`
-			-   **分享游戏**:\`{"type": "ls_share", "shareType": "game", "title": "游戏名", "summary": "游戏简介...", "thoughts": "在这里写下你分享这款游戏的感想/感谢..."}\`
-			-   **写日记**: \`{"type": "ls_diary_entry", "emoji": "emoji表情", "diary": "今天发生了什么..."}\`
+			- **分享歌曲**:\`{"type": "ls_share", "shareType": "song", "title": "歌曲名", "artist": "歌手", "thoughts": "在这里写下你分享这首歌的感想..."}\`
+			- **分享电影**: \`{"type": "ls_share", "shareType": "movie", "title": "电影名", "summary": "在这里写下这部电影的简介...", "thoughts": "在这里写下你分享这部电影的感想..."}\`
+			- **分享书籍**: \`{"type": "ls_share", "shareType": "book", "title": "书名", "summary": "在这里写下这本书的简介...", "thoughts": "在这里写下你分享这本书的感想..."}\`
+			- **分享游戏**:\`{"type": "ls_share", "shareType": "game", "title": "游戏名", "summary": "游戏简介...", "thoughts": "在这里写下你分享这款游戏的感想/感谢..."}\`
+			- **写日记**: \`{"type": "ls_diary_entry", "emoji": "emoji表情", "diary": "今天发生了什么..."}\`
 			### **【第六部分：当前上下文信息】**
 
 			- **对话者(用户)角色设定**:
@@ -3288,337 +3405,29 @@ ${libraryList}
 
 			- **世界观设定集**:
 			${worldBookContent}
-			${linkedMemoryContext}
 			${elemeContext}
-        ${auroraContext}
+
+            - **最近互动**:
+            ${auroraContext}
+            ${weiboContext}
+            ${postsContext}
+
+            # **对话历史**
+            ${recentContextSummary}
+            ${linkedMemoryContext}
+            ${sharedContextSection}
+            ${friendRequestInstruction}
+
 			- **可用表情包**:
 			${exclusiveStickerContext}
-			${commonStickerContext}
-			现在，请根据以上所有规则和下方的对话历史，继续进行对话。`;
-            // 构建单人聊天的messagesPayload
-            messagesPayload = historySlice
-                .map((msg) => {
-                    if (msg.isHidden) {
-                        // 如果是隐藏消息，就把它作为一条 system 角色的消息发送给AI
-                        // AI能看到它，但它不会被误解为是用户的发言
-                        return { role: 'system', content: msg.content };
-                    }
-
-                    if (msg.type === 'share_card') return null;
-
-                    if (msg.type === 'red_packet') {
-                        const isDirect = msg.packetType === 'direct';
-                        const target = isDirect ? `专属红包 (指定给: ${msg.receiverName})` : '群红包 (拼手气)';
-                        const status = msg.isFullyClaimed ? '已领完' : '未领完';
-                        return {
-                            role: 'user',
-                            content: `(Timestamp: ${msg.timestamp}) [系统提示: 用户发了一个${target}，金额: ${msg.totalAmount}元。状态: ${status}。]`,
-                        };
-                    }
-
-                    if (msg.role === 'assistant') {
-                        let assistantMsgObject = { type: msg.type || 'text' };
-                        if (msg.type === 'sticker') {
-                            assistantMsgObject.url = msg.content;
-                            assistantMsgObject.meaning = msg.meaning;
-                        } else if (msg.type === 'transfer') {
-                            assistantMsgObject.amount = msg.amount;
-                            assistantMsgObject.note = msg.note;
-                        } else if (msg.type === 'waimai_request') {
-                            assistantMsgObject.productInfo = msg.productInfo;
-                            assistantMsgObject.amount = msg.amount;
-                        } else {
-                            if (msg.quote) {
-                                assistantMsgObject.quote_reply = {
-                                    target_sender: msg.quote.senderName,
-                                    target_content: msg.quote.content,
-                                    reply_content: msg.content,
-                                };
-                            } else {
-                                assistantMsgObject.content = msg.content;
-                            }
-                        }
-                        const assistantContent = JSON.stringify([assistantMsgObject]);
-                        return { role: 'assistant', content: `(Timestamp: ${msg.timestamp}) ${assistantContent}` };
-                    }
-
-                    let contentStr = '';
-                    contentStr += `(Timestamp: ${msg.timestamp}) `;
-
-                    if (msg.quote) {
-                        // 1. 获取被引用者的名字
-                        const quotedSender = msg.quote.senderName || '未知用户';
-                        // 2. 获取完整的被引用内容 (移除了截断)
-                        const fullQuotedContent = String(msg.quote.content || '');
-                        // 3. 构造成AI能理解的、清晰的上下文
-                        contentStr += `(回复 ${quotedSender} 的消息: "${fullQuotedContent}"): ${msg.content}`;
-                    } else {
-                        contentStr += msg.content;
-                    }
-
-                    if (msg.type === 'user_photo')
-                        return {
-                            role: 'user',
-                            content: `(Timestamp: ${msg.timestamp}) [你收到了一张用户描述的照片，内容是：'${msg.content}']`,
-                        };
-                    if (msg.type === 'voice_message')
-                        return {
-                            role: 'user',
-                            content: `(Timestamp: ${msg.timestamp}) [用户发来一条语音消息，内容是：'${msg.content}']`,
-                        };
-                    if (msg.type === 'transfer') {
-                        if (msg.status === 'accepted') {
-                            return {
-                                role: 'user',
-                                content: `(Timestamp: ${msg.timestamp}) [系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已收款)]`,
-                            };
-                        } else if (msg.status === 'declined') {
-                            return {
-                                role: 'user',
-                                content: `(Timestamp: ${msg.timestamp}) [系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已拒收)]`,
-                            };
-                        }
-                        return {
-                            role: 'user',
-                            content: `(Timestamp: ${msg.timestamp}) [系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。请你决策并使用 'accept_transfer' 或 'decline_transfer' 指令回应。]`,
-                        };
-                    }
-                    if (msg.type === 'waimai_request') {
-                        if (msg.status === 'paid') {
-                            return {
-                                role: 'user',
-                                content: `(Timestamp: ${msg.timestamp}) [系统提示：外卖代付请求已完成，支付者：${msg.paidBy}。商品“${msg.productInfo}”。]`,
-                            };
-                        } else if (msg.status === 'rejected') {
-                            return {
-                                role: 'user',
-                                content: `(Timestamp: ${msg.timestamp}) [系统提示：外卖代付请求已被拒绝。商品“${msg.productInfo}”。]`,
-                            };
-                        }
-                        return {
-                            role: 'user',
-                            content: `(Timestamp: ${msg.timestamp}) [系统提示：用户于时间戳 ${msg.timestamp} 发起了外卖代付请求，商品是“${msg.productInfo}”，金额是 ${msg.amount} 元。请你决策并使用 waimai_response 指令回应。]`,
-                        };
-                    }
-
-                    if (Array.isArray(msg.content) && msg.content[0]?.type === 'image_url') {
-                        const prefix = `(Timestamp: ${msg.timestamp}) `;
-                        return { role: 'user', content: [{ type: 'text', text: prefix }, ...msg.content] };
-                    }
-
-                    if (msg.meaning)
-                        return {
-                            role: 'user',
-                            content: `(Timestamp: ${msg.timestamp}) [用户发送了一个表情，意思是：'${msg.meaning}']`,
-                        };
-
-                    return { role: msg.role, content: contentStr };
-                })
-                .filter(Boolean);
-
-            // 检查 sharedContext 是否有内容（即，用户是否分享了聊天记录）
-            if (sharedContext) {
-                // 如果有，就把它包装成一条全新的、高优先级的用户消息，追加到历史记录的末尾
-                messagesPayload.push({
-                    role: 'user',
-                    content: sharedContext,
-                });
-            }
-
-            if (!chat.isGroup && chat.relationship?.status === 'pending_ai_approval') {
-                const contextSummaryForApproval = chat.history
-                    .filter((m) => !m.isHidden)
-                    .slice(-10)
-                    .map((msg) => {
-                        const sender = msg.role === 'user' ? '用户' : chat.name;
-                        return `${sender}: ${String(msg.content).substring(0, 50)}...`;
-                    })
-                    .join('\n');
-
-                const friendRequestInstruction = {
-                    role: 'user',
-                    content: `
-			[系统重要指令]
-			用户向你发送了好友申请，理由是：“${chat.relationship.applicationReason}”。
-			作为参考，这是你们之前的最后一段聊天记录：
-			---
-			${contextSummaryForApproval}
-			---
-			请你根据以上所有信息，以及你的人设，使用 friend_request_response 指令，并设置 decision 为 'accept' 或 'reject' 来决定是否通过。
-			`,
-                };
-                messagesPayload.push(friendRequestInstruction);
-            }
-        }
-        const allRecentPosts = await window.db.qzonePosts.orderBy('timestamp').reverse().limit(5).toArray();
-
-        // 为AI准备微博互动的上下文
-        let weiboContext = '';
-
-        // 1. 获取用户最新发布的3条微博
-        const userLatestPosts = await window.db.weiboPosts.where('authorId').equals('user');
-
-        if (userLatestPosts.length > 0) {
-            if (weiboContext === '') {
-                weiboContext = '\n\n# 最近的微博互动 (这是你和用户在微博上的最新动态，请优先回应)\n';
-            }
-            weiboContext += '\n## 用户最新发布的微博:\n';
-            userLatestPosts.forEach((post) => {
-                const likes = (post.baseLikesCount || 0) + (post.likes || []).length;
-                const comments = (post.baseCommentsCount || 0) + (post.comments || []).length;
-                const contentPreview = (post.content || post.hiddenContent || '(图片微博)').substring(0, 30);
-                weiboContext += `- (ID: ${post.id}) [${formatPostTimestamp(post.timestamp)}] 内容: "${contentPreview}..." [👍${likes} 💬${comments}]\n`;
-            });
+			${commonStickerContext}`;
         }
 
-        // 2. 查找用户在当前AI角色微博下的最新评论
-        const charLatestPosts = await window.db.weiboPosts
-            .where('authorId')
-            .equals(chatId) // 只查找这个AI角色的微博
-            .reverse()
-            .limit(5) // 检查最近的5条
-            .toArray();
-
-        let userCommentsOnMyPosts = '';
-        const myNickname = window.state.qzoneSettings.weiboNickname || window.state.qzoneSettings.nickname || '我';
-
-        charLatestPosts.forEach((post) => {
-            if (post.comments && Array.isArray(post.comments) && post.comments.length > 0) {
-                // 筛选出是“我”发的评论
-                const userComments = Array.isArray(post.comments) ? post.comments.filter((c) => c.authorNickname === myNickname).slice(-3) : [];
-                if (userComments.length > 0) {
-                    const postContentPreview = (post.content || '(图片微博)').substring(0, 20);
-                    userCommentsOnMyPosts += `- 在你的微博 (ID: ${post.id}) "${postContentPreview}..." 下:\n`;
-
-                    userComments.forEach((comment) => {
-                        // 1. 检查AI是否已经回复过这条评论
-                        //    逻辑：在帖子的所有评论中，查找是否存在一条评论，
-                        //    它的作者是AI自己，并且它的replyToId指向当前这条用户的评论ID。
-                        const hasReplied = post.comments.some(
-                            (reply) =>
-                                reply.authorNickname === chat.name && // 回复者是AI
-                                reply.replyToId === comment.commentId // 回复的目标是这条评论
-                        );
-
-                        // 2. 根据检查结果，生成状态标签
-                        const replyStatus = hasReplied ? '[你已回复]' : '[你未回复]';
-
-                        // 3. 将带有状态标签的提示信息添加到上下文中
-                        userCommentsOnMyPosts += `  └ (评论ID: ${comment.commentId}) 用户: "${comment.commentText}" ${replyStatus}\n`;
-                    });
-                }
-            }
-        });
-
-        if (userCommentsOnMyPosts) {
-            if (weiboContext === '') {
-                weiboContext = '\n\n# 最近的微博互动 (这是你和用户在微博上的最新动态，请优先回应)\n';
-            }
-            weiboContext += '\n## 用户在你微博下的新评论:\n';
-            weiboContext += userCommentsOnMyPosts;
-        }
-
-        // 3. 如果有任何微博互动，就把它加到给AI的“参考资料”里
-        if (weiboContext) {
-            messagesPayload.push({ role: 'system', content: weiboContext });
-        }
-
-        const visiblePosts = window.filterVisiblePostsForAI(allRecentPosts, chat);
-
-        if (visiblePosts.length > 0 && !chat.isGroup) {
-            let postsContext = '\n\n# 最近的动态列表 (供你参考和评论):\n';
-            const aiName = chat.name;
-            const userNickname = window.state.qzoneSettings.nickname;
-
-            for (const post of visiblePosts) {
-                let authorName = post.authorId === 'user' ? userNickname : window.state.chats[post.authorId]?.name || '一位朋友';
-                let interactionStatus = '';
-                if (post.likes && post.likes.includes(aiName)) interactionStatus += ' [你已点赞]';
-                if (post.comments && post.comments.some((c) => c.commenterName === aiName)) interactionStatus += ' [你已评论]';
-
-                // 在每一条动态前面，都加上了由 formatPostTimestamp() 函数生成的时间差提示
-                const timeAgo = formatPostTimestamp(post.timestamp); // 例如："3天前" 或 "刚刚"
-                postsContext += `- (ID: ${post.id}) [${timeAgo}] 作者: ${authorName}, 内容: "${(post.publicText || post.content || '图片动态').substring(0, 30)}..."${interactionStatus}`;
-
-                const { contextString: commentsContext, visibilityFlag } = buildCommentsContextForAI(post, chat, userNickname);
-
-                postsContext += ` ${visibilityFlag}\n`;
-                postsContext += commentsContext;
-            }
-
-            // 为AI准备微博互动的上下文
-            let weiboContext = '';
-
-            // 1. 获取用户最新发布的3条微博
-            const userLatestPosts = await window.db.weiboPosts
-                .where('authorId')
-                .equals('user')
-                .reverse() // 按时间倒序
-                .limit(3) // 只取最近3条
-                .toArray();
-
-            if (userLatestPosts.length > 0) {
-                if (weiboContext === '') {
-                    weiboContext = '\n\n# 最近的微博互动 (这是你和用户在微博上的最新动态，请优先回应)\n';
-                }
-                weiboContext += '\n## 用户最新发布的微博:\n';
-                // ✅ 这是修复后的新代码
-                userLatestPosts.forEach((post) => {
-                    const likes = (post.baseLikesCount || 0) + (post.likes || []).length;
-                    const comments = (post.baseCommentsCount || 0) + (post.comments || []).length;
-                    const contentPreview = (post.content || post.hiddenContent || '(图片微博)').substring(0, 30);
-
-                    // 1. 检查AI（char.name）是否已经评论过这条用户的微博
-                    const hasCommented = (post.comments || []).some((comment) => comment.authorNickname === chat.name);
-
-                    // 2. 根据检查结果生成状态标签
-                    const interactionStatus = hasCommented ? '[你已评论]' : '[你未评论]';
-
-                    // 3. 将带有状态标签的完整信息添加到上下文中
-                    weiboContext += `- (ID: ${post.id}) [${formatPostTimestamp(post.timestamp)}] 内容: "${contentPreview}..." [👍${likes} 💬${comments}] ${interactionStatus}\n`;
-                });
-            }
-
-            // 2. 查找用户在当前AI角色微博下的最新评论
-            const charLatestPosts = await window.db.weiboPosts
-                .where('authorId')
-                .equals(chatId) // 只查找这个AI角色的微博
-                .reverse()
-                .limit(5) // 检查最近的5条
-                .toArray();
-
-            let userCommentsOnMyPosts = '';
-            const myNickname = window.state.qzoneSettings.weiboNickname || window.state.qzoneSettings.nickname || '我';
-
-            charLatestPosts.forEach((post) => {
-                if (post.comments && post.comments.length > 0) {
-                    // 筛选出是“我”发的评论
-                    const userComments = Array.isArray(post.comments) ? post.comments.filter((c) => c.authorNickname === myNickname).slice(-3) : []; // 只看最新的3条
-                    if (userComments.length > 0) {
-                        const postContentPreview = (post.content || '(图片微博)').substring(0, 20);
-                        userCommentsOnMyPosts += `- 在你的微博 (ID: ${post.id}) "${postContentPreview}..." 下:\n`;
-                        userComments.forEach((comment) => {
-                            userCommentsOnMyPosts += `  └ (评论ID: ${comment.commentId}) 用户: "${comment.commentText}"\n`;
-                        });
-                    }
-                }
-            });
-
-            if (userCommentsOnMyPosts) {
-                if (weiboContext === '') {
-                    weiboContext = '\n\n# 最近的微博互动 (这是你和用户在微博上的最新动态，请优先回应)\n';
-                }
-                weiboContext += '\n## 用户在你微博下的新评论:\n';
-                weiboContext += userCommentsOnMyPosts;
-            }
-
-            // 3. 如果有任何微博互动，就把它加到给AI的“参考资料”里
-            if (weiboContext) {
-                messagesPayload.push({ role: 'system', content: weiboContext });
-            }
-
-            messagesPayload.push({ role: 'system', content: postsContext });
-        }
+        messagesPayload = [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: '请严格按照system prompt中的所有规则，特别是输出格式铁律，立即开始你的行动。' }
+        ];
+        console.log(`发送给AI '${chat.name}' 的消息负载:`, systemPrompt);
 
         let isGemini = proxyUrl === GEMINI_API_URL;
         let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesPayload, isGemini);
@@ -3629,7 +3438,7 @@ ${libraryList}
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
                 body: JSON.stringify({
                     model: model,
-                    messages: [{ role: 'system', content: systemPrompt }, ...messagesPayload],
+                    messages: messagesPayload,
                     temperature: parseFloat(window.state.apiConfig.temperature) || 0.8,
                     stream: false,
                 }),
