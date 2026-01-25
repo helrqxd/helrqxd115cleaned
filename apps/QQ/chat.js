@@ -1613,7 +1613,7 @@ window.openChat = async function openChat(chatId) {
 function formatMessageForContext(msg, chat) {
     let senderName = '';
     if (msg.role === 'user') {
-        senderName = chat.isGroup ? chat.settings.myNickname || '我' : '我';
+        senderName = chat.settings.myNickname || '我';
     } else {
         // assistant
         senderName = msg.senderName || chat.name;
@@ -2603,9 +2603,10 @@ window.triggerAiResponse = async function triggerAiResponse() {
 
                 if (Object.keys(crossChatMap).length > 0) {
                     crossChatContext = `
-			# 跨群聊功能 (Cross-Chat Capability)
-			- 角色可以向他们所在的【其他群聊】或【与用户的私聊】发送消息。
-			- 指令: \`{"type": "cross_chat_message", "name": "角色名", "target_chat_name": "【目标群聊名称】或【${myNickname}】", "content": "消息内容"}\`
+			# 跨群聊功能
+			- 角色可以向【与用户的私聊】或他们所在的【其他群聊】发送消息。
+            - 向【其他群聊】发送消息的功能，必须在聊天内容或剧情【明确需要】时才能触发。
+			- 指令: \`{"type": "cross_chat_message", "name": "角色名", "target_chat_name": "【${myNickname}】或【目标群聊名称】", "content": "消息内容"}\`
 			- **可用目标列表**:
             所有角色都可以发送消息给${myNickname} (用户本人)。
 			${Object.entries(crossChatMap)
@@ -2726,7 +2727,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
 			**角色回复顺序不固定，【必须】交叉回复，例如角色A、角色B、角色B、角色A、角色C这样的交叉顺序。【绝对不要】不要一个人全部说完了才轮到下一个人。角色之间【必须】有互动对话。**
 			# 【【【身份铁律：这是最高指令，必须严格遵守】】】
 			1.  **核心任务**: 你的唯一任务是扮演【且仅能扮演】下方“群成员列表”中明确列出的角色。【绝对禁止】扮演任何未在“群成员列表”中出现的角色。严格遵守“群成员列表及人设”中的每一个角色的设定。
-            # 群成员列表及人设 (name字段是你要使用的【本名】)
+            ### 群成员列表及人设 (name字段是你要使用的【本名】)
 			${chat.members.map((m) => `- **${m.originalName}**: (群昵称为: ${m.groupNickname}) 人设: ${m.persona}`).join('\n')}
 			2.  **用户识别**: 用户的身份是【${myNickname}】。你【绝对、永远、在任何情况下都不能】生成 \`name\` 字段为 **"${myNickname}"** 的消息。
 			3.  **禁止杜撰**: 【绝对禁止】扮演任何未在“群成员列表”中出现的角色。
@@ -2808,32 +2809,33 @@ window.triggerAiResponse = async function triggerAiResponse() {
 			4.  **【【【至关重要】】】**: 一旦历史记录中出现了针对某个代付请求的【任何一个】"status": "paid" 的响应（无论是用户支付还是其他角色支付），就意味着该订单【已经完成】。你【绝对不能】再对【同一个】订单发起支付。你可以选择对此事发表评论，但不能再次支付。
 			${crossChatContext}
 
-			- **对话者(用户)角色设定**:
+			### **对话者(用户)角色设定**:
 			- **${myNickname}**: ${chat.settings.myPersona}
 
-			- **当前情景**:
+			### **当前情景**:
 			${timeContext}
             ${announcementContext}
 
-			- **当前音乐情景**:
+			### **当前音乐情景**:
 			${musicContext}
 
-			- **近期约定与倒计时**:
+			### **近期约定与倒计时**:
 			${countdownContext}
 
-			- **世界观设定集**:
+			### **世界观设定集**:
 			${worldBookContent}
 
-            - **其他相关聊天记录（剧情参考）**:
+            ### **其他相关聊天记录**:
+            - 以下聊天记录只能用于【剧情参考】，【绝对不能】在当前聊天中接续行动，也【不可以重复】类似对话至当前聊天当中。
             ${linkedMemoryContext}
 
-            - **对话历史**
+            ### **当前群聊对话历史**
             ${recentContextSummary}
             ${summaryContext}
             ${redPacketContext}
 			${sharedContext}
 
-			- **可用表情包**:
+			### **可用表情包**:
 			${stickerContext}`;
 
             messagesPayload = [
@@ -2854,7 +2856,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
                 if (myGroups.length > 0) {
                     const targets = myGroups.map((c) => `[群聊: ${c.name}]`).join(', ');
                     crossChatContext = `
-			# 跨群聊功能 (Cross-Chat Capability)
+			# 跨群聊功能
 			- 你可以向你所在的【群聊】发送与当前对话相关的消息。
 			- 指令: \`{"type": "cross_chat_message", "target_chat_name": "目标群聊名称", "content": "消息内容"}\`
 			- **可用目标列表**: ${targets}
@@ -3415,10 +3417,11 @@ ${contextSummaryForApproval}
             ${weiboContext}
             ${postsContext}
             
-            - **其他相关聊天记录（剧情参考）**:
+            - **其他相关聊天记录**:
+            - 以下聊天记录只能用于【剧情参考】，【绝对不能】在当前聊天中接续行动，也【不可以重复】类似对话至当前聊天当中。
             ${linkedMemoryContext}
 
-            - **对话历史**
+            - **当前对话历史记录**
             ${recentContextSummary}
             ${sharedContextSection}
             ${friendRequestInstruction}
@@ -5637,6 +5640,12 @@ ${contextSummaryForApproval}
 
                     if (isViewingThisChat) {
                         appendMessage(statusUpdateMessage, chat);
+                        const statusContainer = document.getElementById('chat-header-status');
+                        const statusTextEl = statusContainer ? statusContainer.querySelector('.status-text') : null;
+                        if (statusContainer && statusTextEl) {
+                            statusTextEl.textContent = chat.status.text || '在线';
+                            statusContainer.classList.toggle('busy', chat.status.isBusy || false);
+                        }
                     }
 
                     renderChatList();
@@ -5789,7 +5798,7 @@ ${contextSummaryForApproval}
                         type: 'red_packet',
                         packetType: msgData.packetType,
                         totalAmount: msgData.amount,
-                        count: msgData.count,
+                        count: msgData.count || (msgData.packetType === 'direct' ? 1 : msgData.count),
                         greeting: msgData.greeting,
                         receiverName: msgData.receiver,
                         claimedBy: {},
@@ -6350,6 +6359,7 @@ ${contextSummaryForApproval}
                 if (!isViewingThisChat) {
                     // 如果用户不在当前聊天界面，就把这个聊天的未读数 +1
                     chat.unreadCount = (chat.unreadCount || 0) + 1;
+                    renderChatList();
                 }
 
                 // 2. 只有在当前聊天界面时，才执行带动画的添加
@@ -6404,12 +6414,14 @@ ${contextSummaryForApproval}
                 typingIndicator.style.display = 'none';
             }
         } else {
-            if (chatHeaderTitle && window.state.chats[chatId]) {
+            if (chatHeaderTitle && window.state.chats[chatId] && window.state.activeChatId === chatId) {
                 chatHeaderTitle.style.opacity = 0;
                 setTimeout(() => {
-                    chatHeaderTitle.textContent = window.state.chats[chatId].name;
-                    chatHeaderTitle.classList.remove('typing-status');
-                    chatHeaderTitle.style.opacity = 1;
+                    if (window.state.activeChatId === chatId) {
+                        chatHeaderTitle.textContent = window.state.chats[chatId].name;
+                        chatHeaderTitle.classList.remove('typing-status');
+                        chatHeaderTitle.style.opacity = 1;
+                    }
                 }, 200);
             }
         }
@@ -6984,6 +6996,10 @@ function setupChatListeners() {
             // 2. 更新后端的历史记录
             chat.history = chat.history.filter((msg) => !selectedMessages.has(msg.timestamp));
 
+            // 获取最后一条实际消息的时间戳，用于保持最后消息时间不变
+            const lastActualMsg = chat.history.length > 0 ? chat.history[chat.history.length - 1] : null;
+            const instructionTimestamp = lastActualMsg ? lastActualMsg.timestamp + 0.1 : Date.now();
+
             // 3. 构建更具体的“遗忘指令”
             let forgetReason = '一些之前的消息已被用户删除。';
             if (deletedPollsInfo.length > 0) {
@@ -6994,7 +7010,7 @@ function setupChatListeners() {
             const forgetInstruction = {
                 role: 'system',
                 content: `[系统提示：${forgetReason}]`,
-                timestamp: Date.now(),
+                timestamp: instructionTimestamp,
                 isHidden: true,
             };
             chat.history.push(forgetInstruction);
@@ -8031,19 +8047,15 @@ async function saveEditedMessage(timestamp, simpleContent = null) {
         return;
     }
 
-    const messagesToInsert = newMessagesData.map((newMsgData) => ({
+    const messagesToInsert = newMessagesData.map((newMsgData, index) => ({
         ...originalMessage, // 继承原消息的角色、发送者等信息
         ...newMsgData, // 用新解析出的数据覆盖 type, content, payload 等
+        timestamp: timestamp + (index * 0.01) // 保持原时间戳，如果是多条则微调
     }));
 
     chat.history.splice(messageIndex, 1, ...messagesToInsert);
 
-    // 后续的时间戳重新分配和UI刷新逻辑保持不变
-    let reassignTimestamp = timestamp;
-    for (let i = messageIndex; i < chat.history.length; i++) {
-        chat.history[i].timestamp = reassignTimestamp;
-        reassignTimestamp++;
-    }
+    // 移除了后续消息时间戳重置的循环，仅更新被编辑的那条
 
     await db.chats.put(chat);
     document.getElementById('message-editor-modal').classList.remove('visible');
