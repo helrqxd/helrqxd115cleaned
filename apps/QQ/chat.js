@@ -2605,7 +2605,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
                     crossChatContext = `
 			# 跨群聊功能
 			- 角色可以向【与用户的私聊】或他们所在的【其他群聊】发送消息。
-            - 向【其他群聊】发送消息的功能，必须在聊天内容或剧情【明确需要】时才能触发。
+            - 向【其他群聊】发送消息的功能，必须在聊天内容或剧情【主动提出】或【明确需要】时才能触发。
 			- 指令: \`{"type": "cross_chat_message", "name": "角色名", "target_chat_name": "【${myNickname}】或【目标群聊名称】", "content": "消息内容"}\`
 			- **可用目标列表**:
             所有角色都可以发送消息给${myNickname} (用户本人)。
@@ -2825,10 +2825,6 @@ window.triggerAiResponse = async function triggerAiResponse() {
 			### **世界观设定集**:
 			${worldBookContent}
 
-            ### **其他相关聊天记录**:
-            - 以下聊天记录只能用于【剧情参考】，【绝对不能】在当前聊天中接续行动，也【不可以重复】类似对话至当前聊天当中。
-            ${linkedMemoryContext}
-
             ### **当前群聊对话历史**
             ${recentContextSummary}
             ${summaryContext}
@@ -2836,7 +2832,11 @@ window.triggerAiResponse = async function triggerAiResponse() {
 			${sharedContext}
 
 			### **可用表情包**:
-			${stickerContext}`;
+			${stickerContext}
+            
+            ### **其他相关聊天记录**:
+            - 以下聊天记录只能用于【剧情参考】，【绝对不能】在当前聊天中接续行动，也【不可以重复】类似对话至当前聊天当中。
+            ${linkedMemoryContext}`;
 
             messagesPayload = [
                 { role: 'system', content: systemPrompt },
@@ -3416,10 +3416,6 @@ ${contextSummaryForApproval}
             ${auroraContext}
             ${weiboContext}
             ${postsContext}
-            
-            - **其他相关聊天记录**:
-            - 以下聊天记录只能用于【剧情参考】，【绝对不能】在当前聊天中接续行动，也【不可以重复】类似对话至当前聊天当中。
-            ${linkedMemoryContext}
 
             - **当前对话历史记录**
             ${recentContextSummary}
@@ -3428,7 +3424,11 @@ ${contextSummaryForApproval}
 
 			- **可用表情包**:
 			${exclusiveStickerContext}
-			${commonStickerContext}`;
+			${commonStickerContext}
+            
+            - **其他相关聊天记录**:
+            - 以下聊天记录只能用于【剧情参考】，【绝对不能】在当前聊天中接续行动，也【不可以重复】类似对话至当前聊天当中。
+            ${linkedMemoryContext}`;
         }
 
         messagesPayload = [
@@ -7770,6 +7770,22 @@ async function openMessageEditor() {
             source_name: '来源网站',
             content: '文章完整内容...',
         },
+        payment: {
+            type: 'waimai_request',
+            status: 'pending',
+            amount: 28.5,
+            productInfo: '豪华多人套餐',
+            countdownEndTime: Date.now() + 900000,
+        },
+        location: {
+            type: 'location',
+            userLocation: '我的当前位置',
+            aiLocation: '对方的位置',
+            distance: '1.2km',
+            trajectoryPoints: [{ name: '起始点' }, { name: '途经点' }, { name: '终点' }],
+        },
+        narrator: { type: 'narrative', content: '在这里输入旁白内容...' },
+        system: { type: 'pat_message', content: '在这里输入系统提示...' },
     };
 
     const helpersHtml = `
@@ -7778,6 +7794,10 @@ async function openMessageEditor() {
 			            <button class="format-btn" data-template='${JSON.stringify(templates.image)}'>图片</button>
 			            <button class="format-btn" data-template='${JSON.stringify(templates.transfer)}'>转账</button>
 			            <button class="format-btn" data-template='${JSON.stringify(templates.link)}'>链接</button>
+                        <button class="format-btn" data-template='${JSON.stringify(templates.payment)}'>外卖代付</button>
+                        <button class="format-btn" data-template='${JSON.stringify(templates.location)}'>定位与轨迹</button>
+                        <button class="format-btn" data-template='${JSON.stringify(templates.narrator)}'>旁白</button>
+                        <button class="format-btn" data-template='${JSON.stringify(templates.system)}'>系统</button>
 			        </div>
 			    `;
 
@@ -7828,6 +7848,22 @@ function createMessageEditorBlock(initialContent = '') {
             source_name: '来源网站',
             content: '文章完整内容...',
         },
+        payment: {
+            type: 'waimai_request',
+            status: 'pending',
+            amount: 28.5,
+            productInfo: '豪华多人套餐',
+            countdownEndTime: Date.now() + 900000,
+        },
+        location: {
+            type: 'location',
+            userLocation: '我的当前位置',
+            aiLocation: '对方的位置',
+            distance: '1.2km',
+            trajectoryPoints: [{ name: '起始点' }, { name: '途经点' }, { name: '终点' }],
+        },
+        narrator: { type: 'narrative', content: '在这里输入旁白内容...' },
+        system: { type: 'pat_message', content: '在这里输入系统提示...' },
     };
 
     block.innerHTML = `
@@ -7837,8 +7873,11 @@ function createMessageEditorBlock(initialContent = '') {
 			            <button class="format-btn" data-template='${JSON.stringify(templates.voice)}'>语音</button>
 			            <button class="format-btn" data-template='${JSON.stringify(templates.image)}'>图片</button>
 			            <button class="format-btn" data-template='${JSON.stringify(templates.transfer)}'>转账</button>
-			            
 			            <button class="format-btn" data-template='${JSON.stringify(templates.link)}'>链接</button>
+                        <button class="format-btn" data-template='${JSON.stringify(templates.payment)}'>外卖代付</button>
+                        <button class="format-btn" data-template='${JSON.stringify(templates.location)}'>定位与轨迹</button>
+                        <button class="format-btn" data-template='${JSON.stringify(templates.narrator)}'>旁白</button>
+                        <button class="format-btn" data-template='${JSON.stringify(templates.system)}'>系统</button>
 			        </div>
 			    `;
 

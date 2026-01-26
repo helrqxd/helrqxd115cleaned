@@ -4117,11 +4117,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         const keepAliveUnlocker = () => {
             const player = document.getElementById('strong-keep-alive-player');
             if (player) {
-                player.volume = 0; // 确保静音
+                // ★★★ 核心修改：调整音量和MediaSession以支持后台显示 ★★★
+                // 音量不能完全为0，否则部分系统会认为未播放而暂停后台任务。设置极小值即可。
+                player.volume = 0.001;
+
                 player
                     .play()
                     .then(() => {
                         console.log('🔥 强力保活模式已激活：静音音频正在循环播放');
+
+                        // 设置 Media Session API，使浏览器认为这是一个正经的媒体播放，从而在后台显示
+                        if ('mediaSession' in navigator) {
+                            navigator.mediaSession.metadata = new MediaMetadata({
+                                title: '后台保活运行中',
+                                artist: '点击暂停可能导致应用休眠',
+                                album: 'EPhone',
+                                artwork: [
+                                    { src: 'https://i.postimg.cc/Fz25WLbr/7D99384EE38C42D2BA98F53E4582FEA8.jpg', sizes: '192x192', type: 'image/png' },
+                                    { src: 'https://i.postimg.cc/Fz25WLbr/7D99384EE38C42D2BA98F53E4582FEA8.jpg', sizes: '512x512', type: 'image/png' }
+                                ]
+                            });
+
+                            // 必须注册这些 handler，否则通知栏可能不显示控制按钮或整个卡片
+                            navigator.mediaSession.setActionHandler('play', () => player.play());
+                            navigator.mediaSession.setActionHandler('pause', () => player.pause());
+                        }
                     })
                     .catch((e) => {
                         console.warn('保活启动失败 (需用户交互):', e);
@@ -4402,107 +4422,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         document.getElementById('chat-header-status').addEventListener('click', handleEditStatusClick);
 
-        // 在 init() 的事件监听器区域添加
-        document.getElementById('selection-share-btn').addEventListener('click', () => {
-            if (selectedMessages.size > 0) {
-                openShareTargetPicker(); // 打开我们即将创建的目标选择器
-            }
-        });
-
-        // 在 init() 的事件监听器区域添加
-        document.getElementById('confirm-share-target-btn').addEventListener('click', async () => {
-            const sourceChat = state.chats[state.activeChatId];
-            const selectedTargetIds = Array.from(document.querySelectorAll('.share-target-checkbox:checked')).map((cb) => cb.dataset.chatId);
-
-            if (selectedTargetIds.length === 0) {
-                alert('请至少选择一个要分享的聊天。');
-                return;
-            }
-
-            // 1. 打包聊天记录
-            const sharedHistory = [];
-            const sortedTimestamps = [...selectedMessages].sort((a, b) => a - b);
-            for (const timestamp of sortedTimestamps) {
-                const msg = sourceChat.history.find((m) => m.timestamp === timestamp);
-                if (msg) {
-                    sharedHistory.push(msg);
-                }
-            }
-
-            // 2. 创建分享卡片消息对象
-            const shareCardMessage = {
-                role: 'user',
-                senderName: sourceChat.isGroup ? sourceChat.settings.myNickname || '我' : '我',
-                type: 'share_card',
-                timestamp: Date.now(),
-                payload: {
-                    sourceChatName: sourceChat.name,
-                    title: `来自“${sourceChat.name}”的聊天记录`,
-                    sharedHistory: sharedHistory,
-                },
-            };
-
-            // 3. 循环发送到所有目标聊天
-            for (const targetId of selectedTargetIds) {
-                const targetChat = state.chats[targetId];
-                if (targetChat) {
-                    targetChat.history.push(shareCardMessage);
-                    await db.chats.put(targetChat);
-                }
-            }
-
-            // 4. 收尾工作
-            document.getElementById('share-target-modal').classList.remove('visible');
-            exitSelectionMode(); // 退出多选模式
-            await showCustomAlert('分享成功', `聊天记录已成功分享到 ${selectedTargetIds.length} 个会话中。`);
-            renderChatList(); // 刷新列表，可能会有新消息提示
-        });
-
-        // 绑定取消按钮
-        document.getElementById('cancel-share-target-btn').addEventListener('click', () => {
-            document.getElementById('share-target-modal').classList.remove('visible');
-        });
-
-        // 在 init() 的事件监听器区域添加
-        document.getElementById('chat-messages').addEventListener('click', (e) => {
-            // 处理分享卡片的点击
-            const shareCard = e.target.closest('.link-share-card[data-timestamp]');
-            if (shareCard && shareCard.closest('.message-bubble.is-link-share')) {
-                const timestamp = parseInt(shareCard.dataset.timestamp);
-                openSharedHistoryViewer(timestamp);
-            }
-        });
-
-        // 绑定查看器的关闭按钮
-        document.getElementById('close-shared-history-viewer-btn').addEventListener('click', () => {
-            document.getElementById('shared-history-viewer-modal').classList.remove('visible');
-        });
-
-        // 创建新函数来处理渲染逻辑
-        function openSharedHistoryViewer(timestamp) {
-            const chat = state.chats[state.activeChatId];
-            const message = chat.history.find((m) => m.timestamp === timestamp);
-            if (!message || message.type !== 'share_card') return;
-
-            const viewerModal = document.getElementById('shared-history-viewer-modal');
-            const viewerTitle = document.getElementById('shared-history-viewer-title');
-            const viewerContent = document.getElementById('shared-history-viewer-content');
-
-            viewerTitle.textContent = message.payload.title;
-            viewerContent.innerHTML = ''; // 清空旧内容
-
-            // 复用 createMessageElement 来渲染每一条被分享的消息
-            message.payload.sharedHistory.forEach((sharedMsg) => {
-                // 注意：这里我们传入的是 sourceChat 对象，以确保头像、昵称等正确
-                const sourceChat = Object.values(state.chats).find((c) => c.name === message.payload.sourceChatName) || chat;
-                const bubbleEl = createMessageElement(sharedMsg, sourceChat);
-                if (bubbleEl) {
-                    viewerContent.appendChild(bubbleEl);
-                }
-            });
-
-            viewerModal.classList.add('visible');
-        }
+        // [Refactor] Shared History logic moved to apps/QQ/chat.js
 
         // 使用事件委托来处理所有“已撤回消息”的点击事件
         document.getElementById('chat-messages').addEventListener('click', (e) => {
