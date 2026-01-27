@@ -507,11 +507,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         });
                         navigator.mediaSession.playbackState = 'playing';
                         try {
-                            navigator.mediaSession.setPositionState({
-                                duration: 3600,
-                                playbackRate: 1,
-                                position: 0
-                            });
+                            const duration = keepAlive.duration;
+                            if (Number.isFinite(duration) && duration > 0) {
+                                navigator.mediaSession.setPositionState({
+                                    duration: duration,
+                                    playbackRate: keepAlive.playbackRate || 1,
+                                    position: Math.min(Math.max(0, keepAlive.currentTime), duration)
+                                });
+                            }
                         } catch (e) { }
 
                         // 重置 ActionHandlers

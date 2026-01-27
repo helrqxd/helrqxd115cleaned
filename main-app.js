@@ -4154,15 +4154,47 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                             navigator.mediaSession.playbackState = 'playing';
 
-                            // 移除旧的进度同步逻辑，保活音频不需要精确进度条，
-                            // 使用简单的静态状态防止显示 9:59 满进度
-                            try {
-                                navigator.mediaSession.setPositionState({
-                                    duration: 3600,
-                                    playbackRate: 1,
-                                    position: 0
-                                });
-                            } catch (e) { }
+                            // 定义保活音频的 MediaSession 更新逻辑
+                            const updateKeepAliveSession = () => {
+                                if ('mediaSession' in navigator && !player.paused) {
+                                    const duration = player.duration;
+                                    const currentTime = player.currentTime;
+                                    if (Number.isFinite(duration) && duration > 0) {
+                                        try {
+                                            navigator.mediaSession.setPositionState({
+                                                duration: duration,
+                                                playbackRate: player.playbackRate || 1,
+                                                position: Math.min(Math.max(0, currentTime), duration)
+                                            });
+                                        } catch (e) { }
+                                    }
+                                }
+                            };
+
+                            // 初始设置
+                            updateKeepAliveSession();
+
+                            // 监听时间更新以处理循环播放时的进度重置
+                            // 节流更新：不需要每次 timeupdate 都更新，只要在关键时刻（如循环归零）更新即可
+                            // 但为了显示准确，我们允许它自然走，只在检测到 loop (currentTime 变小) 时强制更新
+                            let lastTime = 0;
+                            player.addEventListener('timeupdate', () => {
+                                const nowTime = player.currentTime;
+                                // 简单的循环检测：如果当前时间小于上一次时间，说明发生了循环
+                                if (nowTime < lastTime) {
+                                    updateKeepAliveSession();
+                                }
+                                lastTime = nowTime;
+
+                                // 也可以定期（比如每5秒）同步一次以防漂移
+                                if (Math.abs(nowTime % 5) < 0.3) {
+                                    updateKeepAliveSession();
+                                }
+                            });
+
+                            // 确保元数据加载后更新一次时长
+                            player.addEventListener('loadedmetadata', updateKeepAliveSession);
+                            player.addEventListener('ratechange', updateKeepAliveSession);
 
                             // 绑定空的 handler 防止报错，或者指向主播放器（如果已加载）
                             navigator.mediaSession.setActionHandler('play', () => {
