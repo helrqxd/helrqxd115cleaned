@@ -1100,6 +1100,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // 更新进度条和歌词
         updateMusicProgressBar();
 
+        // 【修复】定期同步 Media Session 状态（每约2秒），强制刷新系统进度条
+        if ('mediaSession' in navigator && !audioPlayer.paused) {
+            const now = Date.now();
+            if (!audioPlayer._lastSessionSync || now - audioPlayer._lastSessionSync > 2000) {
+                audioPlayer._lastSessionSync = now;
+                if (typeof updateMediaSessionState === 'function') {
+                    updateMediaSessionState();
+                }
+            }
+        }
+
         // 仅当保持活跃音频时检查循环
         if (currentTrack && currentTrack.isKeepAlive && audioPlayer.currentTime > 600) {
             console.log('保活音频已播放20分钟，执行循环...');

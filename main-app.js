@@ -4145,6 +4145,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 ]
                             });
 
+                            navigator.mediaSession.playbackState = 'playing';
+
+                            // 明确设置位置状态为空，避免显示错误的进度条
+                            try {
+                                if (navigator.mediaSession.setPositionState) {
+                                    navigator.mediaSession.setPositionState(null);
+                                }
+                            } catch (e) { console.warn('KeepAlive SetPosition Error:', e); }
+
                             navigator.mediaSession.setActionHandler('play', () => player.play());
                             navigator.mediaSession.setActionHandler('pause', () => player.pause());
                         }
