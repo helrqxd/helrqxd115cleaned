@@ -678,8 +678,46 @@ document.addEventListener('DOMContentLoaded', () => {
         updatePlayerUI();
 
         // ★★★ 核心修复：更新 Media Session Metadata (通知栏显示) ★★★
-        setupMediaSessionHandlers();
-        updateMediaSessionState();
+        if ('mediaSession' in navigator) {
+            // 先清除旧的进度状态，防止显示异常
+            if (navigator.mediaSession.setPositionState) {
+                try { navigator.mediaSession.setPositionState(null); } catch (e) { }
+            }
+
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: track.name || '未知歌曲',
+                artist: track.artist || 'Together Listen',
+                album: 'EPhone 音乐',
+                artwork: [
+                    { src: track.cover || 'https://i.postimg.cc/pT2xKzPz/album-cover-placeholder.png', sizes: '512x512', type: 'image/png' }
+                ]
+            });
+
+            // 绑定媒体控制事件
+            navigator.mediaSession.setActionHandler('play', () => {
+                // 当处于保活音频播放(UI显示暂停)状态时，用户点击Play触发此handler
+                // 我们需要暂停保活音频，并播放主音频
+                const keepAlive = document.getElementById('strong-keep-alive-player');
+                if (keepAlive) keepAlive.pause();
+
+                audioPlayer.play().catch(e => console.error("MediaSession Play Error:", e));
+            });
+            navigator.mediaSession.setActionHandler('pause', () => {
+                if (!audioPlayer.paused) {
+                    audioPlayer.pause();
+                }
+            });
+            navigator.mediaSession.setActionHandler('previoustrack', playPrev);
+            navigator.mediaSession.setActionHandler('nexttrack', playNext);
+            navigator.mediaSession.setActionHandler('seekto', (details) => {
+                if (details.fastSeek && 'fastSeek' in audioPlayer) {
+                    audioPlayer.fastSeek(details.seekTime);
+                    return;
+                }
+                audioPlayer.currentTime = details.seekTime;
+                updateMusicProgressBar();
+            });
+        }
 
         try {
             if (state.musicState.isPlaying) {
@@ -1064,14 +1102,13 @@ document.addEventListener('DOMContentLoaded', () => {
         // 更新进度条和歌词
         updateMusicProgressBar();
 
-        // 【修复】定期同步 Media Session 状态（每约1秒），强制刷新系统进度条
-        if ('mediaSession' in navigator && !audioPlayer.paused) {
+        // 【优化】仅在进度偏差较大时同步 MediaSession，避免频繁调用导致UI卡顿或异常
+        if ('mediaSession' in navigator && !audioPlayer.paused && audioPlayer.duration > 0) {
             const now = Date.now();
-            if (!audioPlayer._lastSessionSync || now - audioPlayer._lastSessionSync > 1000) {
+            // 每 10 秒强制校准一次，或者在特定时刻
+            if (!audioPlayer._lastSessionSync || now - audioPlayer._lastSessionSync > 10000) {
                 audioPlayer._lastSessionSync = now;
-                if (typeof updateMediaSessionState === 'function') {
-                    updateMediaSessionState();
-                }
+                updateMediaSessionState();
             }
         }
 
@@ -1085,57 +1122,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 封装 MediaSession 设置逻辑
-    const setupMediaSessionHandlers = () => {
-        if (!('mediaSession' in navigator)) return;
-
-        navigator.mediaSession.setActionHandler('play', () => {
-            if (audioPlayer.paused) {
-                audioPlayer.play().catch(e => console.error("MediaSession Play Error:", e));
-            }
-        });
-        navigator.mediaSession.setActionHandler('pause', () => {
-            if (!audioPlayer.paused) {
-                audioPlayer.pause();
-            }
-        });
-        navigator.mediaSession.setActionHandler('previoustrack', playPrev);
-        navigator.mediaSession.setActionHandler('nexttrack', playNext);
-        navigator.mediaSession.setActionHandler('seekto', (details) => {
-            if (details.fastSeek && 'fastSeek' in audioPlayer) {
-                audioPlayer.fastSeek(details.seekTime);
-                return;
-            }
-            audioPlayer.currentTime = details.seekTime;
-            updateMusicProgressBar();
-        });
-    };
-
     // 在关键事件时更新 MediaSession 状态
     const updateMediaSessionState = () => {
         if ('mediaSession' in navigator) {
-            // 确保 Metadata 始终是当前歌曲，防止被保活音频覆盖
-            if (state.musicState.currentIndex > -1 && state.musicState.playlist.length > 0) {
-                const track = state.musicState.playlist[state.musicState.currentIndex];
-                // 简单的比较防止重复刷新导致闪烁，但要确保覆盖
-                if (!navigator.mediaSession.metadata || navigator.mediaSession.metadata.title !== track.name) {
-                    navigator.mediaSession.metadata = new MediaMetadata({
-                        title: track.name || '未知歌曲',
-                        artist: track.artist || 'Together Listen',
-                        album: 'EPhone 音乐',
-                        artwork: [
-                            { src: track.cover || 'https://i.postimg.cc/pT2xKzPz/album-cover-placeholder.png', sizes: '512x512', type: 'image/png' }
-                        ]
-                    });
-                }
-            }
-
+            // 总是尝试更新播放状态
+            // 注意：如果主播放器暂停了，我们希望状态是 paused。
+            // 即使后台保活音频在播放，这属于"实现细节"，不应影响 UI 状态。
             const isPlaying = !audioPlayer.paused;
             navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
 
             const duration = audioPlayer.duration;
             const currentTime = audioPlayer.currentTime;
 
+            // 只有当时长有效且非无限时才更新具体进度
             if (Number.isFinite(duration) && duration > 0 && !isNaN(duration)) {
                 try {
                     navigator.mediaSession.setPositionState({
@@ -1143,60 +1142,62 @@ document.addEventListener('DOMContentLoaded', () => {
                         playbackRate: audioPlayer.playbackRate || 1,
                         position: Math.min(Math.max(0, currentTime), duration)
                     });
-                } catch (e) { }
+                } catch (e) {
+                    // 只有在非 AbortError 时才警告
+                    if (e.name !== 'AbortError') {
+                        // console.warn('SetPositionState Error:', e);
+                    }
+                }
             } else {
+                // 如果 duration 无效，尝试清除 position state
+                // 但如果是因为暂停而导致 duration 暂时不可用（罕见），我们保留上一次的可能更好？
+                // 不，为了安全，清除它。
                 try { navigator.mediaSession.setPositionState(null); } catch (e) { }
             }
         }
     };
 
     audioPlayer.addEventListener('play', () => {
-        // 1. 暂停保活音频，实行“独占播放”
+        // 1. 暂停保活音频，实行“独占播放”，防止系统进度条被通过保活音频干扰
         const keepAlive = document.getElementById('strong-keep-alive-player');
         if (keepAlive && !keepAlive.paused) {
             keepAlive.pause();
-            // 确保将保活进度的干扰清除
-            if ('mediaSession' in navigator) {
-                try { navigator.mediaSession.setPositionState(null); } catch (e) { }
-            }
+            console.log('音乐播放开始，已挂起后台保活音频');
         }
 
+        // 延迟一点更新，以防 Audio 状态切换造成的竞态
         state.musicState.isPlaying = true;
         updatePlayerUI();
 
-        // 重新绑定 handlers 和 metadata，确保从保活音频手里夺回控制权
-        setupMediaSessionHandlers();
-        updateMediaSessionState();
-
-        // 延迟再次更新，确保 duration 已就绪
-        setTimeout(updateMediaSessionState, 500);
+        // 关键修复：给一定延迟确保 currentTime 和 duration 稳定
+        setTimeout(updateMediaSessionState, 100);
     });
 
     audioPlayer.addEventListener('pause', () => {
         state.musicState.isPlaying = false;
         updatePlayerUI();
 
-        // 更新 MediaSession 为 paused
+        // 1. 先告诉系统我们暂停了 (State: paused)
         updateMediaSessionState();
 
-        // 1. 恢复保活音频
+        // 2. 延迟恢复保活音频，确保 App 不会被系统杀掉
         const keepAlive = document.getElementById('strong-keep-alive-player');
-        if (keepAlive && keepAlive.paused) {
+        if (keepAlive) {
+            // 延迟一点，避免立即抢占。
             setTimeout(() => {
-                keepAlive.play().then(() => {
-                    // 保活音频开始播放后，MediaSession 可能会被浏览器重置为 "playing" + 保活音频的 Metadata
-                    // 所以这里必须强制再次覆盖为 Song Metadata + "paused"
-                    // 这样用户看到的是 "歌曲名 - 暂停" 并可以点击播放，而不是 "后台保活 - 播放中"
-                    setupMediaSessionHandlers();
-                    updateMediaSessionState();
-
-                    // 再次强制设为 paused，掩盖保活音频正在播放的事实
-                    if ('mediaSession' in navigator) {
-                        navigator.mediaSession.playbackState = 'paused';
-                    }
-                }).catch(e => console.warn('恢复保活失败:', e));
+                // 只有当主音频确实暂停了才启动保活
+                if (audioPlayer.paused && !keepAlive.playing) {
+                    keepAlive.play().then(() => {
+                        // ★★★ 核心修复：保活音频启动后，强制再次将 MediaSession 设为 Paused ★★★
+                        // 这防止浏览器因为检测到有音频播放而自动将状态切回 Playing 并显示保活音频的进度
+                        if ('mediaSession' in navigator) {
+                            navigator.mediaSession.playbackState = 'paused';
+                            // 保持之前设置的主音频进度，不要让保活音频的进度覆盖它
+                        }
+                    }).catch(e => { /* 忽略自动播放失败 */ });
+                    console.log('音乐已暂停，恢复后台保活音频');
+                }
             }, 500);
-
         }
     });
 
