@@ -4117,16 +4117,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const keepAliveUnlocker = () => {
             const player = document.getElementById('strong-keep-alive-player');
             if (player) {
-                // ★★★ 核心修改：调整音量和MediaSession以支持后台显示 ★★★
-                // 音量不能完全为0，否则部分系统会认为未播放而暂停后台任务。设置极小值即可。
+                // 将音量设置为极小值，以避免被系统判断为静音而挂起，同时允许 Media Session 显示
                 player.volume = 0.001;
 
-                player
-                    .play()
+                player.play()
                     .then(() => {
                         console.log('🔥 强力保活模式已激活：静音音频正在循环播放');
 
-                        // 设置 Media Session API，使浏览器认为这是一个正经的媒体播放，从而在后台显示
+                        // 播放成功后移除监听器，避免重复触发
+                        document.removeEventListener('click', keepAliveUnlocker);
+                        document.removeEventListener('touchstart', keepAliveUnlocker);
+
                         if ('mediaSession' in navigator) {
                             navigator.mediaSession.metadata = new MediaMetadata({
                                 title: '后台保活运行中',
@@ -4138,19 +4139,21 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 ]
                             });
 
-                            // 必须注册这些 handler，否则通知栏可能不显示控制按钮或整个卡片
                             navigator.mediaSession.setActionHandler('play', () => player.play());
                             navigator.mediaSession.setActionHandler('pause', () => player.pause());
                         }
                     })
                     .catch((e) => {
-                        console.warn('保活启动失败 (需用户交互):', e);
+                        console.warn('保活启动失败 (可能被自动播放策略拦截，等待用户交互):', e);
+                        // 失败时不移除监听器，等待用户下一次点击
                     });
             }
-            document.removeEventListener('click', keepAliveUnlocker);
-            document.removeEventListener('touchstart', keepAliveUnlocker);
         };
 
+        // 尝试立即启动 (针对允许自动播放的环境)
+        keepAliveUnlocker();
+
+        // 注册交互监听器 (针对需要用户交互的环境)
         document.addEventListener('click', keepAliveUnlocker);
         document.addEventListener('touchstart', keepAliveUnlocker);
 
