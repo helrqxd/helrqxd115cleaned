@@ -695,12 +695,17 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 绑定媒体控制事件
             navigator.mediaSession.setActionHandler('play', () => {
-                // 当处于保活音频播放(UI显示暂停)状态时，用户点击Play触发此handler
-                // 我们需要暂停保活音频，并播放主音频
-                const keepAlive = document.getElementById('strong-keep-alive-player');
-                if (keepAlive) keepAlive.pause();
-
-                audioPlayer.play().catch(e => console.error("MediaSession Play Error:", e));
+                console.log('MediaSession Play Command Received');
+                // 如果是保活音频在响，我们需要确保 musicPlayer 开始播放
+                if (audioPlayer.paused) {
+                    audioPlayer.play()
+                        .then(() => console.log('MediaSession Play Success'))
+                        .catch(e => {
+                            console.error("MediaSession Play Error:", e);
+                            // 如果直接播放失败（比如src被回收），尝试重新 playSong
+                            if (state.musicState.currentIndex > -1) playSong(state.musicState.currentIndex);
+                        });
+                }
             });
             navigator.mediaSession.setActionHandler('pause', () => {
                 if (!audioPlayer.paused) {
@@ -747,13 +752,24 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function togglePlayPause() {
+        if (state.musicState.currentIndex === -1) return;
+
         if (audioPlayer.paused) {
-            if (state.musicState.currentIndex > -1) {
+            // 如果已加载当前歌曲且资源有效，直接播放，避免重新加载导致的重头播放
+            // 只有当 src 为空或者与当前记录不一致时才重新加载
+            const currentTrack = state.musicState.playlist[state.musicState.currentIndex];
+            const isSrcMatch = audioPlayer.src && currentTrack && (audioPlayer.src === currentTrack.src || audioPlayer.src.endsWith(currentTrack.src));
+
+            if (isSrcMatch && audioPlayer.readyState >= 2) {
+                audioPlayer.play().catch(e => {
+                    console.error("恢复播放失败，尝试重新加载:", e);
+                    playSong(state.musicState.currentIndex);
+                });
+            } else {
                 playSong(state.musicState.currentIndex);
             }
         } else {
             audioPlayer.pause();
-
             state.musicState.isPlaying = false;
             updatePlayerUI();
         }
@@ -1102,13 +1118,14 @@ document.addEventListener('DOMContentLoaded', () => {
         // 更新进度条和歌词
         updateMusicProgressBar();
 
-        // 【优化】仅在进度偏差较大时同步 MediaSession，避免频繁调用导致UI卡顿或异常
-        if ('mediaSession' in navigator && !audioPlayer.paused && audioPlayer.duration > 0) {
+        // 【修复】定期同步 Media Session 状态（每约1秒），强制刷新系统进度条
+        if ('mediaSession' in navigator && !audioPlayer.paused) {
             const now = Date.now();
-            // 每 10 秒强制校准一次，或者在特定时刻
-            if (!audioPlayer._lastSessionSync || now - audioPlayer._lastSessionSync > 10000) {
+            if (!audioPlayer._lastSessionSync || now - audioPlayer._lastSessionSync > 1000) {
                 audioPlayer._lastSessionSync = now;
-                updateMediaSessionState();
+                if (typeof updateMediaSessionState === 'function') {
+                    updateMediaSessionState();
+                }
             }
         }
 
@@ -1126,9 +1143,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateMediaSessionState = () => {
         if ('mediaSession' in navigator) {
             // 总是尝试更新播放状态
-            // 注意：如果主播放器暂停了，我们希望状态是 paused。
-            // 即使后台保活音频在播放，这属于"实现细节"，不应影响 UI 状态。
             const isPlaying = !audioPlayer.paused;
+
+            // 如果音乐暂停了，强制显示 paused (即使保活音频在响)
+            // 如果音乐播放中，显示 playing
             navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
 
             const duration = audioPlayer.duration;
@@ -1143,15 +1161,12 @@ document.addEventListener('DOMContentLoaded', () => {
                         position: Math.min(Math.max(0, currentTime), duration)
                     });
                 } catch (e) {
-                    // 只有在非 AbortError 时才警告
-                    if (e.name !== 'AbortError') {
-                        // console.warn('SetPositionState Error:', e);
-                    }
+                    // console.warn('SetPositionState Error:', e);
                 }
             } else {
-                // 如果 duration 无效，尝试清除 position state
-                // 但如果是因为暂停而导致 duration 暂时不可用（罕见），我们保留上一次的可能更好？
-                // 不，为了安全，清除它。
+                // 尝试清除进度，可能会导致显示为空或满，取决于系统
+                // 既然用户反馈满进度，我们尝试设置一个极小的 duration? 
+                // 不，规范建议是 null。
                 try { navigator.mediaSession.setPositionState(null); } catch (e) { }
             }
         }
@@ -1177,27 +1192,23 @@ document.addEventListener('DOMContentLoaded', () => {
         state.musicState.isPlaying = false;
         updatePlayerUI();
 
-        // 1. 先告诉系统我们暂停了 (State: paused)
-        updateMediaSessionState();
-
-        // 2. 延迟恢复保活音频，确保 App 不会被系统杀掉
+        // 1. 启动保活音频
         const keepAlive = document.getElementById('strong-keep-alive-player');
-        if (keepAlive) {
-            // 延迟一点，避免立即抢占。
+        if (keepAlive && keepAlive.paused) {
+            // 延迟一点启动，避免冲突
             setTimeout(() => {
-                // 只有当主音频确实暂停了才启动保活
-                if (audioPlayer.paused && !keepAlive.playing) {
-                    keepAlive.play().then(() => {
-                        // ★★★ 核心修复：保活音频启动后，强制再次将 MediaSession 设为 Paused ★★★
-                        // 这防止浏览器因为检测到有音频播放而自动将状态切回 Playing 并显示保活音频的进度
-                        if ('mediaSession' in navigator) {
-                            navigator.mediaSession.playbackState = 'paused';
-                            // 保持之前设置的主音频进度，不要让保活音频的进度覆盖它
-                        }
-                    }).catch(e => { /* 忽略自动播放失败 */ });
+                keepAlive.play().then(() => {
                     console.log('音乐已暂停，恢复后台保活音频');
-                }
-            }, 500);
+                    // ★★★ 关键修复：保活音频播放后，强制设置 MediaSession 为 paused ★★★
+                    // 这样通知栏会显示“播放”按钮，用户点击后可以恢复音乐
+                    if ('mediaSession' in navigator) {
+                        navigator.mediaSession.playbackState = 'paused';
+                    }
+                }).catch(e => console.warn('恢复保活失败:', e));
+            }, 200);
+        } else {
+            // 如果没有保活音频，直接更新状态
+            updateMediaSessionState();
         }
     });
 
