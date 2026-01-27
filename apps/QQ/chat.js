@@ -10381,6 +10381,29 @@ function editGroupAnnouncement() {
     document.getElementById('announcement-editor').focus();
 }
 
+/**
+ * 保存新的群公告
+ */
+async function saveGroupAnnouncement() {
+    const chat = state.chats[state.activeChatId];
+    const newContent = document.getElementById('announcement-editor').value.trim();
+
+    chat.settings.groupAnnouncement = newContent;
+    await db.chats.put(chat);
+
+    const myNickname = chat.settings.myNickname || '我';
+
+    // 尝试调用 logSystemMessage
+    if (typeof logSystemMessage === 'function') {
+        await logSystemMessage(chat.id, `“${myNickname}”修改了群公告。`);
+    } else if (window.logSystemMessage) {
+        await window.logSystemMessage(chat.id, `“${myNickname}”修改了群公告。`);
+    }
+
+    closeGroupAnnouncementModal();
+    alert('群公告已更新！');
+}
+
 function closeGroupAnnouncementModal() {
     // 关闭后，重新渲染一次查看状态，以防用户取消了编辑
     const modal = document.getElementById('group-announcement-modal');

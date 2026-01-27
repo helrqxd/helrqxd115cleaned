@@ -174,64 +174,13 @@ function selectGenericImagePrompt(productName) {
  * @returns {Promise<string>} - 返回一个Promise，它最终会resolve为一个有效的图片URL
  */
 async function generateTaobaoImage(prompt) {
-    console.log(`[Debug] generateTaobaoImage 被调用 (Taobao专属)，Prompt:`, prompt);
-    while (true) {
-        try {
-            const encodedPrompt = encodeURIComponent(prompt);
-            const seed = Math.floor(Math.random() * 100000);
-
-            // 1. 获取 API Key (从全局状态获取)
-            const pollApiKey = state.apiConfig.pollinationsApiKey;
-            console.log(`正在使用 API Key: ${pollApiKey}`);
-
-            // 2. 构建基础 URL 
-            let primaryUrl = `https://gen.pollinations.ai/image/${encodedPrompt}?width=1024&height=640&seed=${seed}&model=flux`;
-
-            // === 分支 A: 如果有 API Key，使用 fetch 发送带 Header 的请求 ===
-            if (pollApiKey) {
-                primaryUrl += `&key=${pollApiKey}`;
-                console.log(`使用带Key的URL: ${primaryUrl}`);
-                console.log("正在使用 Pollinations API Key 生成图片...");
-                const response = await fetch(primaryUrl, {
-                    method: "GET",
-                });
-
-                if (!response.ok) {
-                    throw new Error(`API请求失败: ${response.status}`);
-                }
-
-                // 获取二进制数据并转换为 Blob URL
-                const blob = await response.blob();
-                const objectUrl = URL.createObjectURL(blob);
-                return objectUrl; // 返回 Blob URL
-            }
-
-            // === 分支 B: 如果没有 API Key 或 API Key 请求失败，走原来的公开接口逻辑 ===
-
-            // 定义加载器辅助函数
-            const loadImage = (url) =>
-                new Promise((resolve, reject) => {
-                    const img = new Image();
-                    img.src = url;
-                    img.onload = () => resolve(url);
-                    img.onerror = () => reject(new Error(`URL加载失败: ${url}`));
-                });
-
-            const imageUrl = await loadImage(primaryUrl).catch(async () => {
-                console.warn(`主URL加载失败，尝试备用URL for: ${prompt}`);
-                const fallbackUrl = `https://pollinations.ai/p/${encodedPrompt}?width=1024&height=640&seed=${seed}`;
-                return await loadImage(fallbackUrl);
-            });
-
-            // 如果成功加载，返回 URL
-            return imageUrl;
-        } catch (error) {
-            // 如果彻底失败（Fetch失败 或 Image加载失败）
-            console.error(`图片生成失败，将在5秒后重试。错误: ${error.message}`);
-            // 等待5秒钟，然后循环继续，开始下一次尝试 (无限重试机制)
-            await new Promise((resolve) => setTimeout(resolve, 5000));
-        }
-    }
+    console.log(`[Debug] generateTaobaoImage 被调用 (已切换至全局函数)，Prompt:`, prompt);
+    // 直接调用全局函数，保持原有 Taobao 尺寸配置
+    return await window.generatePollinationsImage(prompt, {
+        width: 1024,
+        height: 640,
+        model: 'flux'
+    });
 }
 
 /**

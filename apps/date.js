@@ -243,23 +243,11 @@ function createDatingSceneCard(scene) {
 }
 
 // 生成并加载图片
-function generateAndLoadImage(prompt) {
-    return new Promise((resolve, reject) => {
-        const encodedPrompt = encodeURIComponent(prompt);
-        const seed = Math.floor(Math.random() * 100000);
-        const imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=1024&height=640&seed=${seed}`;
-
-        const img = new Image();
-        img.src = imageUrl;
-
-        img.onload = () => resolve(imageUrl);
-        img.onerror = () => {
-            console.warn(`主URL加载失败，尝试备用URL for: ${prompt}`);
-            const fallbackUrl = `https://pollinations.ai/p/${encodedPrompt}?width=1024&height=640&seed=${seed}`;
-            img.src = fallbackUrl;
-            img.onload = () => resolve(fallbackUrl);
-            img.onerror = () => reject(new Error('主域名和备用域名均加载失败'));
-        };
+async function generateAndLoadImage(prompt) {
+    return await window.generatePollinationsImage(prompt, {
+        width: 1024,
+        height: 640,
+        model: 'flux'
     });
 }
 

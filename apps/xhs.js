@@ -1253,10 +1253,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         // 如果没有提示词，使用标题作为兜底，并确保是英文以获得更好效果
                         promptForImage = `aesthetic lifestyle photo, ${note.title}, high quality, 4k`;
                     }
-                    const encodedPrompt = encodeURIComponent(promptForImage);
-                    note.imageUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=832&height=1216&nologo=true`;
+                    // 使用全局合并后的生图函数
+                    note.imageUrl = await window.generatePollinationsImage(promptForImage, {
+                        width: 832,
+                        height: 1216,
+                        nologo: true,
+                        model: 'flux'
+                    });
                     console.log("[XHS] Image URL generated:", note.imageUrl);
-                    console.log(encodedPrompt);
 
                     // 评论时间逻辑
                     if (note.comments && Array.isArray(note.comments)) {
