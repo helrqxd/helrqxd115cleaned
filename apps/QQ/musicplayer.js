@@ -1146,12 +1146,26 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     audioPlayer.addEventListener('play', () => {
+        // 1. 暂停保活音频，实行“独占播放”，防止系统进度条被通过保活音频干扰
+        const keepAlive = document.getElementById('strong-keep-alive-player');
+        if (keepAlive && !keepAlive.paused) {
+            keepAlive.pause();
+            console.log('音乐播放开始，已挂起后台保活音频');
+        }
+
         updateMediaSessionState();
         state.musicState.isPlaying = true;
         updatePlayerUI();
     });
 
     audioPlayer.addEventListener('pause', () => {
+        // 1. 恢复保活音频，确保 App 不会被系统杀掉
+        const keepAlive = document.getElementById('strong-keep-alive-player');
+        if (keepAlive && keepAlive.paused) {
+            keepAlive.play().catch(e => console.warn('恢复保活失败:', e));
+            console.log('音乐已暂停，恢复后台保活音频');
+        }
+
         updateMediaSessionState();
         state.musicState.isPlaying = false;
         updatePlayerUI();
