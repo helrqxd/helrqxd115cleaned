@@ -679,6 +679,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // ★★★ 核心修复：更新 Media Session Metadata (通知栏显示) ★★★
         if ('mediaSession' in navigator) {
+            // 先清除旧的进度状态，防止显示异常
+            if (navigator.mediaSession.setPositionState) {
+                try { navigator.mediaSession.setPositionState(null); } catch (e) { }
+            }
+
             navigator.mediaSession.metadata = new MediaMetadata({
                 title: track.name || '未知歌曲',
                 artist: track.artist || 'Together Listen',
@@ -1111,16 +1116,19 @@ document.addEventListener('DOMContentLoaded', () => {
             // 总是尝试更新播放状态
             navigator.mediaSession.playbackState = audioPlayer.paused ? 'paused' : 'playing';
 
+            const duration = audioPlayer.duration;
+            const currentTime = audioPlayer.currentTime;
+
             // 只有当时长有效时才更新具体进度
-            if (audioPlayer.duration && !isNaN(audioPlayer.duration) && isFinite(audioPlayer.duration) && audioPlayer.duration > 0) {
+            if (duration && !isNaN(duration) && isFinite(duration) && duration > 0) {
                 try {
                     navigator.mediaSession.setPositionState({
-                        duration: audioPlayer.duration,
+                        duration: duration,
                         playbackRate: audioPlayer.playbackRate || 1,
-                        position: Math.min(audioPlayer.currentTime, audioPlayer.duration)
+                        position: Math.min(Math.max(0, currentTime), duration)
                     });
                 } catch (e) {
-                    // console.warn('MediaSession setPositionState error:', e);
+                    console.warn('SetPositionState Error:', e);
                 }
             }
         }

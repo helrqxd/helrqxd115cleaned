@@ -4129,6 +4129,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                         document.removeEventListener('touchstart', keepAliveUnlocker);
 
                         if ('mediaSession' in navigator) {
+                            // 如果主音乐播放器正在播放，不要覆盖 Media Session
+                            if (window.audioPlayer && !window.audioPlayer.paused) {
+                                console.log('音乐播放中，保活音频跳过接管 MediaSession');
+                                return;
+                            }
+
                             navigator.mediaSession.metadata = new MediaMetadata({
                                 title: '后台保活运行中',
                                 artist: '点击暂停可能导致应用休眠',
