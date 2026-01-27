@@ -690,13 +690,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 绑定媒体控制事件
             navigator.mediaSession.setActionHandler('play', () => {
-                // 如果已暂停，则调用 play
+                // 解锁播放状态，无需isActive限制
                 if (audioPlayer.paused) {
-                    audioPlayer.play();
+                    audioPlayer.play().catch(e => console.error("MediaSession Play Error:", e));
                 }
             });
             navigator.mediaSession.setActionHandler('pause', () => {
-                // 如果正在播放，则调用 pause
                 if (!audioPlayer.paused) {
                     audioPlayer.pause();
                 }
@@ -1096,19 +1095,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 更新进度条和歌词
         updateMusicProgressBar();
 
-        // ★★★ 修复2：更新通知栏进度条 ★★★
-        if ('mediaSession' in navigator && audioPlayer.duration && !isNaN(audioPlayer.duration) && isFinite(audioPlayer.duration) && audioPlayer.duration > 0) {
-            try {
-                navigator.mediaSession.setPositionState({
-                    duration: audioPlayer.duration,
-                    playbackRate: audioPlayer.playbackRate || 1,
-                    position: Math.min(audioPlayer.currentTime, audioPlayer.duration)
-                });
-            } catch (e) {
-                // 忽略可能的无效状态错误
-            }
-        }
-
+        // 仅当保持活跃音频时检查循环
         if (currentTrack && currentTrack.isKeepAlive && audioPlayer.currentTime > 600) {
             console.log('保活音频已播放20分钟，执行循环...');
             audioPlayer.currentTime = 0;
@@ -1118,47 +1105,36 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 监听播放列表点击事件 (因为播放列表是动态生成的，之前在 renderPlaylistUI 中绑定了事件，这里不需要额外的事件委托，
-    // 但是 playlist-body 里的封面、歌词、删除按钮需要事件处理，之前是直接绑定在元素上的，这里 renderPlaylistUI 已经处理了)
-    // 但是，为了完整性，看看 updatePlaylistUI 的实现，发现它给 item.querySelector('.playlist-item-info') 绑定了 click
-    // 并且也绑定了 remove 按钮等吗？
-    // 检查原来的 updatePlaylistUI...
-    // <span class="playlist-action-btn cover-btn" ...
-    // <span class="playlist-action-btn lyrics-btn" ...
-    // <span class="playlist-action-btn delete-track-btn" ...
-    // 原代码 renderPlaylistUI 里没有给这些按钮绑定事件吗？
-    // 让我们回忆一下... 
-    // 原来 updatePlaylistUI 在 main-app.js 中只有行660左右的定义?
-    // 实际上我读过的 updatePlaylistUI (line 9880) 只绑定了 info 的点击事件。
-    // 那些 .playlist-action-btn 的事件绑定在哪里？
-    // 实际上，我可能遗漏了。原来的代码里似乎是用 onclick="..." 或者在 updatePlaylistUI 里绑定的?
-    // 检查 read_file output for updatePlaylistUI (line 9880)
-    // 它只绑定了 `item.querySelector('.playlist-item-info').addEventListener('click', () => playSong(index));`
-    // wait, actions like delete, cover, lyrics... 
-    // Ah, I need to check if there is a global event listener for them or if updatePlaylistUI was incomplete in my read?
-    // Let's re-read updatePlaylistUI in main-app.js.
-
-    // ... item.querySelector('.playlist-item-info').addEventListener('click', () => playSong(index));
-    // It seems it was missing from the snippet I read or I missed it.
-    // Let's check if there is an event delegation for playlist-body in main-app.js?
-    // I will check for 'playlist-body' event listener.
-
-    // 补充：为了确保所有功能正常，我应该添加事件委托给 playlist-body，以防万一。
-
-    // 补全 audioPlayer 的播放/暂停状态监听
-    audioPlayer.addEventListener('pause', () => {
-        if (state.musicState.isActive) {
-            state.musicState.isPlaying = false;
-            updatePlayerUI();
+    // 在关键事件时更新 MediaSession 状态，避免在 timeupdate 中频繁更新导致进度条鬼畜
+    const updateMediaSessionState = () => {
+        if ('mediaSession' in navigator && audioPlayer.duration && !isNaN(audioPlayer.duration) && isFinite(audioPlayer.duration) && audioPlayer.duration > 0) {
+            try {
+                navigator.mediaSession.setPositionState({
+                    duration: audioPlayer.duration,
+                    playbackRate: audioPlayer.playbackRate || 1,
+                    position: Math.min(audioPlayer.currentTime, audioPlayer.duration)
+                });
+            } catch (e) {
+                // console.warn('MediaSession setPositionState error:', e);
+            }
         }
-    });
+    };
 
     audioPlayer.addEventListener('play', () => {
-        if (state.musicState.isActive) {
-            state.musicState.isPlaying = true;
-            updatePlayerUI();
-        }
+        updateMediaSessionState();
+        state.musicState.isPlaying = true;
+        updatePlayerUI();
     });
+
+    audioPlayer.addEventListener('pause', () => {
+        updateMediaSessionState();
+        state.musicState.isPlaying = false;
+        updatePlayerUI();
+    });
+
+    audioPlayer.addEventListener('seeked', updateMediaSessionState);
+    audioPlayer.addEventListener('ratechange', updateMediaSessionState);
+
 
     // 补全 playlist-body 的事件委托
     const playlistBody = document.getElementById('playlist-body');
