@@ -488,6 +488,41 @@ document.addEventListener('DOMContentLoaded', () => {
             state.musicState.totalElapsedTime = 0;
             state.musicState.timerId = null;
             updateListenTogetherIcon(oldChatId, true);
+
+            // 恢复强力保活音频并接管 MediaSession
+            const keepAlive = document.getElementById('strong-keep-alive-player');
+            if (keepAlive) {
+                keepAlive.volume = 0.001;
+                keepAlive.play().then(() => {
+                    console.log('一起听结束，恢复后台保活接管');
+                    if ('mediaSession' in navigator) {
+                        navigator.mediaSession.metadata = new MediaMetadata({
+                            title: '后台保活运行中',
+                            artist: '点击暂停可能导致应用休眠',
+                            album: 'EPhone',
+                            artwork: [
+                                { src: 'https://i.postimg.cc/Fz25WLbr/7D99384EE38C42D2BA98F53E4582FEA8.jpg', sizes: '192x192', type: 'image/png' },
+                                { src: 'https://i.postimg.cc/Fz25WLbr/7D99384EE38C42D2BA98F53E4582FEA8.jpg', sizes: '512x512', type: 'image/png' }
+                            ]
+                        });
+                        navigator.mediaSession.playbackState = 'playing';
+                        try {
+                            navigator.mediaSession.setPositionState({
+                                duration: 3600,
+                                playbackRate: 1,
+                                position: 0
+                            });
+                        } catch (e) { }
+
+                        // 重置 ActionHandlers
+                        navigator.mediaSession.setActionHandler('play', null);
+                        navigator.mediaSession.setActionHandler('pause', () => keepAlive.pause());
+                        navigator.mediaSession.setActionHandler('previoustrack', null);
+                        navigator.mediaSession.setActionHandler('nexttrack', null);
+                        navigator.mediaSession.setActionHandler('seekto', null);
+                    }
+                }).catch(e => console.warn('恢复保活失败:', e));
+            }
         };
         closeMusicPlayerWithAnimation(cleanupLogic);
     }
@@ -690,13 +725,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 绑定媒体控制事件
             navigator.mediaSession.setActionHandler('play', () => {
-                // 使用UI按钮点击以复用 togglePlayPause 中的恢复/重载逻辑
+                /* 
+                   修复：点击通知栏播放按钮无反应的问题
+                   1. 手动暂停保活音频，释放音频焦点
+                   2. 模拟点击UI按钮来执行播放逻辑 (包含重连/续期等)
+                   3. 强制更新下状态，确保UI同步
+                */
+                const keepAlive = document.getElementById('strong-keep-alive-player');
+                if (keepAlive) keepAlive.pause();
+
                 const btn = document.getElementById('music-play-pause-btn');
-                if (btn) btn.click();
+                if (btn) {
+                    btn.click();
+                } else if (!state.musicState.isPlaying) {
+                    // 备用方案
+                    if (state.musicState.currentIndex > -1) playSong(state.musicState.currentIndex);
+                }
+
+                // 试图立即更新状态为播放(虽然可能还在加载)
+                navigator.mediaSession.playbackState = 'playing';
             });
+
             navigator.mediaSession.setActionHandler('pause', () => {
                 if (!audioPlayer.paused) {
                     audioPlayer.pause();
+                } else {
+                    // 状态纠错：如果UI显示暂停(意味着它认为在播放)，但实际已暂停，则强制刷新状态
+                    updateMediaSessionState();
+                    // 同时也暂停保活音频，以防万一
+                    const keepAlive = document.getElementById('strong-keep-alive-player');
+                    if (keepAlive && !keepAlive.paused) keepAlive.pause();
                 }
             });
             navigator.mediaSession.setActionHandler('previoustrack', playPrev);
@@ -1132,7 +1190,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateMediaSessionState = () => {
         if ('mediaSession' in navigator) {
             // 总是尝试更新播放状态
-            const isPlaying = !audioPlayer.paused;
+            // 只有当 audioPlayer 真的在播放时才显示 playing，否则一律 paused
+            // (即使 keepAlive 在播放，我们也显示 paused 以允许用户点击播放按钮来恢复音乐)
+            const isPlaying = !audioPlayer.paused && audioPlayer.currentTime > 0 && !audioPlayer.ended && audioPlayer.readyState > 2;
 
             // 如果音乐暂停了，强制显示 paused (即使保活音频在响)
             // 如果音乐播放中，显示 playing
@@ -1186,24 +1246,17 @@ document.addEventListener('DOMContentLoaded', () => {
         state.musicState.isPlaying = false;
         updatePlayerUI();
 
-        // 1. 启动保活音频
+        // 立即更新状态为 paused
+        if ('mediaSession' in navigator) navigator.mediaSession.playbackState = 'paused';
+
+        // 确保保活音频也是暂停的 (防止“一起听”暂停时自动播放保活音频)
         const keepAlive = document.getElementById('strong-keep-alive-player');
-        if (keepAlive && keepAlive.paused) {
-            // 延迟一点启动，避免冲突
-            setTimeout(() => {
-                keepAlive.play().then(() => {
-                    console.log('音乐已暂停，恢复后台保活音频');
-                    // ★★★ 关键修复：保活音频播放后，强制设置 MediaSession 为 paused ★★★
-                    // 这样通知栏会显示“播放”按钮，用户点击后可以恢复音乐
-                    if ('mediaSession' in navigator) {
-                        navigator.mediaSession.playbackState = 'paused';
-                    }
-                }).catch(e => console.warn('恢复保活失败:', e));
-            }, 200);
-        } else {
-            // 如果没有保活音频，直接更新状态
-            updateMediaSessionState();
+        if (keepAlive && !keepAlive.paused) {
+            keepAlive.pause();
         }
+
+        // 更新 MediaSession 状态以反映暂停
+        updateMediaSessionState();
     });
 
     // 增加: 在元数据加载完成和时长变化时也更新状态 (解决初始加载时duration可能为NaN的问题)
