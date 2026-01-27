@@ -1107,15 +1107,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 在关键事件时更新 MediaSession 状态，避免在 timeupdate 中频繁更新导致进度条鬼畜
     const updateMediaSessionState = () => {
-        if ('mediaSession' in navigator && audioPlayer.duration && !isNaN(audioPlayer.duration) && isFinite(audioPlayer.duration) && audioPlayer.duration > 0) {
-            try {
-                navigator.mediaSession.setPositionState({
-                    duration: audioPlayer.duration,
-                    playbackRate: audioPlayer.playbackRate || 1,
-                    position: Math.min(audioPlayer.currentTime, audioPlayer.duration)
-                });
-            } catch (e) {
-                // console.warn('MediaSession setPositionState error:', e);
+        if ('mediaSession' in navigator) {
+            // 总是尝试更新播放状态
+            navigator.mediaSession.playbackState = audioPlayer.paused ? 'paused' : 'playing';
+
+            // 只有当时长有效时才更新具体进度
+            if (audioPlayer.duration && !isNaN(audioPlayer.duration) && isFinite(audioPlayer.duration) && audioPlayer.duration > 0) {
+                try {
+                    navigator.mediaSession.setPositionState({
+                        duration: audioPlayer.duration,
+                        playbackRate: audioPlayer.playbackRate || 1,
+                        position: Math.min(audioPlayer.currentTime, audioPlayer.duration)
+                    });
+                } catch (e) {
+                    // console.warn('MediaSession setPositionState error:', e);
+                }
             }
         }
     };
@@ -1131,6 +1137,10 @@ document.addEventListener('DOMContentLoaded', () => {
         state.musicState.isPlaying = false;
         updatePlayerUI();
     });
+
+    // 增加: 在元数据加载完成和时长变化时也更新状态 (解决初始加载时duration可能为NaN的问题)
+    audioPlayer.addEventListener('loadedmetadata', updateMediaSessionState);
+    audioPlayer.addEventListener('durationchange', updateMediaSessionState);
 
     audioPlayer.addEventListener('seeked', updateMediaSessionState);
     audioPlayer.addEventListener('ratechange', updateMediaSessionState);
