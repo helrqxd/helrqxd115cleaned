@@ -4135,6 +4135,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 return;
                             }
 
+                            // 仅当应用首次加载且没有任何音乐播放时，保活音频才注册 Media Session
+                            // 一旦主播放器启动，它将接管。
+
+                            // 注意：我们这里故意不注册 play/pause handler 指向 keepAlive player
+                            // 因为如果用户点击 play，他们通常期望播放音乐，而不是这个静音音频。
+                            // 但为了让系统认为我们在播放，我们需要设置 state。
+
                             navigator.mediaSession.metadata = new MediaMetadata({
                                 title: '后台保活运行中',
                                 artist: '点击暂停可能导致应用休眠',
@@ -4147,35 +4154,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                             navigator.mediaSession.playbackState = 'playing';
 
-                            // 【修复】为保活音频添加实时进度更新，解决进度条显示异常问题
-                            const updateKeepAliveProgress = () => {
-                                if ('mediaSession' in navigator && !player.paused && Number.isFinite(player.duration) && player.duration > 0) {
-                                    try {
-                                        navigator.mediaSession.setPositionState({
-                                            duration: player.duration,
-                                            playbackRate: player.playbackRate || 1,
-                                            position: player.currentTime
-                                        });
-                                    } catch (e) {
-                                        // 忽略非致命错误
-                                    }
-                                }
-                            };
+                            // 移除旧的进度同步逻辑，保活音频不需要精确进度条，
+                            // 保持 duration/position 为空或无限，防止用户困惑。
+                            try {
+                                navigator.mediaSession.setPositionState(null);
+                            } catch (e) { }
 
-                            // 绑定 timeupdate 事件，每秒同步一次 MediaSession
-                            player.addEventListener('timeupdate', () => {
-                                const now = Date.now();
-                                if (!player._lastSessionSync || now - player._lastSessionSync > 1000) {
-                                    player._lastSessionSync = now;
-                                    updateKeepAliveProgress();
-                                }
+                            // 绑定空的 handler 防止报错，或者指向主播放器（如果已加载）
+                            navigator.mediaSession.setActionHandler('play', () => {
+                                /* 若有主播放器逻辑可在此唤醒，否则忽略 */
+                                if (window.audioPlayer) window.audioPlayer.play().catch(() => { });
                             });
-
-                            // 立即执行一次
-                            updateKeepAliveProgress();
-
-                            navigator.mediaSession.setActionHandler('play', () => player.play());
-                            navigator.mediaSession.setActionHandler('pause', () => player.pause());
+                            navigator.mediaSession.setActionHandler('pause', () => {
+                                // 允许暂停保活，但通常这会导致休眠
+                                player.pause();
+                            });
                         }
                     })
                     .catch((e) => {

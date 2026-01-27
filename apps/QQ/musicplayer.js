@@ -1125,7 +1125,10 @@ document.addEventListener('DOMContentLoaded', () => {
     const updateMediaSessionState = () => {
         if ('mediaSession' in navigator) {
             // 总是尝试更新播放状态
-            navigator.mediaSession.playbackState = audioPlayer.paused ? 'paused' : 'playing';
+            // 注意：如果主播放器暂停了，我们希望状态是 paused。
+            // 即使后台保活音频在播放，这属于"实现细节"，不应影响 UI 状态。
+            const isPlaying = !audioPlayer.paused;
+            navigator.mediaSession.playbackState = isPlaying ? 'playing' : 'paused';
 
             const duration = audioPlayer.duration;
             const currentTime = audioPlayer.currentTime;
@@ -1141,11 +1144,13 @@ document.addEventListener('DOMContentLoaded', () => {
                 } catch (e) {
                     // 只有在非 AbortError 时才警告
                     if (e.name !== 'AbortError') {
-                        console.warn('SetPositionState Error:', e);
+                        // console.warn('SetPositionState Error:', e);
                     }
                 }
             } else {
-                // 如果 duration 无效，尝试清除 position state，防止显示错误的旧进度
+                // 如果 duration 无效，尝试清除 position state
+                // 但如果是因为暂停而导致 duration 暂时不可用（罕见），我们保留上一次的可能更好？
+                // 不，为了安全，清除它。
                 try { navigator.mediaSession.setPositionState(null); } catch (e) { }
             }
         }
@@ -1159,25 +1164,31 @@ document.addEventListener('DOMContentLoaded', () => {
             console.log('音乐播放开始，已挂起后台保活音频');
         }
 
-        updateMediaSessionState();
-        // 延迟再次更新，确保 duration 已就绪，解决初始播放显示满进度问题
-        setTimeout(updateMediaSessionState, 500);
-
+        // 延迟一点更新，以防 Audio 状态切换造成的竞态
         state.musicState.isPlaying = true;
         updatePlayerUI();
+
+        // 关键修复：给一定延迟确保 currentTime 和 duration 稳定
+        setTimeout(updateMediaSessionState, 100);
     });
 
     audioPlayer.addEventListener('pause', () => {
-        // 1. 恢复保活音频，确保 App 不会被系统杀掉
-        const keepAlive = document.getElementById('strong-keep-alive-player');
-        if (keepAlive && keepAlive.paused) {
-            keepAlive.play().catch(e => console.warn('恢复保活失败:', e));
-            console.log('音乐已暂停，恢复后台保活音频');
-        }
-
-        updateMediaSessionState();
         state.musicState.isPlaying = false;
         updatePlayerUI();
+
+        // 更新 MediaSession 为 paused
+        updateMediaSessionState();
+
+        // 1. 恢复保活音频，确保 App 不会被系统杀掉
+        // 放在 updateMediaSessionState 之后执行，希望能让系统先捕捉到 pause 状态
+        const keepAlive = document.getElementById('strong-keep-alive-player');
+        if (keepAlive && keepAlive.paused) {
+            // 延迟恢复保活，避免立即抢占 MediaSession
+            setTimeout(() => {
+                keepAlive.play().catch(e => console.warn('恢复保活失败:', e));
+                console.log('音乐已暂停，恢复后台保活音频');
+            }, 500);
+        }
     });
 
     // 增加: 在元数据加载完成和时长变化时也更新状态 (解决初始加载时duration可能为NaN的问题)
