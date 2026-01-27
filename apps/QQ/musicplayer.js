@@ -1100,17 +1100,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // 更新进度条和歌词
         updateMusicProgressBar();
 
-        // ★★★ 新增：定期同步 MediaSession 状态，解决进度条卡死或显示错误的问题 ★★★
-        // 虽然 MediaSession 支持自动推断，但在复杂的 Webview 环境中，定期的手动同步能纠正状态偏差
-        if (state.musicState.isPlaying && 'mediaSession' in navigator) {
-            const now = Date.now();
-            // 每 1.0 秒同步一次，避免过于频繁导致 UI 闪烁
-            if (!state.musicState.lastSessionUpdate || now - state.musicState.lastSessionUpdate > 1000) {
-                updateMediaSessionState();
-                state.musicState.lastSessionUpdate = now;
-            }
-        }
-
         // 仅当保持活跃音频时检查循环
         if (currentTrack && currentTrack.isKeepAlive && audioPlayer.currentTime > 600) {
             console.log('保活音频已播放20分钟，执行循环...');
@@ -1121,7 +1110,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 在关键事件时更新 MediaSession 状态，避免在 timeupdate 中频繁更新导致进度条鬼畜
+    // 在关键事件时更新 MediaSession 状态
     const updateMediaSessionState = () => {
         if ('mediaSession' in navigator) {
             // 总是尝试更新播放状态
@@ -1130,8 +1119,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const duration = audioPlayer.duration;
             const currentTime = audioPlayer.currentTime;
 
-            // 只有当时长有效时才更新具体进度
-            if (duration && !isNaN(duration) && isFinite(duration) && duration > 0) {
+            // 只有当时长有效且非无限时才更新具体进度
+            if (Number.isFinite(duration) && duration > 0 && !isNaN(duration)) {
                 try {
                     navigator.mediaSession.setPositionState({
                         duration: duration,
@@ -1139,8 +1128,14 @@ document.addEventListener('DOMContentLoaded', () => {
                         position: Math.min(Math.max(0, currentTime), duration)
                     });
                 } catch (e) {
-                    console.warn('SetPositionState Error:', e);
+                    // 只有在非 AbortError 时才警告
+                    if (e.name !== 'AbortError') {
+                        console.warn('SetPositionState Error:', e);
+                    }
                 }
+            } else {
+                // 如果 duration 无效，尝试清除 position state，防止显示错误的旧进度
+                try { navigator.mediaSession.setPositionState(null); } catch (e) { }
             }
         }
     };
@@ -1154,6 +1149,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         updateMediaSessionState();
+        // 延迟再次更新，确保 duration 已就绪，解决初始播放显示满进度问题
+        setTimeout(updateMediaSessionState, 500);
+
         state.musicState.isPlaying = true;
         updatePlayerUI();
     });
