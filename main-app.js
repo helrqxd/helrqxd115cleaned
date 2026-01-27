@@ -4147,12 +4147,32 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                             navigator.mediaSession.playbackState = 'playing';
 
-                            // 明确设置位置状态为空，避免显示错误的进度条
-                            try {
-                                if (navigator.mediaSession.setPositionState) {
-                                    navigator.mediaSession.setPositionState(null);
+                            // 【修复】为保活音频添加实时进度更新，解决进度条显示异常问题
+                            const updateKeepAliveProgress = () => {
+                                if ('mediaSession' in navigator && !player.paused && Number.isFinite(player.duration) && player.duration > 0) {
+                                    try {
+                                        navigator.mediaSession.setPositionState({
+                                            duration: player.duration,
+                                            playbackRate: player.playbackRate || 1,
+                                            position: player.currentTime
+                                        });
+                                    } catch (e) {
+                                        // 忽略非致命错误
+                                    }
                                 }
-                            } catch (e) { console.warn('KeepAlive SetPosition Error:', e); }
+                            };
+
+                            // 绑定 timeupdate 事件，每秒同步一次 MediaSession
+                            player.addEventListener('timeupdate', () => {
+                                const now = Date.now();
+                                if (!player._lastSessionSync || now - player._lastSessionSync > 1000) {
+                                    player._lastSessionSync = now;
+                                    updateKeepAliveProgress();
+                                }
+                            });
+
+                            // 立即执行一次
+                            updateKeepAliveProgress();
 
                             navigator.mediaSession.setActionHandler('play', () => player.play());
                             navigator.mediaSession.setActionHandler('pause', () => player.pause());

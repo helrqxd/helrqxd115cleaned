@@ -1100,10 +1100,10 @@ document.addEventListener('DOMContentLoaded', () => {
         // 更新进度条和歌词
         updateMusicProgressBar();
 
-        // 【修复】定期同步 Media Session 状态（每约2秒），强制刷新系统进度条
+        // 【修复】定期同步 Media Session 状态（每约1秒），强制刷新系统进度条
         if ('mediaSession' in navigator && !audioPlayer.paused) {
             const now = Date.now();
-            if (!audioPlayer._lastSessionSync || now - audioPlayer._lastSessionSync > 2000) {
+            if (!audioPlayer._lastSessionSync || now - audioPlayer._lastSessionSync > 1000) {
                 audioPlayer._lastSessionSync = now;
                 if (typeof updateMediaSessionState === 'function') {
                     updateMediaSessionState();
