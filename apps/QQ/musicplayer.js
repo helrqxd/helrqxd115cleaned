@@ -677,13 +677,8 @@ document.addEventListener('DOMContentLoaded', () => {
         updatePlaylistUI();
         updatePlayerUI();
 
-        // ★★★ 核心修复：更新 Media Session Metadata (通知栏显示) ★★★
         if ('mediaSession' in navigator) {
-            // 先清除旧的进度状态，防止显示异常
-            if (navigator.mediaSession.setPositionState) {
-                try { navigator.mediaSession.setPositionState(null); } catch (e) { }
-            }
-
+            // 更新元数据
             navigator.mediaSession.metadata = new MediaMetadata({
                 title: track.name || '未知歌曲',
                 artist: track.artist || 'Together Listen',
@@ -695,17 +690,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 绑定媒体控制事件
             navigator.mediaSession.setActionHandler('play', () => {
-                console.log('MediaSession Play Command Received');
-                // 如果是保活音频在响，我们需要确保 musicPlayer 开始播放
-                if (audioPlayer.paused) {
-                    audioPlayer.play()
-                        .then(() => console.log('MediaSession Play Success'))
-                        .catch(e => {
-                            console.error("MediaSession Play Error:", e);
-                            // 如果直接播放失败（比如src被回收），尝试重新 playSong
-                            if (state.musicState.currentIndex > -1) playSong(state.musicState.currentIndex);
-                        });
-                }
+                // 使用UI按钮点击以复用 togglePlayPause 中的恢复/重载逻辑
+                const btn = document.getElementById('music-play-pause-btn');
+                if (btn) btn.click();
             });
             navigator.mediaSession.setActionHandler('pause', () => {
                 if (!audioPlayer.paused) {
@@ -1118,10 +1105,12 @@ document.addEventListener('DOMContentLoaded', () => {
         // 更新进度条和歌词
         updateMusicProgressBar();
 
-        // 【修复】定期同步 Media Session 状态（每约1秒），强制刷新系统进度条
+        // 仅在必要时同步 Media Session (比如长时间播放后的校准)，过于频繁会导致进度条跳动
+        // 浏览器通常会根据 playbackRate 自动推算进度，不需要手动每秒更新
         if ('mediaSession' in navigator && !audioPlayer.paused) {
             const now = Date.now();
-            if (!audioPlayer._lastSessionSync || now - audioPlayer._lastSessionSync > 1000) {
+            // 每 10 秒校准一次，防止漂移
+            if (!audioPlayer._lastSessionSync || now - audioPlayer._lastSessionSync > 10000) {
                 audioPlayer._lastSessionSync = now;
                 if (typeof updateMediaSessionState === 'function') {
                     updateMediaSessionState();
@@ -1164,14 +1153,13 @@ document.addEventListener('DOMContentLoaded', () => {
                     // console.warn('SetPositionState Error:', e);
                 }
             } else {
-                // 修复：如果时长无效 (Infinity/NaN)，不要清除为 null (setPositionState(null))
-                // 因为这会导致浏览器回退显示后台正在播放的保活音频的完整进度 (9:59)。
-                // 相反，我们设置一个静态的假的进度状态来占据 MediaSession，防止保活音频信息泄露。
+                // 如果时长无效，不要清除为 null，否则会回退到 DOM 元素状态导致显示异常
+                // 设置为静态占位状态
                 try {
                     navigator.mediaSession.setPositionState({
-                        duration: 3600,     // 固定显示 1:00:00，或者其他数值
-                        playbackRate: 1,    // 保持 1，避免一些 UI 显示暂停图标
-                        position: 0         // 进度为 0
+                        duration: 3600,
+                        playbackRate: 1,
+                        position: 0
                     });
                 } catch (e) { }
             }
