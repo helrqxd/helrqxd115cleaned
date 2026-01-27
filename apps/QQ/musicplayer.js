@@ -1100,6 +1100,17 @@ document.addEventListener('DOMContentLoaded', () => {
         // 更新进度条和歌词
         updateMusicProgressBar();
 
+        // ★★★ 新增：定期同步 MediaSession 状态，解决进度条卡死或显示错误的问题 ★★★
+        // 虽然 MediaSession 支持自动推断，但在复杂的 Webview 环境中，定期的手动同步能纠正状态偏差
+        if (state.musicState.isPlaying && 'mediaSession' in navigator) {
+            const now = Date.now();
+            // 每 1.0 秒同步一次，避免过于频繁导致 UI 闪烁
+            if (!state.musicState.lastSessionUpdate || now - state.musicState.lastSessionUpdate > 1000) {
+                updateMediaSessionState();
+                state.musicState.lastSessionUpdate = now;
+            }
+        }
+
         // 仅当保持活跃音频时检查循环
         if (currentTrack && currentTrack.isKeepAlive && audioPlayer.currentTime > 600) {
             console.log('保活音频已播放20分钟，执行循环...');
