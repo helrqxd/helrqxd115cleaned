@@ -677,6 +677,42 @@ document.addEventListener('DOMContentLoaded', () => {
         updatePlaylistUI();
         updatePlayerUI();
 
+        // ★★★ 核心修复：更新 Media Session Metadata (通知栏显示) ★★★
+        if ('mediaSession' in navigator) {
+            navigator.mediaSession.metadata = new MediaMetadata({
+                title: track.name || '未知歌曲',
+                artist: track.artist || 'Together Listen',
+                album: 'EPhone 音乐',
+                artwork: [
+                    { src: track.cover || 'https://i.postimg.cc/pT2xKzPz/album-cover-placeholder.png', sizes: '512x512', type: 'image/png' }
+                ]
+            });
+
+            // 绑定媒体控制事件
+            navigator.mediaSession.setActionHandler('play', () => {
+                if (audioPlayer.paused) {
+                    audioPlayer.play();
+                    togglePlayPause(); // 确保更新UI状态
+                }
+            });
+            navigator.mediaSession.setActionHandler('pause', () => {
+                if (!audioPlayer.paused) {
+                    audioPlayer.pause();
+                    togglePlayPause(); // 确保更新UI状态
+                }
+            });
+            navigator.mediaSession.setActionHandler('previoustrack', playPrev);
+            navigator.mediaSession.setActionHandler('nexttrack', playNext);
+            navigator.mediaSession.setActionHandler('seekto', (details) => {
+                if (details.fastSeek && 'fastSeek' in audioPlayer) {
+                    audioPlayer.fastSeek(details.seekTime);
+                    return;
+                }
+                audioPlayer.currentTime = details.seekTime;
+                updateMusicProgressBar();
+            });
+        }
+
         try {
             if (state.musicState.isPlaying) {
                 await audioPlayer.play();
@@ -1044,7 +1080,13 @@ document.addEventListener('DOMContentLoaded', () => {
             audioPlayer.currentTime = 0;
             audioPlayer.play().catch((e) => console.error('重播失败:', e));
         } else {
-            playNext();
+            // ★★★ 修复4：单曲循环逻辑 ★★★
+            if (state.musicState.playMode === 'single') {
+                audioPlayer.currentTime = 0;
+                audioPlayer.play().catch((e) => console.error('单曲循环重播失败:', e));
+            } else {
+                playNext();
+            }
         }
     });
 
@@ -1053,6 +1095,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 更新进度条和歌词
         updateMusicProgressBar();
+
+        // ★★★ 修复2：更新通知栏进度条 ★★★
+        if ('mediaSession' in navigator && audioPlayer.duration && !isNaN(audioPlayer.duration)) {
+            try {
+                navigator.mediaSession.setPositionState({
+                    duration: audioPlayer.duration,
+                    playbackRate: audioPlayer.playbackRate,
+                    position: audioPlayer.currentTime
+                });
+            } catch (e) {
+                // 忽略可能的无效状态错误
+            }
+        }
 
         if (currentTrack && currentTrack.isKeepAlive && audioPlayer.currentTime > 600) {
             console.log('保活音频已播放20分钟，执行循环...');
