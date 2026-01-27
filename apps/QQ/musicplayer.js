@@ -692,13 +692,11 @@ document.addEventListener('DOMContentLoaded', () => {
             navigator.mediaSession.setActionHandler('play', () => {
                 if (audioPlayer.paused) {
                     audioPlayer.play();
-                    togglePlayPause(); // 确保更新UI状态
                 }
             });
             navigator.mediaSession.setActionHandler('pause', () => {
                 if (!audioPlayer.paused) {
                     audioPlayer.pause();
-                    togglePlayPause(); // 确保更新UI状态
                 }
             });
             navigator.mediaSession.setActionHandler('previoustrack', playPrev);
@@ -1096,19 +1094,6 @@ document.addEventListener('DOMContentLoaded', () => {
         // 更新进度条和歌词
         updateMusicProgressBar();
 
-        // ★★★ 修复2：更新通知栏进度条 ★★★
-        if ('mediaSession' in navigator && audioPlayer.duration && !isNaN(audioPlayer.duration)) {
-            try {
-                navigator.mediaSession.setPositionState({
-                    duration: audioPlayer.duration,
-                    playbackRate: audioPlayer.playbackRate,
-                    position: audioPlayer.currentTime
-                });
-            } catch (e) {
-                // 忽略可能的无效状态错误
-            }
-        }
-
         if (currentTrack && currentTrack.isKeepAlive && audioPlayer.currentTime > 600) {
             console.log('保活音频已播放20分钟，执行循环...');
             audioPlayer.currentTime = 0;
@@ -1145,12 +1130,61 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 补充：为了确保所有功能正常，我应该添加事件委托给 playlist-body，以防万一。
 
+    // 辅助函数：更新 Media Session 播放状态
+    function updateMediaSessionPositionState() {
+        if ('mediaSession' in navigator && audioPlayer.duration && !isNaN(audioPlayer.duration)) {
+            try {
+                navigator.mediaSession.setPositionState({
+                    duration: audioPlayer.duration,
+                    playbackRate: audioPlayer.playbackRate,
+                    position: audioPlayer.currentTime
+                });
+            } catch (e) {
+                // 忽略可能的无效状态错误
+            }
+        }
+    }
+
     // 补全 audioPlayer 的播放/暂停状态监听
     audioPlayer.addEventListener('pause', () => {
         if (state.musicState.isActive) {
             state.musicState.isPlaying = false;
             updatePlayerUI();
+
+            // 更新 Media Session 状态为暂停
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = "paused";
+                updateMediaSessionPositionState();
+            }
         }
+    });
+
+    audioPlayer.addEventListener('play', () => {
+        if (state.musicState.isActive) {
+            state.musicState.isPlaying = true; // 确保播放状态为 true
+            updatePlayerUI();
+
+            // 更新 Media Session 状态为播放
+            if ('mediaSession' in navigator) {
+                navigator.mediaSession.playbackState = "playing";
+                updateMediaSessionPositionState();
+            }
+        }
+    });
+
+    // 监听 seeked 事件，手动调整进度后更新一次
+    audioPlayer.addEventListener('seeked', () => {
+        updateMediaSessionPositionState();
+    });
+
+    audioPlayer.addEventListener('ratechange', () => {
+        updateMediaSessionPositionState();
+    });
+
+    // 加载元数据后更新总时长
+    audioPlayer.addEventListener('loadedmetadata', () => {
+        updateMediaSessionPositionState();
+        updateMusicProgressBar();
     });
 
     audioPlayer.addEventListener('play', () => {
