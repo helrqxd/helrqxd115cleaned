@@ -4155,15 +4155,24 @@ document.addEventListener('DOMContentLoaded', async () => {
                             navigator.mediaSession.playbackState = 'playing';
 
                             // 移除旧的进度同步逻辑，保活音频不需要精确进度条，
-                            // 保持 duration/position 为空或无限，防止用户困惑。
+                            // 使用简单的静态状态防止显示 9:59 满进度
                             try {
-                                navigator.mediaSession.setPositionState(null);
+                                navigator.mediaSession.setPositionState({
+                                    duration: 3600,
+                                    playbackRate: 1,
+                                    position: 0
+                                });
                             } catch (e) { }
 
                             // 绑定空的 handler 防止报错，或者指向主播放器（如果已加载）
                             navigator.mediaSession.setActionHandler('play', () => {
-                                /* 若有主播放器逻辑可在此唤醒，否则忽略 */
-                                if (window.audioPlayer) window.audioPlayer.play().catch(() => { });
+                                // 优先通过界面按钮触发，因为 musicplayer.js 内部可能有复杂的恢复逻辑（如重新加载）
+                                const btn = document.getElementById('music-play-pause-btn');
+                                if (btn) {
+                                    btn.click();
+                                } else if (window.audioPlayer) {
+                                    window.audioPlayer.play().catch(() => { });
+                                }
                             });
                             navigator.mediaSession.setActionHandler('pause', () => {
                                 // 允许暂停保活，但通常这会导致休眠

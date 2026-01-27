@@ -1164,10 +1164,16 @@ document.addEventListener('DOMContentLoaded', () => {
                     // console.warn('SetPositionState Error:', e);
                 }
             } else {
-                // 尝试清除进度，可能会导致显示为空或满，取决于系统
-                // 既然用户反馈满进度，我们尝试设置一个极小的 duration? 
-                // 不，规范建议是 null。
-                try { navigator.mediaSession.setPositionState(null); } catch (e) { }
+                // 修复：如果时长无效 (Infinity/NaN)，不要清除为 null (setPositionState(null))
+                // 因为这会导致浏览器回退显示后台正在播放的保活音频的完整进度 (9:59)。
+                // 相反，我们设置一个静态的假的进度状态来占据 MediaSession，防止保活音频信息泄露。
+                try {
+                    navigator.mediaSession.setPositionState({
+                        duration: 3600,     // 固定显示 1:00:00，或者其他数值
+                        playbackRate: 1,    // 保持 1，避免一些 UI 显示暂停图标
+                        position: 0         // 进度为 0
+                    });
+                } catch (e) { }
             }
         }
     };
