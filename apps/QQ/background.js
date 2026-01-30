@@ -1018,7 +1018,8 @@ async function triggerGroupAiAction(chatId) {
         const data = await response.json();
         const aiResponseContent = (isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content).replace(/^```json\s*|```$/g, '');
 
-        const messagesArray = JSON.parse(aiResponseContent);
+        const messagesArray = parseAiResponse(aiResponseContent);
+        console.log(`【后台群聊互动 - AI 原始输出】\n群聊 "${chat.name}" 的原始回复:\n`, aiResponseContent);
 
         if (Array.isArray(messagesArray) && messagesArray.length > 0) {
             let messageTimestamp = Date.now();

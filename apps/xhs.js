@@ -243,6 +243,8 @@ document.addEventListener('DOMContentLoaded', () => {
         element.addEventListener('touchend', (e) => {
             cancel();
             if (!isLongPress && !isScrolling && onClick) {
+                // 阻止点击穿透：如果触发了自定义点击事件，阻止默认的 click 事件
+                if (e.cancelable) e.preventDefault();
                 onClick(e); // 如果不是长按，触发点击
             }
         });

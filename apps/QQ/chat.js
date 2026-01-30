@@ -272,10 +272,20 @@ function createChatListItem(chat) {
         infoEl.addEventListener('click', () => openChat(chat.id));
     }
     const avatarEl = content.querySelector('.avatar, .avatar-with-frame');
+    /*
+    // 优化1：取消列表点击头像拍一拍
+    if (avatarEl) {
+        avatarEl.addEventListener('click', (e) => {
+             e.stopPropagation();
+             handleUserPat(chat.id, chat.name);
+         });
+    }
+    */
+    // 改为点击头像也进入聊天
     if (avatarEl) {
         avatarEl.addEventListener('click', (e) => {
             e.stopPropagation();
-            handleUserPat(chat.id, chat.name);
+            openChat(chat.id);
         });
     }
     return container;
@@ -1526,7 +1536,8 @@ function createMessageElement(msg, chat) {
         const avatarEl = wrapper.querySelector('.avatar, .avatar-with-frame');
         if (avatarEl) {
             avatarEl.style.cursor = 'pointer';
-            avatarEl.addEventListener('click', (e) => {
+            // 优化2：改为双击触发拍一拍
+            avatarEl.addEventListener('dblclick', (e) => {
                 e.stopPropagation();
                 const characterName = chat.isGroup ? msg.senderName : chat.name;
                 handleUserPat(chat.id, characterName);
@@ -6469,18 +6480,29 @@ window.toggleMessageSelection = function toggleMessageSelection(timestamp) {
 
 window.addLongPressListener = function addLongPressListener(element, callback) {
     let pressTimer;
+    let isLongPress = false;
     const startPress = (e) => {
         if (isSelectionMode) return;
-        e.preventDefault();
-        pressTimer = window.setTimeout(() => callback(e), 500);
+        // e.preventDefault();
+        isLongPress = false;
+        pressTimer = window.setTimeout(() => {
+            isLongPress = true;
+            callback(e);
+        }, 500);
     };
-    const cancelPress = () => clearTimeout(pressTimer);
+    const cancelPress = (e) => {
+        clearTimeout(pressTimer);
+        // 如果触发了长按，则在松手时阻止默认事件（防止触发点击）
+        if (isLongPress && e.type === 'touchend') {
+            if (e.cancelable) e.preventDefault();
+        }
+    };
     element.addEventListener('mousedown', startPress);
     element.addEventListener('mouseup', cancelPress);
     element.addEventListener('mouseleave', cancelPress);
     element.addEventListener('touchstart', startPress, { passive: true });
-    element.addEventListener('touchend', cancelPress);
-    element.addEventListener('touchmove', cancelPress);
+    element.addEventListener('touchend', cancelPress, { passive: false });
+    element.addEventListener('touchmove', cancelPress, { passive: true });
 };
 
 function setupChatListeners() {
@@ -7324,6 +7346,11 @@ function setupChatListeners() {
     });
 
     document.getElementById('transfer-action-accept').addEventListener('click', () => handleUserTransferResponse('accepted'));
+    document.getElementById('transfer-action-decline').addEventListener('click', () => handleUserTransferResponse('declined'));
+    const transferActionCancelBtn = document.getElementById('transfer-action-cancel');
+    if (transferActionCancelBtn) {
+        transferActionCancelBtn.addEventListener('click', () => hideTransferActionModal());
+    }
 
     // 浏览器返回按钮的事件监听
     const browserBackBtn = document.getElementById('browser-back-btn');
@@ -7493,18 +7520,31 @@ function toggleMessageSelection(timestamp) {
 
 function addLongPressListener(element, callback) {
     let pressTimer;
+    let isLongPress = false;
     const startPress = (e) => {
         if (isSelectionMode) return;
-        e.preventDefault();
-        pressTimer = window.setTimeout(() => callback(e), 500);
+        // e.preventDefault(); 
+        isLongPress = false;
+        pressTimer = window.setTimeout(() => {
+            isLongPress = true;
+            callback(e);
+        }, 500);
     };
-    const cancelPress = () => clearTimeout(pressTimer);
+    const cancelPress = (e) => {
+        clearTimeout(pressTimer);
+        // 如果触发了长按，则在松手时阻止默认事件（防止触发点击）
+        if (isLongPress && e.type === 'touchend') {
+            if (e.cancelable) e.preventDefault();
+        }
+    };
     element.addEventListener('mousedown', startPress);
     element.addEventListener('mouseup', cancelPress);
     element.addEventListener('mouseleave', cancelPress);
+    // Use passive: true for scroll performance
     element.addEventListener('touchstart', startPress, { passive: true });
-    element.addEventListener('touchend', cancelPress);
-    element.addEventListener('touchmove', cancelPress);
+    // Use passive: false for touchend to allow preventDefault
+    element.addEventListener('touchend', cancelPress, { passive: false });
+    element.addEventListener('touchmove', cancelPress, { passive: true });
 }
 window.addLongPressListener = addLongPressListener;
 
