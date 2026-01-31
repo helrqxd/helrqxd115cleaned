@@ -577,6 +577,10 @@ async function triggerInactiveAiAction(chatId) {
         const responseArray = parseAiResponse(aiResponseContent);
         console.log('解析后的 Action 列表:', responseArray); // Debug log
 
+        // [Fix] 引入 lastUsedTimestamp 以确保批量生成的 timestamp 绝对不重复
+        // 初始值设为聊天记录中最后一条的时间，防止与已有消息重复
+        let lastUsedTimestamp = chat.history.length > 0 ? chat.history[chat.history.length - 1].timestamp : 0;
+
         for (const action of responseArray) {
             if (!action) continue;
 
@@ -619,6 +623,12 @@ async function triggerInactiveAiAction(chatId) {
                     // 确保时间在 [lastMessage + 1s, Date.now()] 范围内
                     msgTimestamp = Math.min(Date.now(), Math.max(startTimestamp + 1000, calculatedTime));
                 }
+
+                // [Fix] 强校验：确保时间戳递增，解决多选时的冲突问题
+                if (msgTimestamp <= lastUsedTimestamp) {
+                    msgTimestamp = lastUsedTimestamp + 1;
+                }
+                lastUsedTimestamp = msgTimestamp;
 
                 const aiMessage = {
                     role: 'assistant',
@@ -1024,7 +1034,7 @@ async function triggerGroupAiAction(chatId) {
 		### **世界观设定集**:
 		${worldBookContent}
 
-        ### **当前群聊对话历史**
+        ### **当前群聊"${chat.name}"对话历史**
         ${recentContextSummary}
         ${summaryContext}
 		${sharedContext}
@@ -1064,6 +1074,9 @@ async function triggerGroupAiAction(chatId) {
             let messageTimestamp = Date.now();
             let firstMessageContent = '';
 
+            // [Fix] 引入 lastUsedTimestamp
+            let lastUsedTimestamp = chat.history.length > 0 ? chat.history[chat.history.length - 1].timestamp : 0;
+
             messagesArray.forEach((msgData, index) => {
                 if (msgData.name && msgData.message) {
                     let msgTimestamp = Date.now();
@@ -1077,6 +1090,12 @@ async function triggerGroupAiAction(chatId) {
                         // Fallback: 如果没有指定偏移，就用递增的当前时间 (避免重复)
                         msgTimestamp = messageTimestamp++;
                     }
+
+                    // [Fix] 强校验：确保时间戳递增
+                    if (msgTimestamp <= lastUsedTimestamp) {
+                        msgTimestamp = lastUsedTimestamp + 1;
+                    }
+                    lastUsedTimestamp = msgTimestamp;
 
                     const aiMessage = {
                         role: 'assistant',

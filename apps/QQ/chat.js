@@ -2859,7 +2859,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
 			### **世界观设定集**:
 			${worldBookContent}
 
-            ### **当前群聊对话历史**
+            ### **当前群聊"${chat.name}"对话历史**
             ${recentContextSummary}
             ${summaryContext}
             ${redPacketContext}
