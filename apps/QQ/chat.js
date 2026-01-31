@@ -2869,6 +2869,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
 
             ### **当前群聊"${chat.name}"对话历史**
             ${recentContextSummary}
+            **紧接【此处】继续行动，如果上方最后一条消息是【旁白】，则优先级高于任何其它剧情。**
             ${summaryContext}
             ${redPacketContext}
 			${sharedContext}

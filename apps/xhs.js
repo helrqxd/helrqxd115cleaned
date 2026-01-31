@@ -1118,8 +1118,8 @@ document.addEventListener('DOMContentLoaded', () => {
         1. 其余笔记由随机的“路人”用户发布（请编造多样化的网名）。
         2. 内容风格必须极度符合小红书特点：
             - 标题党，吸引眼球，使用“绝绝子”、“yyds”、“家人”、“集美”等流行语（适度）。
-            - 大量使用 Emoji 表情符号（🌟✨💖🔥等）。
-            - 正文包含相关的 Hashtag 标签（如 #OOTD #探店 #日常）。
+            - 适当使用 Emoji 表情符号（🌟✨💖🔥等）。
+            - 相关的 Hashtag 标签（如 #OOTD #探店 #日常）。
             - 语气轻松、活泼、真实。
             - 笔记正文内容"content"字段当中【绝对不允许】包含任何tag标签，无论是否存在于"tag"字段中。
         3. "imagePrompt": 为每条笔记生成一个简短的、描述性的**英文**图片提示词，用于AI生图（例如 "delicious matcha latte art, cozy cafe, realistic"）请注意提示词当中【绝对不允许】出现【人物】。
