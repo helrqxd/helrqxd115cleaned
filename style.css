@@ -1,4 +1,8 @@
 :root {
+  --xhs-red: #ff2442;
+  --xhs-text-main: #333;
+  --xhs-text-sec: #999;
+  --xhs-border: #eee;
   --screen-width: 350px;
   --screen-height: 650px;
   --secondary-bg: #ffffff;

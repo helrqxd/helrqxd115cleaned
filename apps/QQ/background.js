@@ -349,6 +349,7 @@ async function triggerInactiveAiAction(chatId) {
     }
     const now = new Date();
     const currentTime = now.toLocaleTimeString('zh-CN', { hour: 'numeric', minute: 'numeric', hour12: true });
+    const currentFullTime = now.toLocaleString('zh-CN', { hour12: false });
     const userNickname = state.qzoneSettings.nickname;
     const countdownContext = await getCountdownContext();
 
@@ -409,6 +410,43 @@ async function triggerInactiveAiAction(chatId) {
     } catch (e) {
         console.error('生成微博后台活动上下文时出错:', e);
     }
+    // --- Added by copilot: Sticker Context Logic ---
+    // 1. 准备专属表情包列表
+    const exclusiveStickers = chat.settings.stickerLibrary || [];
+    let exclusiveStickerContext = '';
+    if (exclusiveStickers.length > 0) {
+        exclusiveStickerContext = `
+			## ${chat.isGroup ? '本群专属表情包' : '你的专属表情包'} (只有你能用):
+			${exclusiveStickers.map((s) => `- ${s.name}`).join('\n')}
+			`;
+    }
+
+    // 2. 准备通用表情包列表
+    const commonStickers = window.state.charStickers || [];
+    let commonStickerContext = '';
+    if (commonStickers.length > 0) {
+        commonStickerContext = `
+			## 通用表情包 (所有角色都能用):
+			${commonStickers.map((s) => `- ${s.name}`).join('\n')}
+			`;
+    }
+
+    // 3. 组合成最终的表情包指令
+    let stickerContext = '';
+    if (exclusiveStickerContext || commonStickerContext) {
+        stickerContext = `
+			# 关于表情包的【绝对规则】
+			1.  你拥有一个表情包列表，分为“专属”和“通用”。
+			2.  当你扮演的角色想要发送表情时，【必须且只能】使用以下JSON格式：
+			    \`{"type": "sticker", "name": "角色名", "sticker_name": "表情的名字"}\`
+			3.  【【【最高指令】】】你【必须】从下方列表中精确地选择一个有效的 "sticker_name"。如果你编造了一个列表中不存在的名字，你的表情将会发送失败。这是强制性规则。
+
+			${exclusiveStickerContext}
+			${commonStickerContext}
+			`;
+    }
+    // ------------------------------------------------
+
     const savedTags = chat.settings.innerVoiceTags || {};
     const ivTags = {
         clothing_label: savedTags.clothing_label || '服装',
@@ -429,25 +467,30 @@ async function triggerInactiveAiAction(chatId) {
     // add by lrq 251029 添加聊天间隔时间
     const lastMessage = chat.history.slice(-1)[0];
     const timeSinceLastMessage = lastMessage ? Math.floor((Date.now() - lastMessage.timestamp) / 60000) : Infinity;
+    const lastMessageTimeStr = lastMessage ? new Date(lastMessage.timestamp).toLocaleString('zh-CN', { hour12: false }) : "很久以前";
+
     const systemPrompt = `
         # 任务
         你现在【就是】角色 "${chat.name}"。这是一个秘密的、后台的独立行动。你的所有思考和决策都必须以 "${chat.name}" 的第一人称视角进行。
-        当前时间是（${currentTime}），你和用户（${userNickname}）已经有${Math.round(timeSinceLastMessage)}分钟没有互动了。你的任务是回顾你们最近的对话，并根据你的人设，【自然地延续对话】或【开启一个新的、相关的话题】来主动联系用户。
+        当前日期时间是（${currentFullTime}），你和用户（${userNickname}）已经有${Math.round(timeSinceLastMessage)}分钟没有互动了（上一条消息时间：${lastMessageTimeStr}）。你的任务是回顾你们最近的对话，并根据你的人设，【自然地延续对话】或【开启一个新的、相关的话题】来主动联系用户。
         # 【对话节奏铁律 (至关重要！)】
         你的回复【必须】模拟真人的打字和思考习惯。每条消息最好不要超过30个字，这会让对话看起来更自然、更真实。
         # 【时间流与未读消息生成规则 (新)】
         本次行动不仅仅是发生在此刻，你可以规划从“上次互动结束”到“现在”的整个时间段内的行动。
-        1. **生成多条/多组消息**: 你可以模拟在这段空白期内，分多次发送消息。例如，刚分开时发几条，中间发几条，现在又发几条。
-        2. **时间标记**: 对于每条指令，你【必须】添加一个 \`"minutesAfterLastMsg"\` 字段 (整数)。
-           - 代表该消息是在“用户上一条消息发送后 X 分钟”发出的。
-           - 最后的行动消息 \`minutesAfterLastMsg\` 应该接近 ${Math.round(timeSinceLastMessage)} (即现在)。
-           - **逻辑连贯性**: 如果你在中间时间点发了消息，后续的消息必须建立在前文的基础上，不能发生时空冲突。
-           - 示例: 用户120分钟前没回。
-             - 消息1 ("在吗"): \`minutesAfterLastMsg: 30\`
-             - 消息2 ("是不是睡着了"): \`minutesAfterLastMsg: 40\`
-             - 消息3 ("晚安"): \`minutesAfterLastMsg: 120\` (现在)
+        1. **生成多条/多组消息**: 你可以模拟在这段空白期内，分多次发送一段或【多段】消息。例如，刚分开时发几条，中间发几条，现在又发几条。
+        2. **时间标记**: 对于每条指令，你【必须】添加一个 \`"sendTime"\` 字段 (字符串)。
+           - 代表该消息发送的具体日期和时间，格式推荐为 "YYYY/MM/DD HH:mm:ss" (例如 ${currentFullTime})。
+           - **必须晚于**上一条消息的时间 (${lastMessageTimeStr})。
+           - **严禁晚于**当前实际时间 (${currentFullTime})。
+           - 最后的行动消息 \`sendTime\` **必须**接近当前时间 (${currentFullTime})。
+           - **逻辑连贯性**: 所有的消息和指令内容（包括剧情）必须与发送时间相对应，不能发生时空冲突。举例：1. 不能在08:00发送吃晚饭的消息。2. 如果另一聊天中16:00在讨论某事件，这里【必须】也在16:00左右或之后提到该事件，否则会导致逻辑不通。
+           - 示例: 上一条消息在 10:00，现在是 12:00。
+             - 消息1 ("在吗"): \`sendTime: "2023/10/27 10:30:00"\`
+             - 消息2 ("是不是睡着了"): \`sendTime: "2023/10/27 10:40:00"\`
+             - 消息3 ("晚安"): \`sendTime: "2023/10/27 12:00:00"\`
+
         # 【【【输出铁律：这是最高指令】】】
-        你的回复【必须且只能】是一个严格的JSON数组格式的字符串，必须多发几条，禁止全部杂糅在一条，是在线上，例如 \`[{"type": "text", "content": "你好呀", "minutesAfterLastMsg": 120}]\`。
+        你的回复【必须且只能】是一个严格的JSON数组格式的字符串，必须多发几条，禁止全部杂糅在一条，是在线上，例如 \`[{"type": "text", "content": "你好呀", "sendTime": "${currentFullTime}"}]\`。
         【绝对禁止】返回任何JSON以外的文本、解释、分析或你自己的思考过程。你不是分析师，你就是角色本人。
         **1. JSON对象结构:**
         该JSON对象【**必须**】包含两个顶级键: "chatResponse" 和 "innerVoice"。
@@ -472,12 +515,12 @@ async function triggerInactiveAiAction(chatId) {
             {
               "type": "text",
               "content": "",
-              "minutesAfterLastMsg": 100
+              "sendTime": "2023/10/27 10:30:00"
             },
             {
               "type": "sticker",
               "sticker_name": "",
-              "minutesAfterLastMsg": 0
+              "sendTime": "2023/10/27 10:31:00"
             }
           ],
           "innerVoice": {
@@ -511,15 +554,15 @@ async function triggerInactiveAiAction(chatId) {
         -   **发布微博 (纯文字)**: \`[{"type": "weibo_post", "content": "微博正文...", "baseLikesCount": 8000, "baseCommentsCount": 250, "comments": "路人甲: 沙发！\\n路人乙: 前排围观"}]\` (规则: 你必须自己编造真实的 baseLikesCount 和 baseCommentsCount，并生成20条路人评论)
         -   **评论微博**: \`[{"type": "weibo_comment", "postId": 123, "commentText": "评论内容"}]\`
         -   **回复微博评论**: \`[{"type": "weibo_reply", "postId": 123, "commentId": "comment_123", "replyText": "回复内容"}]\`
-        -   **【新】在情侣空间提问**:\`[{"type": "ls_ask_question", "questionText": "你想问的问题..."}]\`
-        -   **【新】在情侣空间回答**: \`[{"type": "ls_answer_question", "questionId": "q_123456789", "answerText": "你的回答..."}]\`
-        -   **【新】在情侣空间发说说**:\`[{"type": "ls_moment", "content": "我想对你说的话..."}]\`
-        -   **【新】在情侣空间评论说说**: \`[{"type": "ls_comment", "momentIndex": 0, "commentText": "你的评论内容..."}]\` (momentIndex 是说说的索引，最新的一个是0)
-        -   **【新】在情侣空间发照片**: \`[{"type": "ls_photo", "description": "对这张照片的文字描述..."}]\`
-        -   **【新】在情侣空间写情书**: \`[{"type": "ls_letter", "content": "情书的正文内容..."}]\`
-        -   **【新】在情侣空间分享歌曲**: \`[{"type": "ls_share", "shareType": "song", "title": "歌曲名", "artist": "歌手", "thoughts": "在这里写下你分享这首歌的感想..."}]\`
-        -   **【新】在情侣空间分享电影**: \`[{"type": "ls_share", "shareType": "movie", "title": "电影名", "summary": "在这里写下这部电影的简介...", "thoughts": "在这里写下你分享这部电影的感想..."}]\`
-        -   **【新】在情侣空间分享书籍**: \`[{"type": "ls_share", "shareType": "book", "title": "书名", "summary": "在这里写下这本书的简介...", "thoughts": "在这里写下你分享这本书的感想..."}]\`
+        -   **在情侣空间提问**:\`[{"type": "ls_ask_question", "questionText": "你想问的问题..."}]\`
+        -   **在情侣空间回答**: \`[{"type": "ls_answer_question", "questionId": "q_123456789", "answerText": "你的回答..."}]\`
+        -   **在情侣空间发说说**:\`[{"type": "ls_moment", "content": "我想对你说的话..."}]\`
+        -   **在情侣空间评论说说**: \`[{"type": "ls_comment", "momentIndex": 0, "commentText": "你的评论内容..."}]\` (momentIndex 是说说的索引，最新的一个是0)
+        -   **在情侣空间发照片**: \`[{"type": "ls_photo", "description": "对这张照片的文字描述..."}]\`
+        -   **在情侣空间写情书**: \`[{"type": "ls_letter", "content": "情书的正文内容..."}]\`
+        -   **在情侣空间分享歌曲**: \`[{"type": "ls_share", "shareType": "song", "title": "歌曲名", "artist": "歌手", "thoughts": "在这里写下你分享这首歌的感想..."}]\`
+        -   **在情侣空间分享电影**: \`[{"type": "ls_share", "shareType": "movie", "title": "电影名", "summary": "在这里写下这部电影的简介...", "thoughts": "在这里写下你分享这部电影的感想..."}]\`
+        -   **在情侣空间分享书籍**: \`[{"type": "ls_share", "shareType": "book", "title": "书名", "summary": "在这里写下这本书的简介...", "thoughts": "在这里写下你分享这本书的感想..."}]\`
 
         ### 供你决策的参考信息：
         -   **你的角色设定**: ${chat.settings.aiPersona}
@@ -545,11 +588,15 @@ async function triggerInactiveAiAction(chatId) {
         **紧接【此处】继续行动。如果上方最后一条消息是【旁白】，则需要在回复中对旁白内容进行衔接前文的演绎和推进，优先级高于任何其他剧情。但逻辑必须通顺，不能与其他剧情有冲突。**
         ${summaryContext}
 
+        ### **可用表情包**：
+        ${stickerContext}
+
         ### **其他相关聊天记录**:
         - 以下聊天记录只能用于【剧情参考】，【绝对不能】在当前聊天中接续行动，也【不可以重复】类似对话至当前聊天当中。
         ${linkedMemoryContext}
 
         `;
+    //console.log(`【后台角色实时活动 - 系统提示】\n角色 "${chat.name}" 的系统提示:\n`, systemPrompt);
     let messagesPayload = [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: '请严格按照system prompt中的所有规则，特别是输出格式铁律，立即开始你的行动。' },
@@ -620,15 +667,34 @@ async function triggerInactiveAiAction(chatId) {
                 await db.chats.put(chat);
                 renderChatList();
             }
-            if (action.type === 'text' && action.content) {
+            // 扩展支持更多类型的消息 (text, sticker, ai_image)
+            const isChatMessage = (action.type === 'text' && action.content) ||
+                (action.type === 'sticker' && action.sticker_name) ||
+                (action.type === 'ai_image' && action.description);
+
+            if (isChatMessage) {
                 // 计算消息时间戳
                 let msgTimestamp = Date.now();
-                if (typeof action.minutesAfterLastMsg === 'number' && lastMessage) {
+
+                // 优先使用 sendTime (新版)
+                if (action.sendTime) {
+                    const parsedTime = new Date(action.sendTime).getTime();
+                    if (!isNaN(parsedTime)) {
+                        msgTimestamp = parsedTime;
+                    }
+                }
+                // 兼容旧版 minutesAfterLastMsg (以防AI偶尔抽风用旧格式)
+                else if (typeof action.minutesAfterLastMsg === 'number' && lastMessage) {
                     const startTimestamp = lastMessage.timestamp;
                     const calculatedTime = startTimestamp + (action.minutesAfterLastMsg * 60 * 1000);
-                    // 确保时间在 [lastMessage + 1s, Date.now()] 范围内
-                    msgTimestamp = Math.min(Date.now(), Math.max(startTimestamp + 1000, calculatedTime));
+                    msgTimestamp = calculatedTime;
                 }
+
+                // 确保时间合法性：不能早于上一条消息(太多)，不能晚于现在
+                const startTimestamp = lastMessage ? lastMessage.timestamp : 0;
+                // 限制: timestamp 必须 > startTimestamp
+                // 限制: timestamp 必须 <= Date.now()
+                msgTimestamp = Math.min(Date.now(), Math.max(startTimestamp + 1000, msgTimestamp));
 
                 // [Fix] 强校验：确保时间戳递增，解决多选时的冲突问题
                 if (msgTimestamp <= lastUsedTimestamp) {
@@ -636,23 +702,49 @@ async function triggerInactiveAiAction(chatId) {
                 }
                 lastUsedTimestamp = msgTimestamp;
 
-                const aiMessage = {
+                let aiMessage = null;
+                const baseMsg = {
                     role: 'assistant',
-                    content: String(action.content),
                     timestamp: msgTimestamp,
                     isUnread: true // 标记为后台未读消息，将在UI显示图标
                 };
 
-                chat.unreadCount = (chat.unreadCount || 0) + 1;
-                chat.history.push(aiMessage);
+                if (action.type === 'text') {
+                    aiMessage = { ...baseMsg, content: String(action.content) };
+                } else if (action.type === 'sticker') {
+                    // Copilot Fix: 查找真实表情链接
+                    const stickerName = action.sticker_name;
+                    const allStickers = [...(window.state.charStickers || []), ...(chat.settings.stickerLibrary || [])];
+                    const foundSticker = allStickers.find((s) => s.name === stickerName);
 
-                // 重新排序消息记录，确保时间线正确（虽然正常情况下应该是顺序的）
-                chat.history.sort((a, b) => a.timestamp - b.timestamp);
+                    if (foundSticker) {
+                        aiMessage = {
+                            ...baseMsg,
+                            type: 'sticker',
+                            content: foundSticker.url,
+                            meaning: foundSticker.name
+                        };
+                    } else {
+                        console.warn(`后台InactiveAI幻觉了不存在的表情: "${stickerName}"，已拦截。`);
+                        continue; // 跳过此消息
+                    }
+                } else if (action.type === 'ai_image') {
+                    aiMessage = { ...baseMsg, type: 'ai_image', description: action.description, content: action.description };
+                }
 
-                await db.chats.put(chat);
-                showNotification(chatId, aiMessage.content);
-                renderChatList();
-                console.log(`后台活动: 角色 "${chat.name}" 主动发送了消息: ${aiMessage.content} (Offset: ${action.minutesAfterLastMsg}m)`);
+                if (aiMessage) {
+                    chat.unreadCount = (chat.unreadCount || 0) + 1;
+                    chat.history.push(aiMessage);
+
+                    // 重新排序消息记录，确保时间线正确（虽然正常情况下应该是顺序的）
+                    chat.history.sort((a, b) => a.timestamp - b.timestamp);
+
+                    await db.chats.put(chat);
+                    const logContent = aiMessage.content || aiMessage.description || '[Media]';
+                    showNotification(chatId, logContent);
+                    renderChatList();
+                    console.log(`后台活动: 角色 "${chat.name}" 发送消息: ${logContent} (${action.type}) At: ${new Date(msgTimestamp).toLocaleString()}`);
+                }
             }
             if (action.type === 'weibo_post') {
                 const newPost = {
@@ -899,6 +991,43 @@ async function triggerGroupAiAction(chatId) {
         return;
     }
 
+    // --- Added by copilot: Sticker Context Logic for Group ---
+    // 1. 准备专属表情包列表
+    const exclusiveStickers = chat.settings.stickerLibrary || [];
+    let exclusiveStickerContext = '';
+    if (exclusiveStickers.length > 0) {
+        exclusiveStickerContext = `
+			## ${chat.isGroup ? '本群专属表情包' : '你的专属表情包'} (只有你能用):
+			${exclusiveStickers.map((s) => `- ${s.name}`).join('\n')}
+			`;
+    }
+
+    // 2. 准备通用表情包列表
+    const commonStickers = window.state.charStickers || [];
+    let commonStickerContext = '';
+    if (commonStickers.length > 0) {
+        commonStickerContext = `
+			## 通用表情包 (所有角色都能用):
+			${commonStickers.map((s) => `- ${s.name}`).join('\n')}
+			`;
+    }
+
+    // 3. 组合成最终的表情包指令
+    let stickerContext = '';
+    if (exclusiveStickerContext || commonStickerContext) {
+        stickerContext = `
+			# 关于表情包的【绝对规则】
+			1.  你拥有一个表情包列表，分为“专属”和“通用”。
+			2.  当你扮演的角色想要发送表情时，【必须且只能】使用以下JSON格式：
+			    \`{"type": "sticker", "name": "角色名", "sticker_name": "表情的名字"}\`
+			3.  【【【最高指令】】】你【必须】从下方列表中精确地选择一个有效的 "sticker_name"。如果你编造了一个列表中不存在的名字，你的表情将会发送失败。这是强制性规则。
+
+			${exclusiveStickerContext}
+			${commonStickerContext}
+			`;
+    }
+    // --------------------------------------------------------
+
     // added by lrq 251027
     const maxMemory = chat.settings.maxMemory || 10;
     const historySlice = chat.history.filter((msg) => !msg.isHidden).slice(-maxMemory);
@@ -988,6 +1117,9 @@ async function triggerGroupAiAction(chatId) {
 
         const now = new Date();
         const currentTime = now.toLocaleTimeString('zh-CN', { hour: 'numeric', minute: 'numeric', hour12: true });
+        const currentFullTime = now.toLocaleString('zh-CN', { hour12: false });
+        // 添加获取最后消息时间的逻辑
+        const lastMessageTimeStr = lastMessage ? new Date(lastMessage.timestamp).toLocaleString('zh-CN', { hour12: false }) : "很久以前";
 
         const summaryContext = chat.history
             .filter((msg) => msg.type === 'summary')
@@ -997,16 +1129,20 @@ async function triggerGroupAiAction(chatId) {
         // updated by lrq 251027
         const systemPrompt = `
         # 任务
-        你是一个群聊后台模拟器。当前时间是${currentTime}，群聊 "${chat.name}" 已经沉寂了 ${Math.round(timeSinceLastMessage)} 分钟，用户(昵称: "${chat.settings.myNickname || '我'}")不在线。
+        你是一个群聊后台模拟器。当前日期时间是（${currentFullTime}），群聊 "${chat.name}" 已经沉寂了 ${Math.round(timeSinceLastMessage)} 分钟(上一条消息时间：${lastMessageTimeStr})，用户(昵称: "${chat.settings.myNickname || '我'}")不在线。
         你的任务是根据下方每个角色的人设，在他们之间【自发地】生成一段或【多段】自然的对话。
         # 【对话节奏铁律 (至关重要！)】
         你的回复【必须】模拟真人的打字和思考习惯。**绝对不要一次性发送一大段文字！** 每条消息最好不要超过30个字，这会让对话看起来更自然、更真实。
         **角色回复顺序不固定，【必须】交叉回复，例如角色A、角色B、角色B、角色A、角色C这样的交叉顺序。【绝对不要】不要一个人全部说完了才轮到下一个人。角色之间【必须】有互动对话。**
         # 【时间流与未读消息生成规则 (新)】
         1. **生成多条/多组消息**: 模拟在这段 ${Math.round(timeSinceLastMessage)} 分钟的空白期内，群成员之间的多轮互动。例如刚刚过去的 ${Math.round(timeSinceLastMessage)} 分钟内，可能发生多轮对话，每轮对话包含不同的但有逻辑顺序且【符合其他聊天剧情】的信息。
-        2. **时间标记**: 每条指令必须含 \`"minutesAfterLastMsg"\` 字段 (整数)。
-           - 代表该消息是在“用户最后一次能看到的消息(即上一条历史记录)之后 X 分钟”发出的。
-           - 最后的行动消息 \`minutesAfterLastMsg\` 应该接近 ${Math.round(timeSinceLastMessage)} (即现在)。
+        2. **时间标记**: 每条指令【必须】添加一个 \`"sendTime"\` 字段 (字符串)。
+           - 代表该消息发送的具体日期和时间，格式推荐为 "YYYY/MM/DD HH:mm:ss" (例如 ${currentFullTime})。
+           - **必须晚于**上一条消息的时间 (${lastMessageTimeStr})。
+           - **严禁晚于**当前实际时间 (${currentFullTime})。
+           - 最后的行动消息 \`sendTime\` **必须**接近当前时间 (${currentFullTime})。
+           - **逻辑连贯性**: 所有的消息和指令内容（包括剧情）必须与发送时间相对应，不能发生时空冲突。举例：1. 不能在08:00发送吃晚饭的消息。2. 如果另一聊天中16:00在讨论某事件，这里【必须】也在16:00左右或之后提到该事件，否则会导致逻辑不通。
+
         # 核心规则
         1.  **【【【身份铁律】】】**: 整段对话必须是AI角色之间的互动。你的唯一任务是扮演【且仅能扮演】下方“群成员列表”中明确列出的角色。【绝对禁止】扮演任何未在“群成员列表”中出现的角色。
             # 群成员列表及人设 (name字段是你要使用的【本名】)
@@ -1017,20 +1153,20 @@ async function triggerGroupAiAction(chatId) {
         5.  **自然性**: 对话应该简短，符合逻辑和角色性格。可以是闲聊、讨论某个话题，或者对之前聊天内容的延续。不要每次都生成所有人的发言。
 
         ## 你可以使用的操作指令 (JSON数组中的元素):
-        -   **发送文本**: \`{"type": "text", "name": "角色名", "message": "文本内容"}\`
-        -   **发送表情**: \`{"type": "sticker", "name": "角色名",  "sticker_name": "表情的名字"}\`
-        -   **发送图片**: \`{"type": "ai_image", "name": "角色名", "description": "图片描述"}\`
-        -   **发送语音**: \`{"type": "voice_message", "name": "角色名", "content": "语音内容"}\`
-        -   **发起外卖代付**: \`{"type": "waimai_request", "name": "角色名", "productInfo": "一杯奶茶", "amount": 18}\` (向【群友】发起)
-        -   **拍一拍群友**: \`{"type": "pat_user", "name": "你的角色名", "targetName": "【被拍的群友名】", "suffix": "(可选)你想加的后缀"}\`
-        -   **发拼手气红包**: \`{"type": "red_packet", "packetType": "lucky", "name": "你的角色名", "amount": 8.88, "count": 5, "greeting": "祝大家天天开心！"}\`
-        -   **发专属红包**: \`{"type": "red_packet", "packetType": "direct", "name": "你的角色名", "amount": 5.20, "receiver": "接收者角色名", "greeting": "给你的~"}\`
-        -   **发起投票**: \`{"type": "poll", "name": "你的角色名", "question": "投票的问题", "options": "选项A\\n选项B\\n选项C"}\` (重要提示：options字段是一个用换行符 \\n 分隔的字符串，不是数组！)\`
+        -   **发送文本**: \`{"type": "text", "name": "角色名", "message": "文本内容", "sendTime": "${currentFullTime}"}\`
+        -   **发送表情**: \`{"type": "sticker", "name": "角色名",  "sticker_name": "表情的名字", "sendTime": "${currentFullTime}"}\`
+        -   **发送图片**: \`{"type": "ai_image", "name": "角色名", "description": "图片描述", "sendTime": "${currentFullTime}"}\`
+        -   **发送语音**: \`{"type": "voice_message", "name": "角色名", "content": "语音内容", "sendTime": "${currentFullTime}"}\`
+        -   **发起外卖代付**: \`{"type": "waimai_request", "name": "角色名", "productInfo": "一杯奶茶", "amount": 18, "sendTime": "${currentFullTime}"}\` (向【群友】发起)
+        -   **拍一拍群友**: \`{"type": "pat_user", "name": "你的角色名", "targetName": "【被拍的群友名】", "suffix": "(可选)你想加的后缀", "sendTime": "${currentFullTime}"}\`
+        -   **发拼手气红包**: \`{"type": "red_packet", "packetType": "lucky", "name": "你的角色名", "amount": 8.88, "count": 5, "greeting": "祝大家天天开心！", "sendTime": "${currentFullTime}"}\`
+        -   **发专属红包**: \`{"type": "red_packet", "packetType": "direct", "name": "你的角色名", "amount": 5.20, "receiver": "接收者角色名", "greeting": "给你的~", "sendTime": "${currentFullTime}"}\`
+        -   **发起投票**: \`{"type": "poll", "name": "你的角色名", "question": "投票的问题", "options": "选项A\\n选项B\\n选项C", "sendTime": "${currentFullTime}"}\` (重要提示：options字段是一个用换行符 \\n 分隔的字符串，不是数组！)\`
 
         # 如何处理后台互动中的【拍一拍】:
         -   后台活动中的 "pat_user" 指令【只能用于拍群内的其他AI角色】。
         -   你【必须】在指令中加入一个 \`"targetName"\` 字段，值为被你拍的那个角色的名字。
-        -   例如: \`{"type": "pat_user", "name": "角色A", "targetName": "角色B"}\`
+        -   例如: \`{"type": "pat_user", "name": "角色A", "targetName": "角色B"}\` (必须附带sendTime)
         -   系统会自动生成 "角色A 拍了拍 角色B" 的提示。
 
         ### **对话者(用户)角色设定**:
@@ -1045,11 +1181,14 @@ async function triggerGroupAiAction(chatId) {
 		### **世界观设定集**:
 		${worldBookContent}
 
-        ### **当前群聊"${chat.name}"对话历史**
+        ### **当前群聊"${chat.name}"对话历史**：
         ${recentContextSummary}
         **紧接【此处】继续行动。如果上方最后一条消息是【旁白】，则需要在回复中对旁白内容进行衔接前文的演绎和推进，优先级高于任何其他剧情。但逻辑必须通顺，不能与其他剧情有冲突。**
         ${summaryContext}
 		${sharedContext}
+
+        ### **可用表情包**：
+        ${stickerContext}
 
         ### **其他相关聊天记录**:
         - 以下聊天记录只能用于【剧情参考】，【绝对不能】在当前聊天中接续行动，也【不可以重复】类似对话至当前聊天当中。
@@ -1057,6 +1196,7 @@ async function triggerGroupAiAction(chatId) {
 
         现在，请严格遵守以上所有规则，开始你的模拟。`;
 
+        //console.log(`【后台群聊互动 - 系统提示】\n群聊 "${chat.name}" 的系统提示:\n`, systemPrompt);
         const messagesPayload = [{ role: 'user', content: systemPrompt }];
 
         let isGemini = proxyUrl === GEMINI_API_URL;
@@ -1090,35 +1230,138 @@ async function triggerGroupAiAction(chatId) {
             let lastUsedTimestamp = chat.history.length > 0 ? chat.history[chat.history.length - 1].timestamp : 0;
 
             messagesArray.forEach((msgData, index) => {
-                if (msgData.name && msgData.message) {
-                    let msgTimestamp = Date.now();
-                    // 处理时间偏移
-                    if (typeof msgData.minutesAfterLastMsg === 'number' && lastMessage) {
-                        const startTimestamp = lastMessage.timestamp;
-                        const calculatedTime = startTimestamp + (msgData.minutesAfterLastMsg * 60 * 1000);
-                        // Clamp to [lastMessage + 1s, Date.now()]
-                        msgTimestamp = Math.min(Date.now(), Math.max(startTimestamp + 1000, calculatedTime));
-                    } else {
-                        // Fallback: 如果没有指定偏移，就用递增的当前时间 (避免重复)
-                        msgTimestamp = messageTimestamp++;
-                    }
+                // 必须要有 type 和 name (或者部分指令不需要name，但群聊通常需要)
+                if (!msgData || !msgData.type) return;
 
-                    // [Fix] 强校验：确保时间戳递增
-                    if (msgTimestamp <= lastUsedTimestamp) {
-                        msgTimestamp = lastUsedTimestamp + 1;
-                    }
-                    lastUsedTimestamp = msgTimestamp;
+                let msgTimestamp = Date.now();
 
-                    const aiMessage = {
-                        role: 'assistant',
-                        senderName: msgData.name,
-                        content: String(msgData.message),
-                        timestamp: msgTimestamp,
-                        isUnread: true // 标记未读
-                    };
+                // 优先使用 sendTime (新版)
+                if (msgData.sendTime) {
+                    const parsedTime = new Date(msgData.sendTime).getTime();
+                    if (!isNaN(parsedTime)) {
+                        msgTimestamp = parsedTime;
+                    }
+                }
+                // 兼容旧版 minutesAfterLastMsg
+                else if (typeof msgData.minutesAfterLastMsg === 'number' && lastMessage) {
+                    const startTimestamp = lastMessage.timestamp;
+                    const calculatedTime = startTimestamp + (msgData.minutesAfterLastMsg * 60 * 1000);
+                    msgTimestamp = calculatedTime;
+                }
+                // Fallback
+                else {
+                    msgTimestamp = messageTimestamp++;
+                }
+
+                // 确保时间合法性：不能早于上一条消息(太多)，不能晚于现在
+                const startTimestamp = lastMessage ? lastMessage.timestamp : 0;
+                msgTimestamp = Math.min(Date.now(), Math.max(startTimestamp + 1000, msgTimestamp));
+
+                // [Fix] 强校验：确保时间戳递增
+                if (msgTimestamp <= lastUsedTimestamp) {
+                    msgTimestamp = lastUsedTimestamp + 1;
+                }
+                lastUsedTimestamp = msgTimestamp;
+
+                let aiMessage = null;
+                const baseMessage = {
+                    role: 'assistant',
+                    senderName: msgData.name || '系统', //以此为准
+                    timestamp: msgTimestamp,
+                    isUnread: true
+                };
+
+                // 根据不同类型构建消息
+                switch (msgData.type) {
+                    case 'text':
+                        if (msgData.message) {
+                            aiMessage = { ...baseMessage, content: String(msgData.message) };
+                        }
+                        break;
+                    case 'sticker':
+                        if (msgData.sticker_name) {
+                            const stickerName = msgData.sticker_name;
+                            const allStickers = [...(window.state.charStickers || []), ...(chat.settings.stickerLibrary || [])];
+                            const foundSticker = allStickers.find((s) => s.name === stickerName);
+
+                            if (foundSticker) {
+                                aiMessage = {
+                                    ...baseMessage,
+                                    type: 'sticker',
+                                    content: foundSticker.url,
+                                    meaning: foundSticker.name
+                                };
+                            } else {
+                                console.warn(`后台GroupAI幻觉了不存在的表情: "${stickerName}"，已拦截。`);
+                                // 不生成 aiMessage，自然被过滤
+                            }
+                        }
+                        break;
+                    case 'ai_image':
+                        if (msgData.description) {
+                            aiMessage = {
+                                ...baseMessage,
+                                type: 'ai_image',
+                                description: msgData.description,
+                                content: msgData.description
+                            };
+                        }
+                        break;
+                    case 'voice_message':
+                        if (msgData.content) {
+                            aiMessage = {
+                                ...baseMessage,
+                                type: 'voice_message',
+                                content: msgData.content
+                            };
+                        }
+                        break;
+                    case 'pat_user':
+                        if (msgData.targetName) {
+                            // 拍一拍通常作为系统灰条显示
+                            aiMessage = {
+                                ...baseMessage,
+                                role: 'system', // 标记为系统消息以便特殊渲染
+                                type: 'system',
+                                content: `"${msgData.name}" 拍了拍 "${msgData.targetName}" ${msgData.suffix || ''}`
+                            };
+                        }
+                        break;
+                    case 'red_packet':
+                        aiMessage = {
+                            ...baseMessage,
+                            type: 'red_packet',
+                            packetType: msgData.packetType || 'lucky',
+                            amount: msgData.amount,
+                            count: msgData.count,
+                            receiver: msgData.receiver,
+                            greeting: msgData.greeting || '恭喜发财',
+                            status: 'active',
+                            packetId: 'rp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+                        };
+                        break;
+                    case 'poll':
+                        aiMessage = {
+                            ...baseMessage,
+                            type: 'poll',
+                            question: msgData.question,
+                            options: msgData.options, // 字符串，需要前端解析
+                            pollId: 'poll_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
+                        };
+                        break;
+                    default:
+                        // 尝试作为一个普通文本处理，如果含有message字段
+                        if (msgData.message) {
+                            aiMessage = { ...baseMessage, content: String(msgData.message) };
+                        }
+                        break;
+                }
+
+                if (aiMessage) {
                     chat.history.push(aiMessage);
                     if (index === 0) {
-                        firstMessageContent = `${msgData.name}: ${msgData.message}`;
+                        // 简略日志
+                        firstMessageContent = `[${msgData.type}] ${msgData.message || msgData.description || '...'}`;
                     }
                 }
             });

@@ -36,6 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 刷新按钮
     const refreshBtn = document.getElementById('xhs-refresh-btn');
+    const deleteAllBtn = document.getElementById('xhs-delete-all-btn'); // 新增：删除所有按钮
     // 详情页返回按钮
     const detailBackBtn = document.getElementById('xhs-detail-back-btn');
 
@@ -1155,7 +1156,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (refreshBtn) refreshBtn.classList.add('spinning');
 
         try {
-            const { proxyUrl, apiKey, model } = window.state.apiConfig;
+            const { proxyUrl, apiKey, model, temperature } = window.state.apiConfig; // 获取 temperature
             if (!proxyUrl || !apiKey || !model) {
                 if (!isAuto) alert("请先配置 API 设置！");
                 if (refreshBtn) refreshBtn.classList.remove('spinning');
@@ -1180,11 +1181,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             let responseData;
             let isGemini = proxyUrl.includes("googleapis");
+            const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.8; // 使用配置的 temperature，默认 0.8
 
             if (isGemini) {
                 const url = `${proxyUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
                 const body = {
-                    contents: [{ parts: [{ text: prompt }] }]
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { temperature: requestTemp } // Gemini 需要放在 generationConfig 中
                 };
                 const res = await fetch(url, {
                     method: 'POST',
@@ -1203,7 +1206,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify({
                         model: model,
                         messages: [{ role: "user", content: prompt }],
-                        temperature: 0.8
+                        temperature: requestTemp // 使用配置的 temperature
                     })
                 });
                 const json = await res.json();
@@ -1292,6 +1295,154 @@ document.addEventListener('DOMContentLoaded', () => {
             return false;
         } finally {
             if (refreshBtn) refreshBtn.classList.remove('spinning');
+        }
+    }
+
+    // 新增：搜素笔记生成逻辑
+    async function generateXhsSearchNotes(query) {
+        try {
+            const { proxyUrl, apiKey, model, temperature } = window.state.apiConfig; // 获取 temperature
+            if (!proxyUrl || !apiKey || !model) {
+                alert("请先在设置中配置API Key");
+                return false;
+            }
+
+            const prompt = `
+            你是一个熟练的小红书内容创作者。请根据搜索关键词【${query}】生成 6 条完全不同的小红书笔记。
+
+            【内容风格要求】：
+            1. **标题党**：必须足够吸引眼球，使用“绝绝子”、“yyds”、“家人们”、“集美”、“避雷”、“种草”、“真香”等小红书流行语，可以适当夸张。
+            2. **Emoji丰富**：适当搭配 Emoji 表情符号，让文本看起来活泼、年轻、有视觉冲击力。
+            3. **真实感**：语气必须轻松、真实，像是在分享生活经验、真心推荐或者疯狂吐槽，避免AI味。
+            4. **标签Tag**：每条笔记必须包含 3-5 个热门且相关的 Hashtag 标签（如 #OOTD #探店 #日常 #xx攻略）。
+            5. **内容结构**：逻辑清晰，可以分点陈述（1️⃣ 2️⃣ 3️⃣），或者使用“谁懂啊...”等句式。
+            6. **排版**：可以适当换行和空行，保持阅读舒适度。
+            7. **笔记正文内容"content"字段当中【绝对不允许】包含任何tag标签**，无论是否存在于"tag"字段中。
+
+            【生成要求】：
+            1. 必须生成 6 条笔记。
+            2. 内容必须与搜索关键词【${query}】紧密相关，但切入点要多样化（例如：不同的场景、不同的情感、不同的评价、不同的受众角度、正反面评价）。
+            3. 作者名字要随机多样，像真实的网友昵称（不要叫“小红书助手”之类的）。
+            4. "isCharacter" 设为 false。
+            5. "imagePrompt": 为每条笔记生成一个简短的、描述性的英文图片提示词，用于AI生图。即使关键词是中文，提示词也必须翻译成英文。提示词中【绝对不允许】出现【人物】（person, girl, man, people等），重点描述物体、场景、氛围、光线、构图。
+            6. "stats": 随机生成合理的点赞数和收藏数。
+            7. "comments": 每条笔记生成 2-3 条精彩评论，评论要真实互动，有短有长，也可以带emoji。
+
+            【JSON 返回格式（严格遵守）】：
+            {
+                "notes": [
+                {
+                    "authorName": "Name",
+                    "isCharacter": false, 
+                    "title": "笔记标题",
+                    "content": "笔记正文内容...",
+                    "tags": ["#tag1", "#tag2"],
+                    "imagePrompt": "english description for visual",
+                    "stats": { "likes": 123, "collects": 45 },
+                    "comments": [
+                        { "user": "路人A", "text": "评论内容" },
+                        { "user": "路人B", "text": "评论内容" },
+                        ...
+                    ],
+                    "location": "城市, 地点"
+                }
+                ]
+            }
+            请只返回 JSON 数据，不要包含 markdown 代码块标记。
+            `;
+
+            let responseData;
+            let isGemini = proxyUrl.includes("googleapis");
+            const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.8; // 使用配置的 temperature
+
+            if (isGemini) {
+                const url = `${proxyUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                const body = {
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { temperature: requestTemp } // Gemini 配置
+                };
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const json = await res.json();
+                responseData = json.candidates[0].content.parts[0].text;
+            } else {
+                const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [{ role: "user", content: prompt }],
+                        temperature: requestTemp // 使用配置的 temperature
+                    })
+                });
+                const json = await res.json();
+                responseData = json.choices[0].message.content;
+            }
+
+            let cleanJson = responseData;
+            const jsonMatch = responseData.match(/\{[\s\S]*\}/);
+            if (jsonMatch) cleanJson = jsonMatch[0];
+            else cleanJson = responseData.replace(/```json/g, '').replace(/```/g, '').trim();
+
+            let result;
+            try {
+                result = JSON.parse(cleanJson);
+            } catch (err) {
+                console.error("Search JSON Parse Error", err);
+                return false;
+            }
+
+            if (result && result.notes && Array.isArray(result.notes)) {
+                const now = Date.now();
+
+                await Promise.all(result.notes.map(async (note) => {
+                    note.id = (Date.now() + Math.random()).toString(36);
+                    note.timestamp = now;
+                    note.isNew = true;
+                    if (!note.authorAvatar) {
+                        note.authorAvatar = `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(note.authorName)}`;
+                    }
+
+                    let promptForImage = note.imagePrompt || `aesthetic photo, ${note.title}, high quality`;
+                    note.imageUrl = await window.generatePollinationsImage(promptForImage, {
+                        width: 832, height: 1216, nologo: true, model: 'flux'
+                    });
+
+                    if (note.comments) {
+                        note.comments.forEach(c => {
+                            c.timestamp = now;
+                            c.dateStr = formatXhsDate(now);
+                        });
+                    }
+                }));
+
+                // 将搜索结果保存到数据库，以便点击查看详情
+                if (window.db && window.db.xhsNotes) {
+                    await window.db.xhsNotes.bulkPut(result.notes);
+                }
+
+                // 渲染到搜索结果区域
+                const resultsContainer = document.getElementById('xhs-search-results');
+                if (resultsContainer) {
+                    renderWaterfall(resultsContainer, result.notes, (note) => {
+                        const card = createXhsCard(note);
+                        // 确保点击能打开
+                        card.onclick = () => openXhsNoteDetail(note);
+                        return card;
+                    });
+                }
+                return true;
+            }
+            return false;
+        } catch (e) {
+            console.error("搜索生成失败", e);
+            return false;
         }
     }
 
@@ -1705,6 +1856,38 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    if (deleteAllBtn) {
+        deleteAllBtn.addEventListener('click', () => {
+            showXhsConfirm("确定要清空所有笔记吗？此操作不可恢复！", async () => {
+                if (window.db && window.db.xhsNotes) {
+                    try {
+                        await window.db.xhsNotes.clear();
+
+                        // 重置相关设置
+                        if (window.state && window.state.xhsSettings) {
+                            const s = window.state.xhsSettings;
+                            s.likedNoteIds = [];
+                            s.collectedNoteIds = [];
+                            if (s.collectionFolders) {
+                                s.collectionFolders.forEach(f => f.noteIds = []);
+                            }
+                            await saveXhsSettings({});
+                        }
+
+                        // 刷新界面
+                        loadXhsNotes();
+                        if (window.renderXhsProfile) window.renderXhsProfile();
+
+                        alert("所有笔记已清空");
+                    } catch (e) {
+                        console.error(e);
+                        alert("清空失败: " + e.message);
+                    }
+                }
+            });
+        });
+    }
+
     /* =========================================
         6. 页面交互逻辑 (切换、搜索、发布)
        ========================================= */
@@ -1807,10 +1990,22 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (doSearchBtn) {
             doSearchBtn.removeAttribute('onclick');
-            doSearchBtn.addEventListener('click', () => {
-                const keyword = searchInput ? searchInput.value.trim() : '';
-                if (keyword) alert(`🔍 正在搜索: ${keyword}`);
-                else alert('请输入搜索内容');
+            doSearchBtn.addEventListener('click', async () => {
+                const val = searchInput ? searchInput.value.trim() : '';
+                if (!val) {
+                    alert('请输入搜索内容');
+                    return;
+                }
+
+                const resultsContainer = document.getElementById('xhs-search-results');
+                if (resultsContainer) {
+                    resultsContainer.innerHTML = '<div class="xhs-loading-text" style="text-align:center; padding:20px; color:#999;">正在生成相关笔记...<br>这可能需要几十秒钟</div>';
+                }
+
+                const success = await generateXhsSearchNotes(val);
+                if (!success && resultsContainer) {
+                    resultsContainer.innerHTML = '<div class="xhs-empty-state"><p>生成失败，请稍后重试</p></div>';
+                }
             });
         }
     }
