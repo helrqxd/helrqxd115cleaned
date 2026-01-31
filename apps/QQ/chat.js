@@ -2869,7 +2869,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
 
             ### **当前群聊"${chat.name}"对话历史**
             ${recentContextSummary}
-            **紧接【此处】继续行动。如果上方最后一条消息是【旁白】，则需要在回复中对旁白内容进行演绎，优先级高于任何其他剧情。但逻辑必须通顺，不能与其他剧情有冲突。**
+            **紧接【此处】继续行动。如果上方最后一条消息是【旁白】，则需要在回复中对旁白内容进行衔接前文的演绎和推进，优先级高于任何其他剧情。但逻辑必须通顺，不能与其他剧情有冲突。**
             ${summaryContext}
             ${redPacketContext}
 			${sharedContext}
@@ -3469,7 +3469,7 @@ ${contextSummaryForApproval}
 
             - **当前对话历史记录**
             ${recentContextSummary}
-            **紧接【此处】继续行动。如果上方最后一条消息是【旁白】，则需要在回复中对旁白内容进行演绎，优先级高于任何其他剧情。但逻辑必须通顺，不能与其他剧情有冲突。**
+            **紧接【此处】继续行动。如果上方最后一条消息是【旁白】，则需要在回复中对旁白内容进行衔接前文的演绎和推进，优先级高于任何其他剧情。但逻辑必须通顺，不能与其他剧情有冲突。**
             ${sharedContextSection}
             ${friendRequestInstruction}
 
