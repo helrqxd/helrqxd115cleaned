@@ -1645,6 +1645,13 @@ window.openChat = async function openChat(chatId) {
  * @returns {string} - 格式化后的文本，例如 "张三: 你好"
  */
 function formatMessageForContext(msg, chat) {
+    // [Fix] 优先处理旁白，赋予最高权重
+    if (msg.type === 'narrative') {
+        const date = new Date(msg.timestamp);
+        const formattedDate = date.toLocaleString();
+        return `[${formattedDate}] 【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
+    }
+
     let senderName = '';
     if (msg.role === 'user') {
         senderName = chat.settings.myNickname || '我';
@@ -2685,8 +2692,9 @@ window.triggerAiResponse = async function triggerAiResponse() {
 
                     if (msg.type === 'share_card') return null;
 
+                    // [Fix] 优化旁白格式，提高权重
                     if (msg.type === 'narrative') {
-                        return `${timestampStr} [剧情/环境旁白: ${msg.content}]`;
+                        return `${timestampStr} 【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
                     }
 
                     if (msg.role === 'assistant') {
@@ -3041,6 +3049,12 @@ ${libraryList}
                         return `${timestampStr} [系统隐藏信息]: ${msg.content}`;
                     }
                     if (msg.type === 'share_card') return null;
+
+                    // [Fix] 优先处理旁白，避免被误判为用户发言
+                    if (msg.type === 'narrative') {
+                        return `${timestampStr} 【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
+                    }
+
                     if (msg.type === 'red_packet') {
                         const isDirect = msg.packetType === 'direct';
                         const target = isDirect ? `专属红包 (指定给: ${msg.receiverName})` : '群红包 (拼手气)';

@@ -297,6 +297,15 @@ async function triggerInactiveAiAction(chatId) {
     // 2. 格式化这些记录，让AI能看懂
     const recentContextSummary = historySlice
         .map((msg) => {
+            // updated by lrq 251029 给每条消息记录添加发送日期时间
+            const messageDate = new Date(msg.timestamp);
+            const formattedDate = messageDate.toLocaleDateString();
+
+            // [Fix] 优先处理旁白消息 (单聊后台活动)
+            if (msg.type === 'narrative') {
+                return `[${formattedDate}] 【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
+            }
+
             // 判断是谁说的话
             const sender = msg.role === 'user' ? (chat.isGroup ? chat.settings.myNickname || '我' : '我') : msg.senderName || chat.name;
 
@@ -311,10 +320,6 @@ async function triggerInactiveAiAction(chatId) {
             } else {
                 contentText = String(msg.content);
             }
-
-            // updated by lrq 251029 给每条消息记录添加发送日期时间
-            const messageDate = new Date(msg.timestamp);
-            const formattedDate = messageDate.toLocaleDateString();
 
             return `[${formattedDate}] ${sender}: ${contentText}`;
         })
@@ -900,6 +905,15 @@ async function triggerGroupAiAction(chatId) {
     // 2. 格式化这些记录，让AI能看懂
     const recentContextSummary = historySlice
         .map((msg) => {
+            // updated by lrq 251029 给每条消息记录添加发送日期时间
+            const messageDate = new Date(msg.timestamp);
+            const formattedDate = messageDate.toLocaleDateString();
+
+            // [Fix] 优先处理旁白消息 (群聊后台活动)
+            if (msg.type === 'narrative') {
+                return `[${formattedDate}] 【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
+            }
+
             // 判断是谁说的话
             const sender = msg.role === 'user' ? (chat.isGroup ? chat.settings.myNickname || '我' : '我') : msg.senderName || chat.name;
 
@@ -914,10 +928,6 @@ async function triggerGroupAiAction(chatId) {
             } else {
                 contentText = String(msg.content);
             }
-
-            // updated by lrq 251029 给每条消息记录添加发送日期时间
-            const messageDate = new Date(msg.timestamp);
-            const formattedDate = messageDate.toLocaleDateString();
 
             return `[${formattedDate}] ${sender}: ${contentText}`;
         })
