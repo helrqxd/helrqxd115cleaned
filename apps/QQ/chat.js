@@ -2878,11 +2878,12 @@ window.triggerAiResponse = async function triggerAiResponse() {
             
             ### **其他相关聊天记录**:
             - 以下聊天记录只能用于【剧情参考】，【绝对不能】在当前聊天中接续行动，也【不可以重复】类似对话至当前聊天当中。
-            ${linkedMemoryContext}`;
+            ${linkedMemoryContext}
+            
+            现在，请严格遵守以上所有规则，开始你的模拟。`;
 
             messagesPayload = [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: '请严格按照system prompt中的所有规则，特别是输出格式铁律，立即开始你的行动。' }
+                { role: 'user', content: systemPrompt },
             ];
 
             console.log(systemPrompt);
