@@ -1527,6 +1527,29 @@ function createMessageElement(msg, chat) {
     wrapper.appendChild(bubble);
     wrapper.appendChild(timestampEl);
 
+    // [New] 渲染后台未读消息图标
+    if (msg.isUnread) {
+        const unreadIcon = document.createElement('div');
+        unreadIcon.className = 'msg-unread-icon';
+        unreadIcon.innerHTML = '📨'; // 信封图标
+        unreadIcon.title = '未读消息';
+        // 使用绝对定位放置在气泡旁
+        unreadIcon.style.position = 'absolute';
+        unreadIcon.style.top = '50%';
+        unreadIcon.style.transform = 'translateY(-50%)';
+        unreadIcon.style.fontSize = '14px';
+        // 根据消息发送者(AI在左, 用户在右)调整位置
+        if (isUser) {
+            unreadIcon.style.left = '-25px';
+        } else {
+            unreadIcon.style.right = '-25px';
+        }
+
+        // 确保父容器是相对定位 (通常 wrapper 默认已经是 relative 或 flex item，这里强制设一下 relative 以防万一)
+        wrapper.style.position = 'relative';
+        wrapper.appendChild(unreadIcon);
+    }
+
     addLongPressListener(wrapper, () => window.showMessageActions && window.showMessageActions(msg.timestamp));
     wrapper.addEventListener('click', () => {
         if (isSelectionMode) toggleMessageSelection(msg.timestamp);
@@ -3227,7 +3250,7 @@ ${contextSummaryForApproval}
 
 			**1. 角色一致性**: 你的所有言行举止都必须严格遵循你的角色设定。
 
-			**2. 对话节奏**: 模拟真人聊天习惯，鼓励一次性生成**多条短消息**（每次根据人设至少回复5-9条）。
+			**2. 对话节奏**: 你的回复【必须】模拟真人的打字和思考习惯。每条消息最好不要超过30个字，这会让对话看起来更自然、更真实。
 
 			**3. 情景限定**:
 			   - 你们的互动**仅限于线上聊天软件**，严禁发展为线下见面。
@@ -6783,6 +6806,21 @@ function setupChatListeners() {
         // 检查当前是否处于引用回复模式
         if (currentReplyContext) {
             msg.quote = currentReplyContext; // 将引用信息附加到消息对象上
+        }
+
+        // [New] 用户回复时，清除该聊天中所有后台未读消息的状态
+        let hasUnreadCleared = false;
+        chat.history.forEach(m => {
+            if (m.isUnread) {
+                delete m.isUnread; // 或者 m.isUnread = false
+                hasUnreadCleared = true;
+            }
+        });
+
+        // 如果有清除操作，立即移除DOM中的图标，无需重绘整个列表
+        if (hasUnreadCleared) {
+            const icons = document.querySelectorAll('.msg-unread-icon');
+            icons.forEach(el => el.remove());
         }
 
         chat.history.push(msg);

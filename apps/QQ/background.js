@@ -430,8 +430,19 @@ async function triggerInactiveAiAction(chatId) {
         当前时间是（${currentTime}），你和用户（${userNickname}）已经有${Math.round(timeSinceLastMessage)}分钟没有互动了。你的任务是回顾你们最近的对话，并根据你的人设，【自然地延续对话】或【开启一个新的、相关的话题】来主动联系用户。
         # 【对话节奏铁律 (至关重要！)】
         你的回复【必须】模拟真人的打字和思考习惯。每条消息最好不要超过30个字，这会让对话看起来更自然、更真实。
+        # 【时间流与未读消息生成规则 (新)】
+        本次行动不仅仅是发生在此刻，你可以规划从“上次互动结束”到“现在”的整个时间段内的行动。
+        1. **生成多条/多组消息**: 你可以模拟在这段空白期内，分多次发送消息。例如，刚分开时发几条，中间发几条，现在又发几条。
+        2. **时间标记**: 对于每条指令，你【必须】添加一个 \`"minutesAfterLastMsg"\` 字段 (整数)。
+           - 代表该消息是在“用户上一条消息发送后 X 分钟”发出的。
+           - 最后的行动消息 \`minutesAfterLastMsg\` 应该接近 ${Math.round(timeSinceLastMessage)} (即现在)。
+           - **逻辑连贯性**: 如果你在中间时间点发了消息，后续的消息必须建立在前文的基础上，不能发生时空冲突。
+           - 示例: 用户120分钟前没回。
+             - 消息1 ("在吗"): \`minutesAfterLastMsg: 30\`
+             - 消息2 ("是不是睡着了"): \`minutesAfterLastMsg: 40\`
+             - 消息3 ("晚安"): \`minutesAfterLastMsg: 120\` (现在)
         # 【【【输出铁律：这是最高指令】】】
-        你的回复【必须且只能】是一个严格的JSON数组格式的字符串，必须多发几条，禁止全部杂糅在一条，是在线上，例如 \`[{"type": "text", "content": "你好呀"}]\`。
+        你的回复【必须且只能】是一个严格的JSON数组格式的字符串，必须多发几条，禁止全部杂糅在一条，是在线上，例如 \`[{"type": "text", "content": "你好呀", "minutesAfterLastMsg": 120}]\`。
         【绝对禁止】返回任何JSON以外的文本、解释、分析或你自己的思考过程。你不是分析师，你就是角色本人。
         **1. JSON对象结构:**
         该JSON对象【**必须**】包含两个顶级键: "chatResponse" 和 "innerVoice"。
@@ -455,11 +466,13 @@ async function triggerInactiveAiAction(chatId) {
           "chatResponse": [
             {
               "type": "text",
-              "content": ""
+              "content": "",
+              "minutesAfterLastMsg": 100
             },
             {
               "type": "sticker",
-              "sticker_name": ""
+              "sticker_name": "",
+              "minutesAfterLastMsg": 0
             }
           ],
           "innerVoice": {
@@ -503,31 +516,32 @@ async function triggerInactiveAiAction(chatId) {
         -   **【新】在情侣空间分享电影**: \`[{"type": "ls_share", "shareType": "movie", "title": "电影名", "summary": "在这里写下这部电影的简介...", "thoughts": "在这里写下你分享这部电影的感想..."}]\`
         -   **【新】在情侣空间分享书籍**: \`[{"type": "ls_share", "shareType": "book", "title": "书名", "summary": "在这里写下这本书的简介...", "thoughts": "在这里写下你分享这本书的感想..."}]\`
 
-        # 供你决策的参考信息：
+        ### 供你决策的参考信息：
         -   **你的角色设定**: ${chat.settings.aiPersona}
         - 情侣空间状态: ${chat.loversSpaceData ? '已开启' : '未开启'}
         -   **【【【微博专属设定(必须严格遵守)】】】**
             - 你的微博职业: ${chat.settings.weiboProfession || '无'}
             - 你的微博指令: ${chat.settings.weiboInstruction || '无特殊指令'}
 
-		- **近期约定与倒计时**:
+		### **近期约定与倒计时**:
 		${countdownContext}
 
-		- **最近的微博互动**:
+		### **最近的微博互动**:
 		${weiboContextForAction}
 
-        - **近期动态**:
+        ### **近期动态**:
         ${postsContext}
 
-		- **世界观设定集**:
+		### **世界观设定集**:
 		${worldBookContext}
 
-        - **其他相关聊天记录（剧情参考）**:
-        ${linkedMemoryContext}
-
-        - **对话历史**
+        ### **当前聊天对话历史**
         ${recentContextSummary}
         ${summaryContext}
+
+        ### **其他相关聊天记录**:
+        - 以下聊天记录只能用于【剧情参考】，【绝对不能】在当前聊天中接续行动，也【不可以重复】类似对话至当前聊天当中。
+        ${linkedMemoryContext}
 
         `;
     let messagesPayload = [
@@ -597,13 +611,32 @@ async function triggerInactiveAiAction(chatId) {
                 renderChatList();
             }
             if (action.type === 'text' && action.content) {
-                const aiMessage = { role: 'assistant', content: String(action.content), timestamp: Date.now() };
+                // 计算消息时间戳
+                let msgTimestamp = Date.now();
+                if (typeof action.minutesAfterLastMsg === 'number' && lastMessage) {
+                    const startTimestamp = lastMessage.timestamp;
+                    const calculatedTime = startTimestamp + (action.minutesAfterLastMsg * 60 * 1000);
+                    // 确保时间在 [lastMessage + 1s, Date.now()] 范围内
+                    msgTimestamp = Math.min(Date.now(), Math.max(startTimestamp + 1000, calculatedTime));
+                }
+
+                const aiMessage = {
+                    role: 'assistant',
+                    content: String(action.content),
+                    timestamp: msgTimestamp,
+                    isUnread: true // 标记为后台未读消息，将在UI显示图标
+                };
+
                 chat.unreadCount = (chat.unreadCount || 0) + 1;
                 chat.history.push(aiMessage);
+
+                // 重新排序消息记录，确保时间线正确（虽然正常情况下应该是顺序的）
+                chat.history.sort((a, b) => a.timestamp - b.timestamp);
+
                 await db.chats.put(chat);
                 showNotification(chatId, aiMessage.content);
                 renderChatList();
-                console.log(`后台活动: 角色 "${chat.name}" 主动发送了消息: ${aiMessage.content}`);
+                console.log(`后台活动: 角色 "${chat.name}" 主动发送了消息: ${aiMessage.content} (Offset: ${action.minutesAfterLastMsg}m)`);
             }
             if (action.type === 'weibo_post') {
                 const newPost = {
@@ -944,10 +977,15 @@ async function triggerGroupAiAction(chatId) {
         const systemPrompt = `
         # 任务
         你是一个群聊后台模拟器。当前时间是${currentTime}，群聊 "${chat.name}" 已经沉寂了 ${Math.round(timeSinceLastMessage)} 分钟，用户(昵称: "${chat.settings.myNickname || '我'}")不在线。
-        你的任务是根据下方每个角色的人设，在他们之间【自发地】生成一段自然的对话。
+        你的任务是根据下方每个角色的人设，在他们之间【自发地】生成一段或【多段】自然的对话。
         # 【对话节奏铁律 (至关重要！)】
         你的回复【必须】模拟真人的打字和思考习惯。**绝对不要一次性发送一大段文字！** 每条消息最好不要超过30个字，这会让对话看起来更自然、更真实。
         **角色回复顺序不固定，【必须】交叉回复，例如角色A、角色B、角色B、角色A、角色C这样的交叉顺序。【绝对不要】不要一个人全部说完了才轮到下一个人。角色之间【必须】有互动对话。**
+        # 【时间流与未读消息生成规则 (新)】
+        1. **生成多条/多组消息**: 模拟在这段 ${Math.round(timeSinceLastMessage)} 分钟的空白期内，群成员之间的多轮互动。例如刚刚过去的 ${Math.round(timeSinceLastMessage)} 分钟内，可能发生多轮对话，每轮对话包含不同的但有逻辑顺序且【符合其他聊天剧情】的信息。
+        2. **时间标记**: 每条指令必须含 \`"minutesAfterLastMsg"\` 字段 (整数)。
+           - 代表该消息是在“用户最后一次能看到的消息(即上一条历史记录)之后 X 分钟”发出的。
+           - 最后的行动消息 \`minutesAfterLastMsg\` 应该接近 ${Math.round(timeSinceLastMessage)} (即现在)。
         # 核心规则
         1.  **【【【身份铁律】】】**: 整段对话必须是AI角色之间的互动。你的唯一任务是扮演【且仅能扮演】下方“群成员列表”中明确列出的角色。【绝对禁止】扮演任何未在“群成员列表”中出现的角色。
             # 群成员列表及人设 (name字段是你要使用的【本名】)
@@ -955,7 +993,7 @@ async function triggerGroupAiAction(chatId) {
         2.  **【【【输出格式】】】**: 你的回复【必须】是一个JSON数组格式的字符串。数组中的【每一个元素都必须是一个带有 "type" 和 "name" 字段的JSON对象】。
         3.  **角色扮演**: 严格遵守下方“群成员列表及人设”中的每一个角色的设定。
         4.  **禁止出戏**: 绝不能透露你是AI、模型，或提及“扮演”、“生成”等词语。
-        5.  **自然性**: 对话应该简短（2-5条消息即可），符合逻辑和角色性格。可以是闲聊、讨论某个话题，或者对之前聊天内容的延续。不要每次都生成所有人的发言。
+        5.  **自然性**: 对话应该简短，符合逻辑和角色性格。可以是闲聊、讨论某个话题，或者对之前聊天内容的延续。不要每次都生成所有人的发言。
 
         ## 你可以使用的操作指令 (JSON数组中的元素):
         -   **发送文本**: \`{"type": "text", "name": "角色名", "message": "文本内容"}\`
@@ -974,25 +1012,26 @@ async function triggerGroupAiAction(chatId) {
         -   例如: \`{"type": "pat_user", "name": "角色A", "targetName": "角色B"}\`
         -   系统会自动生成 "角色A 拍了拍 角色B" 的提示。
 
-        - **对话者(用户)角色设定**:
+        ### **对话者(用户)角色设定**:
 		- **${myNickname}**: ${chat.settings.myPersona}
 
-		- **当前音乐情景**:
+		### **当前音乐情景**:
 		${musicContext}
 
-		- **近期约定与倒计时**:
+		### **近期约定与倒计时**:
 		${countdownContext}
 
-		- **世界观设定集**:
+		### **世界观设定集**:
 		${worldBookContent}
 
-        - **其他相关聊天记录（剧情参考）**:
-        ${linkedMemoryContext}
-
-        - **对话历史**
+        ### **当前群聊对话历史**
         ${recentContextSummary}
         ${summaryContext}
 		${sharedContext}
+
+        ### **其他相关聊天记录**:
+        - 以下聊天记录只能用于【剧情参考】，【绝对不能】在当前聊天中接续行动，也【不可以重复】类似对话至当前聊天当中。
+        ${linkedMemoryContext}
 
         现在，请严格遵守以上所有规则，开始你的模拟。`;
 
@@ -1027,11 +1066,24 @@ async function triggerGroupAiAction(chatId) {
 
             messagesArray.forEach((msgData, index) => {
                 if (msgData.name && msgData.message) {
+                    let msgTimestamp = Date.now();
+                    // 处理时间偏移
+                    if (typeof msgData.minutesAfterLastMsg === 'number' && lastMessage) {
+                        const startTimestamp = lastMessage.timestamp;
+                        const calculatedTime = startTimestamp + (msgData.minutesAfterLastMsg * 60 * 1000);
+                        // Clamp to [lastMessage + 1s, Date.now()]
+                        msgTimestamp = Math.min(Date.now(), Math.max(startTimestamp + 1000, calculatedTime));
+                    } else {
+                        // Fallback: 如果没有指定偏移，就用递增的当前时间 (避免重复)
+                        msgTimestamp = messageTimestamp++;
+                    }
+
                     const aiMessage = {
                         role: 'assistant',
                         senderName: msgData.name,
                         content: String(msgData.message),
-                        timestamp: messageTimestamp++,
+                        timestamp: msgTimestamp,
+                        isUnread: true // 标记未读
                     };
                     chat.history.push(aiMessage);
                     if (index === 0) {
@@ -1039,6 +1091,9 @@ async function triggerGroupAiAction(chatId) {
                     }
                 }
             });
+
+            // 排序以防万一
+            chat.history.sort((a, b) => a.timestamp - b.timestamp);
 
             // 更新此群聊的最后活动时间戳
             chat.settings.backgroundActivity.lastActivityTimestamp = Date.now();
