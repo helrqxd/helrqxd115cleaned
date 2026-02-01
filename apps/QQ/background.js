@@ -740,7 +740,18 @@ async function triggerInactiveAiAction(chatId) {
                     chat.history.sort((a, b) => a.timestamp - b.timestamp);
 
                     await db.chats.put(chat);
-                    const logContent = aiMessage.content || aiMessage.description || '[Media]';
+
+                    let logContent = '[新消息]';
+                    if (aiMessage.type === 'sticker') {
+                        logContent = '[表情]';
+                    } else if (aiMessage.type === 'ai_image') {
+                        logContent = '[图片]';
+                    } else if (aiMessage.content) {
+                        logContent = aiMessage.content;
+                    } else if (aiMessage.description) {
+                        logContent = aiMessage.description;
+                    }
+
                     showNotification(chatId, logContent);
                     renderChatList();
                     console.log(`后台活动: 角色 "${chat.name}" 发送消息: ${logContent} (${action.type}) At: ${new Date(msgTimestamp).toLocaleString()}`);
@@ -1129,7 +1140,8 @@ async function triggerGroupAiAction(chatId) {
         // updated by lrq 251027
         const systemPrompt = `
         # 任务
-        你是一个群聊后台模拟器。当前日期时间是（${currentFullTime}），群聊 "${chat.name}" 已经沉寂了 ${Math.round(timeSinceLastMessage)} 分钟(上一条消息时间：${lastMessageTimeStr})，用户(昵称: "${chat.settings.myNickname || '我'}")不在线。
+        你是一个群聊后台模拟器，在当前群聊"${chat.name}"中，负责扮演下方【群成员列表】当中的角色。
+        当前日期时间是（${currentFullTime}），群聊 "${chat.name}" 已经沉寂了 ${Math.round(timeSinceLastMessage)} 分钟(上一条消息时间：${lastMessageTimeStr})，用户(昵称: "${chat.settings.myNickname || '我'}")不在线。
         你的任务是根据下方每个角色的人设，在他们之间【自发地】生成一段或【多段】自然的对话。
         # 【对话节奏铁律 (至关重要！)】
         你的回复【必须】模拟真人的打字和思考习惯。**绝对不要一次性发送一大段文字！** 每条消息最好不要超过30个字，这会让对话看起来更自然、更真实。
@@ -1148,7 +1160,7 @@ async function triggerGroupAiAction(chatId) {
             # 群成员列表及人设 (name字段是你要使用的【本名】)
             ${chat.members.map((m) => `- **${m.originalName}**: (群昵称为: ${m.groupNickname}) 人设: ${m.persona}`).join('\n')}
         2.  **【【【输出格式】】】**: 你的回复【必须】是一个JSON数组格式的字符串。数组中的【每一个元素都必须是一个带有 "type" 和 "name" 字段的JSON对象】。
-        3.  **角色扮演**: 严格遵守下方“群成员列表及人设”中的每一个角色的设定。
+        3.  **角色扮演**: 严格遵守下方“群成员列表及人设”中的每一个角色的设定。用户的身份是【${myNickname}】。你【绝对、永远、在任何情况下都不能】生成 \`name\` 字段为 **"${myNickname}"** 的消息。
         4.  **禁止出戏**: 绝不能透露你是AI、模型，或提及“扮演”、“生成”等词语。
         5.  **自然性**: 对话应该简短，符合逻辑和角色性格。可以是闲聊、讨论某个话题，或者对之前聊天内容的延续。不要每次都生成所有人的发言。
 
@@ -1322,7 +1334,7 @@ async function triggerGroupAiAction(chatId) {
                             aiMessage = {
                                 ...baseMessage,
                                 role: 'system', // 标记为系统消息以便特殊渲染
-                                type: 'system',
+                                type: 'pat_message',
                                 content: `"${msgData.name}" 拍了拍 "${msgData.targetName}" ${msgData.suffix || ''}`
                             };
                         }
@@ -1361,7 +1373,23 @@ async function triggerGroupAiAction(chatId) {
                     chat.history.push(aiMessage);
                     if (index === 0) {
                         // 简略日志
-                        firstMessageContent = `[${msgData.type}] ${msgData.message || msgData.description || '...'}`;
+                        if (msgData.type === 'text') {
+                            firstMessageContent = `${msgData.name}: ${msgData.message}`;
+                        } else if (msgData.type === 'sticker') {
+                            firstMessageContent = `${msgData.name}: [表情]`;
+                        } else if (msgData.type === 'ai_image') {
+                            firstMessageContent = `${msgData.name}: [图片]`;
+                        } else if (msgData.type === 'voice_message') {
+                            firstMessageContent = `${msgData.name}: [语音]`;
+                        } else if (msgData.type === 'pat_user') {
+                            firstMessageContent = `"${msgData.name}" 拍了拍 "${msgData.targetName}"`;
+                        } else if (msgData.type === 'red_packet') {
+                            firstMessageContent = `${msgData.name}: [红包]`;
+                        } else if (msgData.type === 'poll') {
+                            firstMessageContent = `${msgData.name}: [投票] ${msgData.question}`;
+                        } else {
+                            firstMessageContent = `${msgData.name}: [新消息]`;
+                        }
                     }
                 }
             });

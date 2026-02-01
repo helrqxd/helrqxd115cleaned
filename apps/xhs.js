@@ -699,6 +699,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const closeBtn = modal.querySelector('.close-btn');
 
         modal.style.display = 'block';
+        modal.style.zIndex = '2000'; // 确保在详情页(z-index: 1000)之上
 
         const renderList = () => {
             list.innerHTML = '';
@@ -908,6 +909,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 获取所有笔记
         let notes = await window.db.xhsNotes.toArray();
+
+        // 过滤掉搜索生成的临时笔记，不显示在主页
+        notes = notes.filter(n => !n.isSearchResult);
 
         // 排序：未读(isNew=true)在前，然后按时间倒序
         notes.sort((a, b) => {
@@ -1403,8 +1407,15 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 await Promise.all(result.notes.map(async (note) => {
                     note.id = (Date.now() + Math.random()).toString(36);
-                    note.timestamp = now;
+
+                    // 优化时间逻辑：生成过去168小时内的随机时间，避免全部是“刚刚”
+                    const randomOffset = Math.floor(Math.random() * 168 * 60 * 60 * 1000);
+                    note.timestamp = now - randomOffset;
+                    note.dateStr = formatXhsDate(note.timestamp);
+
                     note.isNew = true;
+                    // 标记为搜索结果，主页加载时过滤掉
+                    note.isSearchResult = true;
                     if (!note.authorAvatar) {
                         note.authorAvatar = `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(note.authorName)}`;
                     }
@@ -1416,9 +1427,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     if (note.comments) {
                         note.comments.forEach(c => {
-                            c.timestamp = now;
-                            c.dateStr = formatXhsDate(now);
+                            // 评论时间：在笔记发布后到现在的随机时间
+                            const timeRange = now - note.timestamp;
+                            const commentOffset = Math.floor(Math.random() * timeRange);
+                            c.timestamp = note.timestamp + commentOffset;
+                            c.dateStr = formatXhsDate(c.timestamp);
                         });
+                        // 按时间排序
+                        note.comments.sort((a, b) => a.timestamp - b.timestamp);
                     }
                 }));
 
@@ -1436,6 +1452,13 @@ document.addEventListener('DOMContentLoaded', () => {
                         card.onclick = () => openXhsNoteDetail(note);
                         return card;
                     });
+
+                    // 修复滚动：强制 height:100% 配合 flex:1 (flex-shrink会自动调整)，去除margin防止遮挡
+                    resultsContainer.style.height = '100%';
+                    resultsContainer.style.flex = '1';
+                    resultsContainer.style.overflowY = 'auto';
+                    resultsContainer.style.marginBottom = '0';
+                    resultsContainer.style.paddingBottom = '150px'; // 增加底部留白，确保最后的内容不被遮挡
                 }
                 return true;
             }
@@ -1811,6 +1834,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         renderComments();
+        views.noteDetail.style.zIndex = '1000'; // 确保在搜索页之上
         views.noteDetail.style.display = 'flex';
     }
 
@@ -1999,7 +2023,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const resultsContainer = document.getElementById('xhs-search-results');
                 if (resultsContainer) {
-                    resultsContainer.innerHTML = '<div class="xhs-loading-text" style="text-align:center; padding:20px; color:#999;">正在生成相关笔记...<br>这可能需要几十秒钟</div>';
+                    // 暂时清除瀑布流样式以居中显示Loading
+                    resultsContainer.classList.remove('xhs-waterfall');
+                    resultsContainer.style.display = 'flex';
+                    resultsContainer.style.flexDirection = 'column';
+                    resultsContainer.style.justifyContent = 'center';
+                    resultsContainer.style.alignItems = 'center';
+                    resultsContainer.style.height = '100%';
+
+                    resultsContainer.innerHTML = `
+                        <div class="xhs-loading-state" style="text-align: center;">
+                            <svg class="xhs-loading-spinner" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ff2442" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="animation: spin 1s linear infinite;">
+                                <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
+                            </svg>
+                            <p style="margin-top: 15px; font-size: 15px; font-weight: 500; color: #333;">正在挖掘宝藏笔记...</p>
+                            <p style="margin-top: 5px; font-size: 12px; color: #999;">AI 正在创作中，请耐心等待 10-20 秒</p>
+                        </div>
+                    `;
                 }
 
                 const success = await generateXhsSearchNotes(val);
