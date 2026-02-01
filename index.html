@@ -435,7 +435,7 @@
 								<span id="xhs-detail-name" class="author-name">用户名</span>
 								<button class="follow-btn">关注</button>
 							</div>
-							<div class="right">
+							<div class="right" id="xhs-detail-share-btn" style="cursor: pointer">
 								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2">
 									<circle cx="12" cy="12" r="1"></circle>
 									<circle cx="19" cy="12" r="1"></circle>
@@ -462,7 +462,16 @@
 
 							<!-- 评论区 -->
 							<div class="xhs-detail-comments">
-								<div class="comment-count-label">共 <span id="xhs-detail-comment-count">0</span> 条评论</div>
+								<div class="comment-count-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px">
+									<div class="comment-count-label" style="margin-bottom: 0">共 <span id="xhs-detail-comment-count">0</span> 条评论</div>
+									<button id="xhs-generate-comments-btn" class="xhs-generate-comments-btn" title="生成新评论">
+										<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+											<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+											<path d="M12 8v4M12 16h.01"></path>
+										</svg>
+										<span>生成评论</span>
+									</button>
+								</div>
 								<div id="xhs-detail-comment-list">
 									<!-- 评论列表 JS 生成 -->
 								</div>
@@ -496,27 +505,163 @@
 						</div>
 					</div>
 
+					<!-- 角色主页视图 (他人主页) -->
+					<div id="xhs-user-profile-view" class="xhs-view xhs-user-profile-view" style="display: none">
+						<!-- 顶部导航栏 -->
+						<div class="xhs-user-profile-topbar">
+							<div class="xhs-user-profile-back" id="xhs-user-profile-back-btn">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M15 18l-6-6 6-6" /></svg>
+							</div>
+							<div class="xhs-user-profile-topbar-right">
+								<div class="xhs-user-refresh-btn" id="xhs-user-refresh-btn" style="padding: 8px; cursor: pointer">
+									<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<path d="M23 4v6h-6"></path>
+										<path d="M1 20v-6h6"></path>
+										<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+									</svg>
+								</div>
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2" style="padding: 8px">
+									<circle cx="12" cy="12" r="1"></circle>
+									<circle cx="19" cy="12" r="1"></circle>
+									<circle cx="5" cy="12" r="1"></circle>
+								</svg>
+							</div>
+						</div>
+
+						<!-- 可滚动内容区 -->
+						<div class="xhs-user-profile-scroll">
+							<!-- 头部信息区 -->
+							<div class="xhs-user-profile-header">
+								<!-- 头像区域 -->
+								<div class="xhs-user-avatar-section">
+									<img id="xhs-user-avatar" class="xhs-user-avatar" src="" alt="头像" />
+								</div>
+
+								<!-- 用户信息 -->
+								<div class="xhs-user-info-section">
+									<div class="xhs-user-nickname" id="xhs-user-nickname">用户昵称</div>
+									<div class="xhs-user-xhsid">小红书号：<span id="xhs-user-xhsid">123456789</span></div>
+									<div class="xhs-user-bio" id="xhs-user-bio">这个人很懒，什么都没写~</div>
+									<div class="xhs-user-tags" id="xhs-user-tags">
+										<!-- 标签由JS生成 -->
+									</div>
+								</div>
+
+								<!-- 统计数据 -->
+								<div class="xhs-user-stats">
+									<div class="xhs-user-stat-item">
+										<div class="xhs-user-stat-num" id="xhs-user-stat-follow">0</div>
+										<div class="xhs-user-stat-label">关注</div>
+									</div>
+									<div class="xhs-user-stat-item">
+										<div class="xhs-user-stat-num" id="xhs-user-stat-fans">0</div>
+										<div class="xhs-user-stat-label">粉丝</div>
+									</div>
+									<div class="xhs-user-stat-item">
+										<div class="xhs-user-stat-num" id="xhs-user-stat-likes">0</div>
+										<div class="xhs-user-stat-label">获赞与收藏</div>
+									</div>
+								</div>
+
+								<!-- 操作按钮 -->
+								<div class="xhs-user-action-btns">
+									<button class="xhs-user-follow-btn" id="xhs-user-follow-btn">
+										<span>+ 关注</span>
+									</button>
+									<button class="xhs-user-msg-btn" id="xhs-user-msg-btn">
+										<span>私信</span>
+									</button>
+								</div>
+							</div>
+
+							<!-- 标签页切换 -->
+							<div class="xhs-user-profile-tabs">
+								<div class="xhs-user-profile-tab active" data-tab="notes">笔记</div>
+								<div class="xhs-user-profile-tab" data-tab="comments">评论</div>
+								<div class="xhs-user-profile-tab" data-tab="collects">收藏</div>
+							</div>
+
+							<!-- 内容区域 -->
+							<div class="xhs-user-profile-content">
+								<div id="xhs-user-notes-grid" class="xhs-waterfall" style="padding: 10px">
+									<!-- 角色笔记列表由JS生成 -->
+								</div>
+								<div id="xhs-user-comments-grid" style="padding: 10px; display: none">
+									<!-- 角色评论列表由JS生成 -->
+								</div>
+								<div id="xhs-user-collects-grid" class="xhs-waterfall" style="padding: 10px; display: none">
+									<!-- 角色收藏列表由JS生成 -->
+								</div>
+							</div>
+						</div>
+					</div>
+
 					<!-- 2. 消息页面 -->
 					<div id="xhs-message-view" class="xhs-view" style="display: none; height: 100%; overflow-y: auto">
 						<div class="header" style="justify-content: center">消息</div>
 
 						<div class="xhs-msg-header">
-							<div class="xhs-msg-action">
-								<div class="xhs-action-box bg-pink">❤</div>
+							<div class="xhs-msg-action" id="xhs-likes-collects-btn">
+								<div class="xhs-action-box-new">
+									<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff2442" stroke-width="2">
+										<path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+									</svg>
+									<span class="xhs-badge" id="xhs-likes-badge" style="display: none">0</span>
+								</div>
 								<span>赞和收藏</span>
 							</div>
-							<div class="xhs-msg-action">
-								<div class="xhs-action-box bg-blue">👤</div>
+							<div class="xhs-msg-action" id="xhs-new-follows-btn">
+								<div class="xhs-action-box-new">
+									<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#60a5fa" stroke-width="2">
+										<path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+										<circle cx="8.5" cy="7" r="4"></circle>
+										<line x1="20" y1="8" x2="20" y2="14"></line>
+										<line x1="23" y1="11" x2="17" y2="11"></line>
+									</svg>
+								</div>
 								<span>新增关注</span>
 							</div>
-							<div class="xhs-msg-action">
-								<div class="xhs-action-box bg-green">💬</div>
+							<div class="xhs-msg-action" id="xhs-comments-at-btn">
+								<div class="xhs-action-box-new">
+									<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#4ade80" stroke-width="2">
+										<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+									</svg>
+									<span class="xhs-badge" id="xhs-comments-badge" style="display: none">0</span>
+								</div>
 								<span>评论和@</span>
 							</div>
 						</div>
 
 						<div id="xhs-messages-list" class="xhs-dm-list">
 							<!-- 私信列表由JS生成 -->
+						</div>
+					</div>
+
+					<!-- 赞和收藏详情页 -->
+					<div id="xhs-likes-collects-view" class="xhs-view" style="display: none; height: 100%; background: #f5f5f5">
+						<div class="xhs-sub-header">
+							<svg class="xhs-back-btn" id="xhs-likes-back" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<polyline points="15 18 9 12 15 6"></polyline>
+							</svg>
+							<span>赞和收藏</span>
+							<div style="width: 24px"></div>
+						</div>
+						<div id="xhs-likes-collects-list" class="xhs-notification-list">
+							<!-- 点赞收藏记录由JS生成 -->
+						</div>
+					</div>
+
+					<!-- 评论和@详情页 -->
+					<div id="xhs-comments-at-view" class="xhs-view" style="display: none; height: 100%; background: #f5f5f5">
+						<div class="xhs-sub-header">
+							<svg class="xhs-back-btn" id="xhs-comments-back" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<polyline points="15 18 9 12 15 6"></polyline>
+							</svg>
+							<span>评论和@</span>
+							<div style="width: 24px"></div>
+						</div>
+						<div id="xhs-comments-at-list" class="xhs-notification-list">
+							<!-- 评论@记录由JS生成 -->
 						</div>
 					</div>
 
@@ -639,23 +784,303 @@
 				</div>
 
 				<!-- 发布笔记界面 -->
-				<div id="xhs-create-view" class="screen" style="z-index: 100">
-					<div class="header" style="background: transparent; color: #fff; border: none">
-						<span onclick="closeXhsCreator()">×</span>
-						<span>发布笔记</span>
-						<span style="color: var(--xhs-red)" onclick="publishXhsNote()">发布</span>
-					</div>
-					<div class="xhs-editor-main">
-						<div style="text-align: center; color: #999">
-							<p>点击上传图片或输入文字</p>
-							<!-- 实际功能需JS实现 -->
+				<div id="xhs-create-view" class="screen" style="z-index: 100; display: none">
+					<!-- 步骤1: 选择封面类型 -->
+					<div id="xhs-create-step1" class="xhs-create-step active">
+						<div class="xhs-create-header">
+							<span class="xhs-create-close" id="xhs-create-close-btn">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+							</span>
+							<span class="xhs-create-title">选择封面</span>
+							<span class="xhs-create-placeholder"></span>
+						</div>
+						<div class="xhs-create-cover-options">
+							<div class="xhs-cover-option" data-type="text">
+								<div class="xhs-cover-option-icon">
+									<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ff2442" stroke-width="1.5">
+										<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+										<polyline points="14 2 14 8 20 8"></polyline>
+										<line x1="16" y1="13" x2="8" y2="13"></line>
+										<line x1="16" y1="17" x2="8" y2="17"></line>
+										<polyline points="10 9 9 9 8 9"></polyline>
+									</svg>
+								</div>
+								<span class="xhs-cover-option-text">文字图</span>
+								<span class="xhs-cover-option-desc">选择纹理背景+标题</span>
+							</div>
+							<div class="xhs-cover-option" data-type="upload">
+								<div class="xhs-cover-option-icon">
+									<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ff2442" stroke-width="1.5">
+										<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+										<circle cx="8.5" cy="8.5" r="1.5"></circle>
+										<polyline points="21 15 16 10 5 21"></polyline>
+									</svg>
+								</div>
+								<span class="xhs-cover-option-text">上传图片</span>
+								<span class="xhs-cover-option-desc">本地图片或URL</span>
+							</div>
+							<div class="xhs-cover-option" data-type="ai">
+								<div class="xhs-cover-option-icon">
+									<svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#ff2442" stroke-width="1.5">
+										<path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+										<path d="M2 17l10 5 10-5"></path>
+										<path d="M2 12l10 5 10-5"></path>
+									</svg>
+								</div>
+								<span class="xhs-cover-option-text">AI生成</span>
+								<span class="xhs-cover-option-desc">智能生成封面图</span>
+							</div>
 						</div>
 					</div>
-					<div class="xhs-editor-controls">
-						<!-- 滤镜、标签等按钮 -->
-						<span>滤镜</span>
-						<span>标签</span>
-						<span>文字</span>
+
+					<!-- 步骤2a: 文字图 - 选择纹理背景 -->
+					<div id="xhs-create-step2-text" class="xhs-create-step">
+						<div class="xhs-create-header">
+							<span class="xhs-create-back" data-back="step1">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M15 18l-6-6 6-6" /></svg>
+							</span>
+							<span class="xhs-create-title">文字图</span>
+							<span class="xhs-create-next" id="xhs-text-cover-next">下一步</span>
+						</div>
+						<div class="xhs-text-cover-preview">
+							<div id="xhs-text-cover-canvas" class="xhs-text-cover-canvas">
+								<span id="xhs-text-cover-title-preview">在此输入标题</span>
+							</div>
+						</div>
+						<div class="xhs-text-cover-input-wrap">
+							<input type="text" id="xhs-text-cover-title-input" class="xhs-text-cover-input" placeholder="输入标题文字..." maxlength="30" />
+						</div>
+						<div class="xhs-texture-section">
+							<div class="xhs-texture-label">选择背景纹理</div>
+							<div class="xhs-texture-list" id="xhs-texture-list">
+								<!-- 纹理选项由JS生成 -->
+							</div>
+							<div class="xhs-texture-upload-section">
+								<div class="xhs-texture-label">或上传自定义背景</div>
+								<div class="xhs-texture-upload-wrap">
+									<button id="xhs-texture-upload-btn" class="xhs-texture-upload-btn">
+										<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+											<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+											<polyline points="17 8 12 3 7 8"></polyline>
+											<line x1="12" y1="3" x2="12" y2="15"></line>
+										</svg>
+										<span>上传背景图</span>
+									</button>
+									<input type="file" id="xhs-texture-upload-input" accept="image/*" style="display: none" />
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- 步骤2b: 上传图片/URL -->
+					<div id="xhs-create-step2-upload" class="xhs-create-step">
+						<div class="xhs-create-header">
+							<span class="xhs-create-back" data-back="step1">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M15 18l-6-6 6-6" /></svg>
+							</span>
+							<span class="xhs-create-title">上传图片</span>
+							<span class="xhs-create-next" id="xhs-upload-next" style="opacity: 0.5">下一步</span>
+						</div>
+						<div class="xhs-upload-area" id="xhs-upload-area">
+							<div class="xhs-upload-placeholder" id="xhs-upload-placeholder">
+								<svg width="60" height="60" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5">
+									<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+									<polyline points="17 8 12 3 7 8"></polyline>
+									<line x1="12" y1="3" x2="12" y2="15"></line>
+								</svg>
+								<span>点击上传图片</span>
+								<span class="xhs-upload-sub">或拖拽图片到此处</span>
+							</div>
+							<img id="xhs-upload-preview" class="xhs-upload-preview" style="display: none" />
+							<input type="file" id="xhs-upload-input" accept="image/*" style="display: none" />
+						</div>
+						<div class="xhs-url-input-section">
+							<div class="xhs-url-label">或输入图片URL</div>
+							<div class="xhs-url-input-wrap">
+								<input type="text" id="xhs-url-input" class="xhs-url-input" placeholder="https://example.com/image.jpg" />
+								<button id="xhs-url-load-btn" class="xhs-url-load-btn">加载</button>
+							</div>
+						</div>
+					</div>
+
+					<!-- 步骤2c: AI生成图片 -->
+					<div id="xhs-create-step2-ai" class="xhs-create-step">
+						<div class="xhs-create-header">
+							<span class="xhs-create-back" data-back="step1">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M15 18l-6-6 6-6" /></svg>
+							</span>
+							<span class="xhs-create-title">AI生成封面</span>
+							<span class="xhs-create-next" id="xhs-ai-next" style="opacity: 0.5">下一步</span>
+						</div>
+						<div class="xhs-ai-preview-area">
+							<div id="xhs-ai-preview-placeholder" class="xhs-ai-preview-placeholder">
+								<svg width="80" height="80" viewBox="0 0 24 24" fill="none" stroke="#ddd" stroke-width="1">
+									<rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+									<circle cx="8.5" cy="8.5" r="1.5"></circle>
+									<polyline points="21 15 16 10 5 21"></polyline>
+								</svg>
+								<span>AI生成的图片将显示在这里</span>
+							</div>
+							<img id="xhs-ai-preview-img" class="xhs-ai-preview-img" style="display: none" />
+						</div>
+						<div class="xhs-ai-prompt-section">
+							<div class="xhs-ai-prompt-label">描述你想要的封面（英文效果更佳）</div>
+							<textarea id="xhs-ai-prompt-input" class="xhs-ai-prompt-input" placeholder="例如：aesthetic coffee shop, cozy atmosphere, warm lighting, minimalist style"></textarea>
+							<button id="xhs-ai-generate-btn" class="xhs-ai-generate-btn">
+								<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M12 2L2 7l10 5 10-5-10-5z"></path>
+									<path d="M2 17l10 5 10-5"></path>
+									<path d="M2 12l10 5 10-5"></path>
+								</svg>
+								<span>生成图片</span>
+							</button>
+						</div>
+					</div>
+
+					<!-- 步骤2d: 图片裁剪 -->
+					<div id="xhs-create-step2-crop" class="xhs-create-step">
+						<div class="xhs-create-header">
+							<span class="xhs-create-back" data-back="step2-upload">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M15 18l-6-6 6-6" /></svg>
+							</span>
+							<span class="xhs-create-title">裁剪图片</span>
+							<span class="xhs-create-next" id="xhs-crop-next">确认裁剪</span>
+						</div>
+						<div class="xhs-crop-container" id="xhs-crop-container">
+							<div class="xhs-crop-image-wrap" id="xhs-crop-image-wrap">
+								<img id="xhs-crop-image" class="xhs-crop-image" src="" />
+								<div class="xhs-crop-overlay">
+									<div class="xhs-crop-frame" id="xhs-crop-frame">
+										<div class="xhs-crop-corner top-left"></div>
+										<div class="xhs-crop-corner top-right"></div>
+										<div class="xhs-crop-corner bottom-left"></div>
+										<div class="xhs-crop-corner bottom-right"></div>
+									</div>
+								</div>
+							</div>
+						</div>
+						<div class="xhs-crop-tips">
+							<span>拖动图片调整位置，双指缩放调整大小</span>
+						</div>
+						<div class="xhs-crop-ratio-options">
+							<div class="xhs-crop-ratio active" data-ratio="3:4">3:4</div>
+							<div class="xhs-crop-ratio" data-ratio="1:1">1:1</div>
+							<div class="xhs-crop-ratio" data-ratio="4:3">4:3</div>
+						</div>
+					</div>
+
+					<!-- 步骤3: 编辑内容 -->
+					<div id="xhs-create-step3" class="xhs-create-step">
+						<div class="xhs-create-header">
+							<span class="xhs-create-back" id="xhs-content-back">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M15 18l-6-6 6-6" /></svg>
+							</span>
+							<span class="xhs-create-title">编辑笔记</span>
+							<span class="xhs-create-publish" id="xhs-publish-btn">发布</span>
+						</div>
+						<div class="xhs-content-scroll">
+							<div class="xhs-final-cover-preview">
+								<img id="xhs-final-cover-img" class="xhs-final-cover-img" src="" />
+								<div class="xhs-change-cover-btn" id="xhs-change-cover-btn">
+									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
+										<path d="M23 4v6h-6"></path>
+										<path d="M1 20v-6h6"></path>
+										<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+									</svg>
+									<span>更换</span>
+								</div>
+							</div>
+							<div class="xhs-content-form">
+								<div class="xhs-form-item">
+									<input type="text" id="xhs-note-title-input" class="xhs-note-title-input" placeholder="填写标题会有更多赞哦~" maxlength="20" />
+									<span class="xhs-title-count"><span id="xhs-title-count-num">0</span>/20</span>
+								</div>
+								<div class="xhs-form-item">
+									<textarea id="xhs-note-content-input" class="xhs-note-content-input" placeholder="添加正文（可@好友，添加话题#）" maxlength="1000"></textarea>
+									<span class="xhs-content-count"><span id="xhs-content-count-num">0</span>/1000</span>
+								</div>
+								<div class="xhs-form-item xhs-tags-section">
+									<div class="xhs-tags-label">
+										<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff2442" stroke-width="2">
+											<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"></path>
+											<line x1="7" y1="7" x2="7.01" y2="7"></line>
+										</svg>
+										<span>添加话题</span>
+									</div>
+									<div class="xhs-tags-container" id="xhs-tags-container">
+										<!-- 标签由JS动态添加 -->
+									</div>
+									<div class="xhs-tag-input-wrap">
+										<input type="text" id="xhs-tag-input" class="xhs-tag-input" placeholder="输入话题，按回车添加" />
+									</div>
+								</div>
+								<div class="xhs-form-item xhs-location-section" id="xhs-location-section">
+									<div class="xhs-location-label">
+										<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#ff2442" stroke-width="2">
+											<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+											<circle cx="12" cy="10" r="3"></circle>
+										</svg>
+										<span>添加地点</span>
+									</div>
+									<div class="xhs-location-value" id="xhs-location-value">
+										<span id="xhs-location-text">点击选择地点</span>
+										<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M9 18l6-6-6-6" /></svg>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+
+					<!-- 地点选择弹窗 -->
+					<div id="xhs-location-modal" class="xhs-location-modal" style="display: none">
+						<div class="xhs-location-modal-content">
+							<div class="xhs-location-modal-header">
+								<span class="xhs-location-modal-close" id="xhs-location-modal-close">×</span>
+								<span>选择地点</span>
+								<span class="xhs-location-modal-placeholder"></span>
+							</div>
+							<div class="xhs-location-input-section">
+								<div class="xhs-location-input-wrap">
+									<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#ff2442" stroke-width="2">
+										<path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+										<circle cx="12" cy="10" r="3"></circle>
+									</svg>
+									<input type="text" id="xhs-location-input" class="xhs-location-input" placeholder="输入地点名称..." maxlength="30" />
+									<button id="xhs-location-confirm-btn" class="xhs-location-confirm-btn">确定</button>
+								</div>
+							</div>
+							<div class="xhs-location-list" id="xhs-location-list">
+								<div class="xhs-location-item" data-location="不显示位置">
+									<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2">
+										<line x1="18" y1="6" x2="6" y2="18"></line>
+										<line x1="6" y1="6" x2="18" y2="18"></line>
+									</svg>
+									<span>不显示位置</span>
+								</div>
+								<!-- 地点列表由JS动态生成 -->
+							</div>
+						</div>
+					</div>
+
+					<!-- @角色选择弹窗 -->
+					<div id="xhs-mention-modal" class="xhs-mention-modal" style="display: none">
+						<div class="xhs-mention-modal-content">
+							<div class="xhs-mention-modal-header">
+								<span class="xhs-mention-modal-close" id="xhs-mention-modal-close">×</span>
+								<span>选择要@的角色</span>
+								<span class="xhs-mention-modal-placeholder"></span>
+							</div>
+							<div class="xhs-mention-search-wrap">
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2">
+									<circle cx="11" cy="11" r="8"></circle>
+									<line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+								</svg>
+								<input type="text" id="xhs-mention-search" class="xhs-mention-search" placeholder="搜索角色" />
+							</div>
+							<div class="xhs-mention-list" id="xhs-mention-list">
+								<!-- 角色列表由JS动态生成 -->
+							</div>
+						</div>
 					</div>
 				</div>
 			</div>
@@ -4178,6 +4603,48 @@
 				</div>
 				<div class="modal-footer">
 					<button class="save" id="close-shared-history-viewer-btn" style="width: 100%">关闭</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- 小红书笔记详情查看器模态框 -->
+		<div id="xhs-note-viewer-modal" class="modal">
+			<div class="modal-content xhs-note-viewer-content">
+				<div class="modal-header xhs-note-viewer-header">
+					<div class="xhs-note-viewer-author">
+						<img id="xhs-note-viewer-avatar" src="" class="xhs-note-viewer-avatar" />
+						<span id="xhs-note-viewer-author-name">作者</span>
+					</div>
+					<span class="xhs-note-viewer-tag">小红书</span>
+				</div>
+				<div class="modal-body xhs-note-viewer-body" id="xhs-note-viewer-body">
+					<div id="xhs-note-viewer-cover-wrap">
+						<img id="xhs-note-viewer-cover" src="" class="xhs-note-viewer-cover" />
+					</div>
+					<div class="xhs-note-viewer-info">
+						<h2 id="xhs-note-viewer-title">笔记标题</h2>
+						<div id="xhs-note-viewer-content" class="xhs-note-viewer-text"></div>
+						<div id="xhs-note-viewer-tags" class="xhs-note-viewer-tags"></div>
+						<div class="xhs-note-viewer-meta">
+							<span id="xhs-note-viewer-date"></span>
+							<span id="xhs-note-viewer-location"></span>
+						</div>
+						<div class="xhs-note-viewer-stats">
+							<span>❤️ <span id="xhs-note-viewer-likes">0</span></span>
+							<span>⭐ <span id="xhs-note-viewer-collects">0</span></span>
+						</div>
+						<!-- 评论区域 -->
+						<div id="xhs-note-viewer-comments-section" class="xhs-note-viewer-comments-section">
+							<div class="xhs-note-viewer-comments-header">
+								<span>💬 评论</span>
+								<span id="xhs-note-viewer-comments-count">0</span>
+							</div>
+							<div id="xhs-note-viewer-comments-list" class="xhs-note-viewer-comments-list"></div>
+						</div>
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button class="save" id="close-xhs-note-viewer-btn" style="width: 100%">关闭</button>
 				</div>
 			</div>
 		</div>

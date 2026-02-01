@@ -18,8 +18,18 @@ document.addEventListener('DOMContentLoaded', () => {
         message: document.getElementById('xhs-message-view'),
         profile: document.getElementById('xhs-profile-view'),
         noteDetail: document.getElementById('xhs-note-detail-view'), // 详情页视图
+        userProfile: document.getElementById('xhs-user-profile-view'), // 他人主页视图
         video: null
     };
+
+    // z-index管理器 - 确保最新打开的视图始终在最上面
+    let currentZIndex = 1000;
+    function bringToFront(viewElement) {
+        if (viewElement) {
+            currentZIndex += 10;
+            viewElement.style.zIndex = currentZIndex;
+        }
+    }
 
     // 顶部导航
     const topTabItems = document.querySelectorAll('.xhs-top-tabs .tab-item');
@@ -294,7 +304,23 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 数据统计
         const followEl = document.getElementById('xhs-stat-follow');
-        if (followEl) followEl.textContent = s.followCount || "0";
+        if (followEl) {
+            // 计算实际关注数（已关注的角色主页数量）
+            const profiles = s.characterProfiles || {};
+            const followedCount = Object.values(profiles).filter(p => p.isFollowed).length;
+            followEl.textContent = followedCount || "0";
+
+            // 绑定点击事件打开关注列表 - 整个stat-box区域都可点击（包括数字和"关注"文字）
+            const followStatBox = followEl.closest('.stat-box');
+            if (followStatBox) {
+                followStatBox.style.cursor = 'pointer';
+                const newFollowStatBox = followStatBox.cloneNode(true);
+                followStatBox.parentNode.replaceChild(newFollowStatBox, followStatBox);
+                newFollowStatBox.onclick = () => {
+                    openFollowingList();
+                };
+            }
+        }
         const fansEl = document.getElementById('xhs-stat-fans');
         if (fansEl) fansEl.textContent = s.fansCount || "0";
         const likesEl = document.getElementById('xhs-stat-likes');
@@ -699,7 +725,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const closeBtn = modal.querySelector('.close-btn');
 
         modal.style.display = 'block';
-        modal.style.zIndex = '2000'; // 确保在详情页(z-index: 1000)之上
+        bringToFront(modal); // 动态提升z-index
 
         const renderList = () => {
             list.innerHTML = '';
@@ -840,6 +866,253 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /* =========================================
+        3.5. 消息通知系统
+       ========================================= */
+
+    // 添加通知记录
+    async function addXhsNotification(type, data) {
+        if (!window.state) window.state = {};
+        if (!window.state.xhsSettings) window.state.xhsSettings = {};
+        if (!window.state.xhsSettings.notifications) {
+            window.state.xhsSettings.notifications = {
+                engagement: [], // 点赞收藏记录
+                comments: [],   // 评论和@记录
+                unreadEngagement: 0, // 未读点赞收藏数
+                unreadComments: 0    // 未读评论@数
+            };
+        }
+
+        const notifications = window.state.xhsSettings.notifications;
+        const record = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+            type: type,
+            data: data,
+            timestamp: data.timestamp || Date.now(),
+            isRead: false
+        };
+
+        if (type === 'engagement') {
+            notifications.engagement.unshift(record);
+            notifications.unreadEngagement += (data.likesIncrease || 0) + (data.collectsIncrease || 0);
+            // 保持最多100条记录
+            if (notifications.engagement.length > 100) {
+                notifications.engagement = notifications.engagement.slice(0, 100);
+            }
+        } else if (type === 'comment' || type === 'mention') {
+            notifications.comments.unshift(record);
+            notifications.unreadComments += 1;
+            // 保持最多100条记录
+            if (notifications.comments.length > 100) {
+                notifications.comments = notifications.comments.slice(0, 100);
+            }
+        }
+
+        await saveXhsSettings({});
+    }
+
+    // 更新消息页红点
+    function updateMessageBadges() {
+        const notifications = window.state?.xhsSettings?.notifications;
+        if (!notifications) return;
+
+        const likesBadge = document.getElementById('xhs-likes-badge');
+        const commentsBadge = document.getElementById('xhs-comments-badge');
+
+        if (likesBadge) {
+            if (notifications.unreadEngagement > 0) {
+                likesBadge.textContent = notifications.unreadEngagement > 99 ? '99+' : notifications.unreadEngagement;
+                likesBadge.style.display = 'flex';
+            } else {
+                likesBadge.style.display = 'none';
+            }
+        }
+
+        if (commentsBadge) {
+            if (notifications.unreadComments > 0) {
+                commentsBadge.textContent = notifications.unreadComments > 99 ? '99+' : notifications.unreadComments;
+                commentsBadge.style.display = 'flex';
+            } else {
+                commentsBadge.style.display = 'none';
+            }
+        }
+    }
+
+    // 清除未读计数
+    async function clearUnreadCount(type) {
+        if (!window.state?.xhsSettings?.notifications) return;
+
+        const notifications = window.state.xhsSettings.notifications;
+        if (type === 'engagement') {
+            notifications.unreadEngagement = 0;
+        } else if (type === 'comments') {
+            notifications.unreadComments = 0;
+        }
+
+        await saveXhsSettings({});
+        updateMessageBadges();
+    }
+
+    // 渲染点赞收藏通知列表
+    function renderLikesCollectsList() {
+        const container = document.getElementById('xhs-likes-collects-list');
+        if (!container) return;
+
+        const notifications = window.state?.xhsSettings?.notifications?.engagement || [];
+
+        if (notifications.length === 0) {
+            container.innerHTML = `
+                <div class="xhs-notification-empty">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                    </svg>
+                    <p>暂无点赞收藏通知</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = notifications.map(n => {
+            const d = n.data;
+            return `
+                <div class="xhs-notification-item" data-note-id="${d.noteId}">
+                    <img class="xhs-notification-avatar" src="${d.noteCover || 'https://via.placeholder.com/44'}" onerror="this.src='https://via.placeholder.com/44'" />
+                    <div class="xhs-notification-content">
+                        <div class="xhs-notification-header">
+                            <span class="xhs-notification-user">${d.noteTitle || '我的笔记'}</span>
+                            <span class="xhs-notification-time">${formatXhsDate(n.timestamp)}</span>
+                        </div>
+                        <div class="xhs-engagement-change">
+                            ${d.likesIncrease > 0 ? `<div class="xhs-engagement-item likes">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="#ff2442" stroke="#ff2442" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                                <span>+${d.likesIncrease}</span>
+                            </div>` : ''}
+                            ${d.collectsIncrease > 0 ? `<div class="xhs-engagement-item collects">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="#ffa500" stroke="#ffa500" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
+                                <span>+${d.collectsIncrease}</span>
+                            </div>` : ''}
+                        </div>
+                        ${d.reason ? `<div class="xhs-engagement-reason">${d.reason}</div>` : ''}
+                    </div>
+                    ${d.noteCover ? `<img class="xhs-notification-preview" src="${d.noteCover}" onerror="this.style.display='none'" />` : ''}
+                </div>
+            `;
+        }).join('');
+
+        // 绑定点击事件
+        container.querySelectorAll('.xhs-notification-item').forEach(item => {
+            item.onclick = async () => {
+                const noteId = item.dataset.noteId;
+                if (noteId && window.db && window.db.xhsNotes) {
+                    const note = await window.db.xhsNotes.get(noteId);
+                    if (note) {
+                        openXhsNoteDetail(note);
+                    }
+                }
+            };
+        });
+    }
+
+    // 渲染评论和@通知列表
+    function renderCommentsAtList() {
+        const container = document.getElementById('xhs-comments-at-list');
+        if (!container) return;
+
+        const notifications = window.state?.xhsSettings?.notifications?.comments || [];
+
+        if (notifications.length === 0) {
+            container.innerHTML = `
+                <div class="xhs-notification-empty">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+                    </svg>
+                    <p>暂无评论和@通知</p>
+                </div>
+            `;
+            return;
+        }
+
+        container.innerHTML = notifications.map(n => {
+            const d = n.data;
+            const isMention = n.type === 'mention';
+            return `
+                <div class="xhs-notification-item" data-note-id="${d.noteId}">
+                    <img class="xhs-notification-avatar" src="${d.userAvatar || 'https://api.dicebear.com/7.x/notionists/svg?seed=default'}" onerror="this.src='https://api.dicebear.com/7.x/notionists/svg?seed=default'" />
+                    <div class="xhs-notification-content">
+                        <div class="xhs-notification-header">
+                            <span class="xhs-notification-user">${d.userName || '匿名用户'}</span>
+                            <span class="xhs-notification-time">${formatXhsDate(n.timestamp)}</span>
+                        </div>
+                        <div class="xhs-notification-text">${isMention ? '@了你：' : '评论了你的笔记：'}${d.text}</div>
+                        <div class="xhs-notification-meta">
+                            <span class="xhs-notification-type">${d.noteTitle || '我的笔记'}</span>
+                        </div>
+                    </div>
+                    ${d.noteCover ? `<img class="xhs-notification-preview" src="${d.noteCover}" onerror="this.style.display='none'" />` : ''}
+                </div>
+            `;
+        }).join('');
+
+        // 绑定点击事件
+        container.querySelectorAll('.xhs-notification-item').forEach(item => {
+            item.onclick = async () => {
+                const noteId = item.dataset.noteId;
+                if (noteId && window.db && window.db.xhsNotes) {
+                    const note = await window.db.xhsNotes.get(noteId);
+                    if (note) {
+                        openXhsNoteDetail(note);
+                    }
+                }
+            };
+        });
+    }
+
+    // 初始化消息页面事件
+    function initMessagePageEvents() {
+        // 点赞收藏按钮
+        const likesBtn = document.getElementById('xhs-likes-collects-btn');
+        const likesView = document.getElementById('xhs-likes-collects-view');
+        const likesBack = document.getElementById('xhs-likes-back');
+
+        if (likesBtn && likesView) {
+            likesBtn.onclick = async () => {
+                likesView.style.display = 'flex';
+                bringToFront(likesView);
+                renderLikesCollectsList();
+                await clearUnreadCount('engagement');
+            };
+        }
+
+        if (likesBack && likesView) {
+            likesBack.onclick = () => {
+                likesView.style.display = 'none';
+            };
+        }
+
+        // 评论和@按钮
+        const commentsBtn = document.getElementById('xhs-comments-at-btn');
+        const commentsView = document.getElementById('xhs-comments-at-view');
+        const commentsBack = document.getElementById('xhs-comments-back');
+
+        if (commentsBtn && commentsView) {
+            commentsBtn.onclick = async () => {
+                commentsView.style.display = 'flex';
+                bringToFront(commentsView);
+                renderCommentsAtList();
+                await clearUnreadCount('comments');
+            };
+        }
+
+        if (commentsBack && commentsView) {
+            commentsBack.onclick = () => {
+                commentsView.style.display = 'none';
+            };
+        }
+
+        // 初始化红点显示
+        updateMessageBadges();
+    }
+
+    /* =========================================
         4. 核心功能：加载与显示笔记 (修改后)
        ========================================= */
 
@@ -910,8 +1183,8 @@ document.addEventListener('DOMContentLoaded', () => {
         // 获取所有笔记
         let notes = await window.db.xhsNotes.toArray();
 
-        // 过滤掉搜索生成的临时笔记，不显示在主页
-        notes = notes.filter(n => !n.isSearchResult);
+        // 过滤掉搜索生成的临时笔记和关注页笔记，只显示发现页笔记
+        notes = notes.filter(n => !n.isSearchResult && n.feedType !== 'follow');
 
         // 排序：未读(isNew=true)在前，然后按时间倒序
         notes.sort((a, b) => {
@@ -927,8 +1200,8 @@ document.addEventListener('DOMContentLoaded', () => {
     function renderWaterfall(container, items, renderItemFn) {
         container.innerHTML = '';
         container.classList.add('xhs-waterfall');
+        // 只设置必要的flex样式，不覆盖height（保留外部设置）
         container.style.display = 'flex';
-        container.style.height = 'auto';
         container.style.flexDirection = 'row';
 
         const leftCol = document.createElement('div');
@@ -1099,7 +1372,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 确保 ID 类型匹配 (字符串 vs 数字)
                 const book = allBooks.find(b => String(b.id) === String(id));
                 if (book) {
-                    booksContent += `\n《${book.name}》设定:\n${book.content ? book.content.substring(0, 1000) : ''}\n`;
+                    booksContent += `\n《${book.name}》设定:\n${book.content || ''}\n`;
                 }
             });
 
@@ -1171,7 +1444,9 @@ document.addEventListener('DOMContentLoaded', () => {
             const allowedPosters = window.state.xhsSettings?.allowedPosters || [];
             const availableChars = Object.values(window.state.chats).filter(c => !c.isGroup);
 
-            let candidates = availableChars;
+            // 只从设置为"允许发笔记"的角色中选取
+            // 如果没有设置任何允许发笔记的角色，则不选取任何角色（只生成路人笔记）
+            let candidates = [];
             if (allowedPosters.length > 0) {
                 candidates = availableChars.filter(c => allowedPosters.includes(c.id));
             }
@@ -1446,6 +1721,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 // 渲染到搜索结果区域
                 const resultsContainer = document.getElementById('xhs-search-results');
                 if (resultsContainer) {
+                    // 先重置在loading时设置的样式
+                    resultsContainer.style.justifyContent = '';
+                    resultsContainer.style.alignItems = '';
+
                     renderWaterfall(resultsContainer, result.notes, (note) => {
                         const card = createXhsCard(note);
                         // 确保点击能打开
@@ -1453,8 +1732,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         return card;
                     });
 
-                    // 修复滚动：强制 height:100% 配合 flex:1 (flex-shrink会自动调整)，去除margin防止遮挡
-                    resultsContainer.style.height = '100%';
+                    // 修复滚动：确保正确的flex布局
                     resultsContainer.style.flex = '1';
                     resultsContainer.style.overflowY = 'auto';
                     resultsContainer.style.marginBottom = '0';
@@ -1467,6 +1745,390 @@ document.addEventListener('DOMContentLoaded', () => {
             console.error("搜索生成失败", e);
             return false;
         }
+    }
+
+    // 加载关注页笔记
+    async function loadFollowedUsersNotes() {
+        const followFeed = feeds.follow;
+        if (!followFeed) return;
+
+        // 获取已关注的角色
+        const profiles = window.state.xhsSettings?.characterProfiles || {};
+        const followedProfiles = Object.entries(profiles).filter(([name, p]) => p.isFollowed);
+
+        if (followedProfiles.length === 0) {
+            followFeed.innerHTML = '<div class="xhs-empty-state"><p>还没有关注的人哦~<br>去发现页看看吧！</p></div>';
+            return;
+        }
+
+        // 从数据库获取关注用户的笔记
+        let followNotes = [];
+        if (window.db && window.db.xhsNotes) {
+            const allNotes = await window.db.xhsNotes.toArray();
+            const followedNames = followedProfiles.map(([name]) => name);
+            followNotes = allNotes.filter(n => followedNames.includes(n.authorName) && n.feedType === 'follow');
+            followNotes.sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0));
+        }
+
+        if (followNotes.length === 0) {
+            followFeed.innerHTML = '<div class="xhs-empty-state"><p>关注的人还没有发布新内容~<br>点击刷新按钮生成新笔记</p></div>';
+            return;
+        }
+
+        // 渲染笔记列表
+        renderNotesToFeed(followNotes, followFeed);
+    }
+
+    // 为已关注角色生成笔记
+    async function generateFollowedUsersNotes() {
+        if (refreshBtn) refreshBtn.classList.add('spinning');
+
+        try {
+            const { proxyUrl, apiKey, model, temperature } = window.state.apiConfig;
+            if (!proxyUrl || !apiKey || !model) {
+                alert("请先配置 API 设置！");
+                if (refreshBtn) refreshBtn.classList.remove('spinning');
+                return false;
+            }
+
+            // 获取已关注的角色
+            const profiles = window.state.xhsSettings?.characterProfiles || {};
+            const followedProfiles = Object.entries(profiles).filter(([name, p]) => p.isFollowed);
+
+            if (followedProfiles.length === 0) {
+                alert("还没有关注任何人哦~");
+                if (refreshBtn) refreshBtn.classList.remove('spinning');
+                return false;
+            }
+
+            // 随机选择4-6个已关注角色生成笔记（如果不够就全部选择）
+            const noteCount = Math.min(followedProfiles.length, Math.floor(Math.random() * 3) + 4);
+            const shuffled = [...followedProfiles].sort(() => Math.random() - 0.5);
+            const selectedProfiles = shuffled.slice(0, noteCount);
+
+            // 获取角色信息用于生成
+            const chatsMap = window.state.chats || {};
+            const charactersInfo = selectedProfiles.map(([name, profile]) => {
+                const chat = Object.values(chatsMap).find(c => c.name === name && !c.isGroup);
+                return {
+                    name: name,
+                    avatar: profile.avatar,
+                    bio: profile.bio || '',
+                    persona: chat?.settings?.persona || chat?.settings?.aiPersona || '',
+                    chatData: chat
+                };
+            });
+
+            // 构建记忆互通的聊天记录上下文（对不同角色的记忆互通进行查重）
+            let memoryContext = "";
+            const addedMemoryIds = new Set(); // 用于去重：存储已添加的聊天ID
+
+            for (const charInfo of charactersInfo) {
+                if (!charInfo.chatData) continue;
+                const chat = charInfo.chatData;
+
+                // 获取角色设置的聊天记录参数
+                const ownChatLimit = chat.settings?.maxMemory || 10; // 单聊记录条数
+                const linkedChatLimit = chat.settings?.linkMemoryDepth || 5; // 记忆互通记录条数
+
+                // 角色自己的聊天记录（优先添加，使用角色设置的maxMemory参数）
+                if (chat.messages?.length > 0 && !addedMemoryIds.has(chat.id)) {
+                    addedMemoryIds.add(chat.id);
+                    const recentMessages = chat.messages.slice(-ownChatLimit);
+                    const contextText = recentMessages.map(m =>
+                        `${m.sender === 'user' ? '用户' : chat.name}: ${m.text || ''}`
+                    ).join('\n');
+                    memoryContext += `\n【${chat.name}的近期聊天】:\n${contextText}\n`;
+                }
+
+                // 检查记忆互通（查重：如果已被其他角色添加过则跳过，使用linkMemoryDepth参数）
+                if (chat.settings?.memoryLinks) {
+                    for (const link of chat.settings.memoryLinks) {
+                        if (link.enabled && !addedMemoryIds.has(link.chatId)) {
+                            const linkedChat = chatsMap[link.chatId];
+                            if (linkedChat && linkedChat.messages?.length > 0) {
+                                addedMemoryIds.add(link.chatId);
+                                const recentMessages = linkedChat.messages.slice(-linkedChatLimit);
+                                const contextText = recentMessages.map(m =>
+                                    `${m.sender === 'user' ? '用户' : linkedChat.name}: ${m.text || ''}`
+                                ).join('\n');
+                                memoryContext += `\n【${charInfo.name}关联的${linkedChat.name}聊天记录】:\n${contextText}\n`;
+                            }
+                        }
+                    }
+                }
+
+                // 也检查linkedMemories字段（另一种记忆互通格式，使用linkMemoryDepth参数）
+                if (chat.settings?.linkedMemories && Array.isArray(chat.settings.linkedMemories)) {
+                    for (const link of chat.settings.linkedMemories) {
+                        const linkedChatId = link.chatId;
+                        if (!addedMemoryIds.has(linkedChatId)) {
+                            const linkedChat = chatsMap[linkedChatId];
+                            if (linkedChat && linkedChat.messages?.length > 0) {
+                                addedMemoryIds.add(linkedChatId);
+                                const recentMessages = linkedChat.messages.slice(-linkedChatLimit);
+                                const contextText = recentMessages.map(m =>
+                                    `${m.sender === 'user' ? '用户' : linkedChat.name}: ${m.text || ''}`
+                                ).join('\n');
+                                memoryContext += `\n【${charInfo.name}关联的${linkedChat.name}聊天记录】:\n${contextText}\n`;
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 构建世界书上下文
+            let worldBookContext = "";
+            const linkedBookIds = window.state.xhsSettings?.linkedWorldBooks;
+            if (linkedBookIds && linkedBookIds.length > 0) {
+                let allBooks = window.state.worldBooks || [];
+                if (allBooks.length === 0 && window.db && window.db.worldBooks) {
+                    allBooks = await window.db.worldBooks.toArray();
+                    window.state.worldBooks = allBooks;
+                }
+                let booksContent = "";
+                linkedBookIds.forEach(id => {
+                    const book = allBooks.find(b => String(b.id) === String(id));
+                    if (book) {
+                        booksContent += `\n《${book.name}》设定:\n${book.content || ''}\n`;
+                    }
+                });
+                if (booksContent) {
+                    worldBookContext = `
+【世界观设定 (World Book)】：
+请确保生成的笔记内容符合以下世界观设定：
+${booksContent}
+`;
+                }
+            }
+
+            const prompt = `
+你是一个熟练的小红书内容创作者。请为以下已关注的角色各生成1条小红书笔记。
+
+【角色信息】:
+${charactersInfo.map((c, i) => `
+${i + 1}. ${c.name}
+   - 简介: ${c.bio || '无'}
+   - 人设: ${c.persona || '无特定人设'}
+`).join('\n')}
+
+${worldBookContext}
+
+${memoryContext ? `【角色记忆与近期经历（帮助理解角色关系和当前状态，笔记可以基于这些内容但不要直接复制）】:${memoryContext}` : ''}
+
+【通用要求】：
+1. 内容风格必须极度符合小红书特点：
+   - 标题党，吸引眼球，使用"绝绝子"、"yyds"、"家人"、"集美"等流行语（适度）。
+   - 适当使用 Emoji 表情符号（🌟✨💖🔥等）。
+   - 相关的 Hashtag 标签（如 #OOTD #探店 #日常）。
+   - 语气轻松、活泼、真实。
+   - 笔记正文内容"content"字段当中【绝对不允许】包含任何tag标签。
+2. "imagePrompt": 为每条笔记生成一个简短的、描述性的**英文**图片提示词，用于AI生图（例如 "delicious matcha latte art, cozy cafe, realistic"）请注意提示词当中【绝对不允许】出现【人物】。
+3. "stats": 随机生成合理的点赞数（likes: 100-2000）和收藏数（collects: 50-500）。
+4. 每条笔记必须符合该角色的人设和性格特点。
+5. 内容真实自然，避免AI味，不要重复聊天记录原文。
+
+【JSON返回格式（严格遵守）】：
+{
+    "notes": [
+        {
+            "authorName": "角色名字",
+            "title": "笔记标题",
+            "content": "笔记正文内容...",
+            "tags": ["#tag1", "#tag2"],
+            "imagePrompt": "english description for visual",
+            "stats": { "likes": 123, "collects": 45 },
+            "location": "城市·地点"
+        }
+    ]
+}
+
+请只返回JSON数据，不要包含markdown代码块标记。
+`;
+
+            const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.9;
+            const isGemini = proxyUrl.includes("googleapis");
+            let responseData;
+
+            if (isGemini) {
+                const url = `${proxyUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                const body = {
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { temperature: requestTemp }
+                };
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const json = await res.json();
+                if (!json.candidates?.[0]?.content) throw new Error("API响应格式异常");
+                responseData = json.candidates[0].content.parts[0].text;
+            } else {
+                const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [{ role: "user", content: prompt }],
+                        temperature: requestTemp
+                    })
+                });
+                const json = await res.json();
+                if (!json.choices?.[0]?.message) throw new Error(json.error?.message || "API响应格式异常");
+                responseData = json.choices[0].message.content;
+            }
+
+            // 解析响应
+            let cleanJson = responseData;
+            const jsonMatch = responseData.match(/\{[\s\S]*\}/);
+            if (jsonMatch) cleanJson = jsonMatch[0];
+            else cleanJson = responseData.replace(/```json/g, '').replace(/```/g, '').trim();
+
+            const result = JSON.parse(cleanJson);
+
+            if (result && result.notes && Array.isArray(result.notes)) {
+                const now = Date.now();
+                let savedCount = 0;
+
+                for (let i = 0; i < result.notes.length; i++) {
+                    const n = result.notes[i];
+                    const charInfo = charactersInfo.find(c => c.name === n.authorName) || charactersInfo[i];
+                    if (!charInfo) continue;
+
+                    // 生成封面图
+                    let coverUrl = '';
+                    if (n.imagePrompt && window.generatePollinationsImage) {
+                        try {
+                            coverUrl = await window.generatePollinationsImage(n.imagePrompt, 832, 1110);
+                        } catch (e) {
+                            console.warn('生成封面图失败:', e);
+                        }
+                    }
+
+                    const noteData = {
+                        id: now.toString() + Math.random().toString(36).substr(2, 9) + i,
+                        authorName: charInfo.name,
+                        authorAvatar: charInfo.avatar,
+                        title: n.title || '无标题',
+                        content: n.content || '',
+                        tags: n.tags || [],
+                        images: coverUrl ? [coverUrl] : [],
+                        stats: n.stats || { likes: Math.floor(Math.random() * 500 + 100), collects: Math.floor(Math.random() * 100 + 20) },
+                        comments: [],
+                        timestamp: now - i * 60000,
+                        dateStr: formatXhsDate(now - i * 60000),
+                        location: n.location || '',
+                        isCharacter: true,
+                        isNew: true,
+                        feedType: 'follow' // 标记为关注页笔记
+                    };
+
+                    if (window.db && window.db.xhsNotes) {
+                        await window.db.xhsNotes.put(noteData);
+                        savedCount++;
+                    }
+                }
+
+                // 刷新关注页
+                await loadFollowedUsersNotes();
+
+                // 显示成功提示
+                const toast = document.createElement('div');
+                toast.textContent = `✨ 成功生成 ${savedCount} 条关注动态`;
+                toast.className = 'xhs-toast';
+                document.body.appendChild(toast);
+                setTimeout(() => document.body.removeChild(toast), 2000);
+
+                return true;
+            }
+            return false;
+
+        } catch (e) {
+            console.error("生成关注页笔记失败:", e);
+            alert("生成失败: " + e.message);
+            return false;
+        } finally {
+            if (refreshBtn) refreshBtn.classList.remove('spinning');
+        }
+    }
+
+    // 渲染笔记到指定feed容器
+    function renderNotesToFeed(notes, feedContainer) {
+        if (!feedContainer) return;
+
+        // 清空并设置瀑布流布局
+        feedContainer.innerHTML = '';
+        feedContainer.classList.add('xhs-waterfall');
+
+        // 创建双列布局
+        const leftColumn = document.createElement('div');
+        leftColumn.className = 'xhs-waterfall-column';
+        const rightColumn = document.createElement('div');
+        rightColumn.className = 'xhs-waterfall-column';
+
+        notes.forEach((note, idx) => {
+            const card = createNoteCard(note);
+            if (idx % 2 === 0) {
+                leftColumn.appendChild(card);
+            } else {
+                rightColumn.appendChild(card);
+            }
+        });
+
+        feedContainer.appendChild(leftColumn);
+        feedContainer.appendChild(rightColumn);
+    }
+
+    // 创建笔记卡片
+    function createNoteCard(note) {
+        const card = document.createElement('div');
+        card.className = 'xhs-card';
+        card.dataset.noteId = note.id;
+
+        const s = window.state.xhsSettings;
+        const isLiked = s && s.likedNoteIds && s.likedNoteIds.includes(note.id);
+        const heartFill = isLiked ? '#ff2442' : 'none';
+        const heartStroke = isLiked ? '#ff2442' : '#666';
+        const likeCount = note.stats && note.stats.likes ? note.stats.likes : 0;
+
+        card.innerHTML = `
+            ${note.images && note.images[0] ? `<img src="${note.images[0]}" class="xhs-card-img" loading="lazy" />` : ''}
+            ${note.isNew ? '<div class="xhs-new-marker">NEW</div>' : ''}
+            <div class="xhs-card-footer">
+                <div class="xhs-card-title">${note.title}</div>
+                <div class="xhs-card-user">
+                    <div class="xhs-user-info-mini">
+                        <img src="${note.authorAvatar || 'https://api.dicebear.com/7.x/notionists/svg?seed=' + encodeURIComponent(note.authorName)}" class="xhs-avatar-mini" />
+                        <span>${note.authorName}</span>
+                    </div>
+                    <div class="xhs-like-wrap">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="${heartFill}" stroke="${heartStroke}" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                        <span>${likeCount}</span>
+                    </div>
+                </div>
+            </div>
+        `;
+
+        // 绑定点击事件
+        card.onclick = () => openXhsNoteDetail(note);
+
+        // 绑定长按事件
+        bindLongPress(card, () => {
+            showXhsConfirm(`确定要删除这条笔记吗？<br><small style="color:#999">"${note.title}"</small>`, async () => {
+                if (window.db && window.db.xhsNotes) {
+                    await window.db.xhsNotes.delete(note.id);
+                    card.remove();
+                }
+            });
+        }, () => {
+            openXhsNoteDetail(note);
+        });
+
+        return card;
     }
 
     function openXhsNoteDetail(note) {
@@ -1492,9 +2154,51 @@ document.addEventListener('DOMContentLoaded', () => {
 
         // 填充详情页数据
         document.getElementById('xhs-detail-title').textContent = note.title;
-        document.getElementById('xhs-detail-desc').innerHTML = note.content.replace(/\n/g, '<br>');
+
+        // 处理笔记内容中的@角色，添加超链接样式（与评论保持一致）
+        const noteDescEl = document.getElementById('xhs-detail-desc');
+        const formattedContent = formatContentWithMentions(note.content);
+        noteDescEl.innerHTML = formattedContent;
+        bindContentMentionLinks(noteDescEl);
+
         document.getElementById('xhs-detail-name').textContent = note.authorName;
-        document.getElementById('xhs-detail-avatar').src = note.authorAvatar;
+
+        const detailAvatarEl = document.getElementById('xhs-detail-avatar');
+        detailAvatarEl.src = note.authorAvatar;
+
+        // 为详情页作者头像添加点击事件
+        detailAvatarEl.classList.add('xhs-avatar-clickable');
+        const newDetailAvatar = detailAvatarEl.cloneNode(true);
+        detailAvatarEl.parentNode.replaceChild(newDetailAvatar, detailAvatarEl);
+        newDetailAvatar.onclick = (e) => {
+            e.stopPropagation();
+            openUserProfile(note.authorName, note.authorAvatar);
+        };
+
+        // 作者名称也可点击
+        const detailNameEl = document.getElementById('xhs-detail-name');
+        detailNameEl.style.cursor = 'pointer';
+        const newDetailName = detailNameEl.cloneNode(true);
+        detailNameEl.parentNode.replaceChild(newDetailName, detailNameEl);
+        newDetailName.onclick = (e) => {
+            e.stopPropagation();
+            openUserProfile(note.authorName, note.authorAvatar);
+        };
+
+        // 绑定详情页关注按钮点击事件
+        const detailFollowBtn = document.querySelector('#xhs-note-detail-view .follow-btn');
+        if (detailFollowBtn) {
+            // 检查是否已有主页并更新按钮状态
+            const existingProfile = getCharacterProfile(note.authorName);
+            updateDetailFollowButton(detailFollowBtn, existingProfile);
+
+            const newDetailFollowBtn = detailFollowBtn.cloneNode(true);
+            detailFollowBtn.parentNode.replaceChild(newDetailFollowBtn, detailFollowBtn);
+            newDetailFollowBtn.onclick = async (e) => {
+                e.stopPropagation();
+                await handleDetailFollowClick(note.authorName, note.authorAvatar, newDetailFollowBtn);
+            };
+        }
 
         // 数据统计
         document.getElementById('xhs-detail-like-count').textContent = note.stats ? note.stats.likes : 0;
@@ -1618,7 +2322,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (parentComment) {
                         if (!parentComment.replies) parentComment.replies = [];
 
-                        // 如果是回复楼中楼，自动添加前缀
+                        // 只有回复楼中楼时才添加"回复 @用户"前缀
+                        // replyingToSubId 存在表示是回复楼中楼，否则是回复主评论
                         if (replyingToSubId && replyingToUser) {
                             newComment.text = `回复 @${replyingToUser}：${text}`;
                         }
@@ -1675,9 +2380,9 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     cItem.innerHTML = `
-                        <img src="${avatarUrl}" class="avatar xhs-no-pointer">
+                        <img src="${avatarUrl}" class="avatar xhs-avatar-clickable" data-author-name="${c.user}" data-author-avatar="${avatarUrl}">
                         <div class="content-wrap">
-                            <div class="user-name">${c.user}</div>
+                            <div class="user-name xhs-avatar-clickable" data-author-name="${c.user}" data-author-avatar="${avatarUrl}" style="cursor: pointer;">${c.user}</div>
                             <div class="text">${c.text}</div>
                             <div class="meta">
                                 <span>${cDate}</span>
@@ -1689,6 +2394,24 @@ document.addEventListener('DOMContentLoaded', () => {
                             <div class="xhs-sub-comments"></div>
                         </div>
                     `;
+
+                    // 绑定评论区头像和用户名点击事件
+                    const commentAvatar = cItem.querySelector('.avatar');
+                    const commentUserName = cItem.querySelector('.user-name');
+
+                    if (commentAvatar) {
+                        commentAvatar.onclick = (e) => {
+                            e.stopPropagation();
+                            openUserProfile(c.user, avatarUrl);
+                        };
+                    }
+
+                    if (commentUserName) {
+                        commentUserName.onclick = (e) => {
+                            e.stopPropagation();
+                            openUserProfile(c.user, avatarUrl);
+                        };
+                    }
 
                     // 绑定点赞事件
                     const likeBtn = cItem.querySelector('.comment-like-btn');
@@ -1718,21 +2441,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         }
                     };
 
-                    // 绑定长按事件：删除评论 (如果是自己的)；点击事件：回复
+                    // 绑定长按事件：删除评论；点击事件：回复
                     bindLongPress(cItem,
-                        // 长按
+                        // 长按 - 删除评论
                         () => {
-                            if (c.isMine) {
-                                showXhsConfirm("确定删除这条评论吗？", async () => {
-                                    const index = note.comments.indexOf(c);
-                                    if (index > -1) {
-                                        note.comments.splice(index, 1);
-                                        if (window.db && window.db.xhsNotes) await window.db.xhsNotes.put(note);
-                                        renderComments();
-                                        updateCommentCount();
-                                    }
-                                });
-                            }
+                            showXhsConfirm(`确定删除这条评论吗？<br><small style="color:#999">@${c.user}: "${c.text.substring(0, 20)}${c.text.length > 20 ? '...' : ''}"</small>`, async () => {
+                                const index = note.comments.indexOf(c);
+                                if (index > -1) {
+                                    note.comments.splice(index, 1);
+                                    if (window.db && window.db.xhsNotes) await window.db.xhsNotes.put(note);
+                                    renderComments();
+                                    updateCommentCount();
+                                }
+                            });
                         },
                         // 点击
                         (e) => {
@@ -1758,9 +2479,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             const rLikeColor = reply.isLiked ? '#ff2442' : '#999';
 
                             rItem.innerHTML = `
-                                <img src="${rAvatar}" class="avatar xhs-no-pointer">
+                                <img src="${rAvatar}" class="avatar xhs-avatar-clickable" data-author-name="${reply.user}" data-author-avatar="${rAvatar}">
                                 <div class="content-wrap">
-                                    <div class="user-name">${reply.user}</div>
+                                    <div class="user-name xhs-avatar-clickable" data-author-name="${reply.user}" data-author-avatar="${rAvatar}" style="cursor: pointer;">${reply.user}</div>
                                     <div class="text">${reply.text}</div>
                                     <div class="meta">
                                         <span>${reply.dateStr || "刚刚"}</span>
@@ -1771,6 +2492,24 @@ document.addEventListener('DOMContentLoaded', () => {
                                     </div>
                                 </div>
                             `;
+
+                            // 子评论头像和用户名点击事件
+                            const subAvatar = rItem.querySelector('.avatar');
+                            const subUserName = rItem.querySelector('.user-name');
+
+                            if (subAvatar) {
+                                subAvatar.onclick = (e) => {
+                                    e.stopPropagation();
+                                    openUserProfile(reply.user, rAvatar);
+                                };
+                            }
+
+                            if (subUserName) {
+                                subUserName.onclick = (e) => {
+                                    e.stopPropagation();
+                                    openUserProfile(reply.user, rAvatar);
+                                };
+                            }
 
                             // 子评论点赞
                             const rLikeBtn = rItem.querySelector('.sub-comment-like-btn');
@@ -1794,21 +2533,19 @@ document.addEventListener('DOMContentLoaded', () => {
                                 if (window.db && window.db.xhsNotes) await window.db.xhsNotes.put(note);
                             };
 
-                            // 绑定长按事件：删除子评论 (如果是自己的)；点击事件：回复
+                            // 绑定长按事件：删除子评论；点击事件：回复
                             bindLongPress(rItem,
-                                // 长按
+                                // 长按 - 只删除该条子评论，不影响主评论
                                 () => {
-                                    if (reply.isMine) {
-                                        showXhsConfirm("确定删除这条回复吗？", async () => {
-                                            const index = c.replies.indexOf(reply);
-                                            if (index > -1) {
-                                                c.replies.splice(index, 1);
-                                                if (window.db && window.db.xhsNotes) await window.db.xhsNotes.put(note);
-                                                renderComments();
-                                                updateCommentCount();
-                                            }
-                                        });
-                                    }
+                                    showXhsConfirm(`确定删除这条回复吗？<br><small style="color:#999">@${reply.user}: "${reply.text.substring(0, 20)}${reply.text.length > 20 ? '...' : ''}"</small>`, async () => {
+                                        const index = c.replies.indexOf(reply);
+                                        if (index > -1) {
+                                            c.replies.splice(index, 1);
+                                            if (window.db && window.db.xhsNotes) await window.db.xhsNotes.put(note);
+                                            renderComments();
+                                            updateCommentCount();
+                                        }
+                                    });
                                 },
                                 // 点击
                                 (e) => {
@@ -1831,16 +2568,779 @@ document.addEventListener('DOMContentLoaded', () => {
             } else {
                 commentList.innerHTML = '<p class="xhs-empty-state-sm">暂无评论，快来抢沙发~</p>';
             }
+
+            // 为所有评论文本中的@角色添加超链接样式
+            bindMentionLinks();
         };
 
+        // 将笔记正文内容中的@角色转换为可点击的超链接
+        function formatContentWithMentions(content) {
+            if (!content) return '';
+            const mentionPattern = /@([^\s@：:，。！？\n]+)/g;
+            // 先处理换行，再处理@角色
+            return content
+                .replace(/\n/g, '<br>')
+                .replace(mentionPattern, '<span class="xhs-mention-link" data-user="$1">@$1</span>');
+        }
+
+        // 为笔记内容中的@角色绑定点击事件
+        function bindContentMentionLinks(container) {
+            if (!container) return;
+            container.querySelectorAll('.xhs-mention-link').forEach(link => {
+                link.onclick = (e) => {
+                    e.stopPropagation();
+                    const userName = link.dataset.user;
+                    if (userName) {
+                        // 智能匹配角色获取用户信息
+                        const userInfo = getUserInfo(userName);
+                        openUserProfile(userInfo.name, userInfo.avatar);
+                    }
+                };
+            });
+        }
+
+        // 将评论文本中的@角色转换为可点击的超链接
+        function formatCommentTextWithMentions(text) {
+            // 匹配 "回复 @角色：" 或单独的 "@角色"
+            const replyPattern = /^(回复\s*)(@[^：:]+)([:：]\s*)/;
+            const mentionPattern = /@([^\s@：:]+)/g;
+
+            // 首先处理 "回复 @角色：" 格式
+            const replyMatch = text.match(replyPattern);
+            if (replyMatch) {
+                const prefix = replyMatch[1]; // "回复 "
+                const mention = replyMatch[2]; // "@角色"
+                const separator = replyMatch[3]; // "："
+                const restText = text.substring(replyMatch[0].length);
+                const userName = mention.substring(1); // 去掉@符号
+
+                return `<span class="xhs-reply-prefix">${prefix}<span class="xhs-mention-link" data-user="${userName}">${mention}</span>${separator}</span>${restText.replace(mentionPattern, '<span class="xhs-mention-link" data-user="$1">@$1</span>')}`;
+            }
+
+            // 处理普通的@角色
+            return text.replace(mentionPattern, '<span class="xhs-mention-link" data-user="$1">@$1</span>');
+        }
+
+        // 绑定所有@角色超链接的点击事件
+        function bindMentionLinks() {
+            const commentList = document.getElementById('xhs-detail-comment-list');
+            if (!commentList) return;
+
+            // 重新处理所有评论文本，添加超链接
+            commentList.querySelectorAll('.text').forEach(textEl => {
+                const originalText = textEl.textContent;
+                textEl.innerHTML = formatCommentTextWithMentions(originalText);
+            });
+
+            // 绑定点击事件
+            commentList.querySelectorAll('.xhs-mention-link').forEach(link => {
+                link.onclick = (e) => {
+                    e.stopPropagation();
+                    const userName = link.dataset.user;
+                    if (userName) {
+                        // 智能匹配角色获取用户信息
+                        const userInfo = getUserInfo(userName);
+                        openUserProfile(userInfo.name, userInfo.avatar);
+                    }
+                };
+            });
+        }
+
+        // 生成评论核心函数
+        async function generateCommentsForNote() {
+            const generateBtn = document.getElementById('xhs-generate-comments-btn');
+            if (generateBtn) {
+                generateBtn.classList.add('loading');
+                generateBtn.querySelector('span').textContent = '生成中...';
+            }
+
+            try {
+                const { proxyUrl, apiKey, model, temperature } = window.state.apiConfig;
+                if (!proxyUrl || !apiKey || !model) {
+                    alert("请先在设置中配置API Key");
+                    return;
+                }
+
+                const s = window.state.xhsSettings;
+                const allowedPosters = s?.allowedPosters || [];
+                const availableChars = Object.values(window.state.chats || {}).filter(c => !c.isGroup);
+                const myName = s?.nickname || "我";
+
+                // 获取允许发笔记的角色（有人设的角色）
+                let characterCandidates = [];
+                if (allowedPosters.length > 0) {
+                    characterCandidates = availableChars.filter(c => allowedPosters.includes(c.id));
+                }
+
+                // 随机选择3个角色
+                const shuffledChars = characterCandidates.sort(() => Math.random() - 0.5);
+                const selectedChars = shuffledChars.slice(0, 3);
+
+                // ========== 新增：检查笔记是否是用户发布的，以及笔记内容中被@的角色 ==========
+                const isFirstComment = !note.comments || note.comments.length === 0;
+                const isUserNote = note.isMine === true;
+                const noteMentionedCharacters = new Set(); // 笔记内容中被@的角色
+
+                // 从笔记内容中提取@的角色
+                if (note.content) {
+                    const noteMentions = note.content.match(/@([^\s@：:]+)/g) || [];
+                    noteMentions.forEach(m => noteMentionedCharacters.add(m.substring(1)));
+                }
+
+                // 如果笔记保存了mentionedCharacters字段，也加入
+                if (note.mentionedCharacters && Array.isArray(note.mentionedCharacters)) {
+                    note.mentionedCharacters.forEach(name => noteMentionedCharacters.add(name));
+                }
+
+                // 分析当前评论区，找出用户发布的未被回复的评论
+                const unrepliedUserComments = [];
+                const commentMentionedCharacters = new Set(); // 未被回复评论中被@的角色
+
+                if (note.comments && note.comments.length > 0) {
+                    note.comments.forEach(c => {
+                        // 检查是否是用户的评论且未被回复
+                        if (c.isMine) {
+                            const hasReply = c.replies && c.replies.length > 0;
+                            if (!hasReply) {
+                                unrepliedUserComments.push({
+                                    type: 'main',
+                                    comment: c,
+                                    parentId: null
+                                });
+
+                                // 【修改】只检查未被回复的评论中的@角色
+                                const mentions = extractMentions(c.text);
+                                mentions.forEach(name => commentMentionedCharacters.add(name));
+                            }
+                        }
+
+                        // 检查楼中楼
+                        if (c.replies && c.replies.length > 0) {
+                            c.replies.forEach(reply => {
+                                if (reply.isMine) {
+                                    // 检查是否是楼中楼中用户评论的最后一条（后面没有其他人回复）
+                                    const replyIndex = c.replies.indexOf(reply);
+                                    const hasFollowingReply = c.replies.slice(replyIndex + 1).some(r => !r.isMine);
+                                    if (!hasFollowingReply) {
+                                        unrepliedUserComments.push({
+                                            type: 'reply',
+                                            comment: reply,
+                                            parentId: c.id,
+                                            parentUser: c.user
+                                        });
+
+                                        // 【修改】只检查未被回复的评论中的@角色
+                                        const mentions = extractMentions(reply.text);
+                                        mentions.forEach(name => commentMentionedCharacters.add(name));
+                                    }
+                                }
+                            });
+                        }
+                    });
+                }
+
+                // 从评论内容中提取@的角色名
+                function extractMentions(text) {
+                    const matches = text.match(/@([^\s@：:]+)/g) || [];
+                    return matches.map(m => m.substring(1)); // 去掉@符号
+                }
+
+                // ========== 修改：分别处理笔记@的角色和评论@的角色 ==========
+                // 1. 笔记内容中被@的角色（首次评论时必须参与）
+                const noteMustCommentCharacters = [];
+                if (isUserNote && isFirstComment && noteMentionedCharacters.size > 0) {
+                    noteMentionedCharacters.forEach(name => {
+                        const char = availableChars.find(c => c.name === name);
+                        if (char) {
+                            noteMustCommentCharacters.push(char);
+                        }
+                    });
+                }
+
+                // 2. 未被回复的评论中被@的角色（必须回复这些评论）
+                const mustReplyCharacters = [];
+                commentMentionedCharacters.forEach(name => {
+                    const char = availableChars.find(c => c.name === name);
+                    if (char) {
+                        mustReplyCharacters.push(char);
+                    }
+                });
+
+                // 构建聊天记录上下文（如果启用）
+                let chatMemoryContext = "";
+                const processedChatIds = new Set(); // 用于去重聊天记录（包括链接的记忆互通聊天）
+
+                if (s?.enableChatMemory) {
+                    const memoryParts = [];
+
+                    // 获取角色的聊天记录（包括链接的记忆互通聊天）
+                    const getCharacterMemory = (char) => {
+                        const chat = window.state.chats[char.id];
+                        if (!chat) return [];
+
+                        const memories = [];
+
+                        // 1. 获取角色自己的聊天记录
+                        if (chat.history && chat.history.length > 0 && !processedChatIds.has(char.id)) {
+                            processedChatIds.add(char.id);
+                            const limit = chat.settings?.maxMemory || 10;
+                            const recentMsgs = chat.history.slice(-limit);
+                            if (recentMsgs.length > 0) {
+                                const formattedMsgs = recentMsgs.map(m =>
+                                    `${m.role === 'user' ? myName : char.name}: ${m.content}`
+                                ).join('\n');
+                                memories.push(`【${char.name}的近期聊天】:\n${formattedMsgs}`);
+                            }
+                        }
+
+                        // 2. 获取链接的记忆互通聊天记录
+                        if (chat.settings?.linkedMemories && Array.isArray(chat.settings.linkedMemories)) {
+                            const linkDepth = chat.settings.linkMemoryDepth || 5;
+                            for (const link of chat.settings.linkedMemories) {
+                                const linkedChatId = link.chatId;
+                                // 检查是否已经处理过这个聊天记录
+                                if (processedChatIds.has(linkedChatId)) continue;
+
+                                const linkedChat = window.state.chats[linkedChatId];
+                                if (linkedChat && linkedChat.history && linkedChat.history.length > 0) {
+                                    processedChatIds.add(linkedChatId);
+                                    const linkedMsgs = linkedChat.history.slice(-linkDepth);
+                                    if (linkedMsgs.length > 0) {
+                                        const linkedCharName = linkedChat.name || '未知角色';
+                                        const formattedLinkedMsgs = linkedMsgs.map(m =>
+                                            `${m.role === 'user' ? myName : linkedCharName}: ${m.content}`
+                                        ).join('\n');
+                                        memories.push(`【${char.name}关联的${linkedCharName}聊天记录】:\n${formattedLinkedMsgs}`);
+                                    }
+                                }
+                            }
+                        }
+
+                        return memories;
+                    };
+
+                    // 处理选中的角色
+                    for (const char of selectedChars) {
+                        const memories = getCharacterMemory(char);
+                        if (memories && memories.length > 0) {
+                            memoryParts.push(...memories);
+                        }
+                    }
+
+                    // 处理笔记@的角色（首次评论时必须参与）
+                    for (const char of noteMustCommentCharacters) {
+                        const memories = getCharacterMemory(char);
+                        if (memories && memories.length > 0) {
+                            memoryParts.push(...memories);
+                        }
+                    }
+
+                    // 处理必须回复的角色（未被回复评论中@的角色）
+                    for (const char of mustReplyCharacters) {
+                        const memories = getCharacterMemory(char);
+                        if (memories && memories.length > 0) {
+                            memoryParts.push(...memories);
+                        }
+                    }
+
+                    if (memoryParts.length > 0) {
+                        chatMemoryContext = `\n【角色聊天记录参考】:\n${memoryParts.join('\n\n')}`;
+                    }
+                }
+
+                // 构建角色设定上下文
+                let characterSettings = "";
+                const allCommentingChars = [...selectedChars];
+
+                // 添加笔记@的角色
+                noteMustCommentCharacters.forEach(char => {
+                    if (!allCommentingChars.find(c => c.id === char.id)) {
+                        allCommentingChars.push(char);
+                    }
+                });
+
+                // 添加必须回复的角色
+                mustReplyCharacters.forEach(char => {
+                    if (!allCommentingChars.find(c => c.id === char.id)) {
+                        allCommentingChars.push(char);
+                    }
+                });
+
+                if (allCommentingChars.length > 0) {
+                    const settingsParts = allCommentingChars.map(char => {
+                        const persona = char.settings?.aiPersona || "普通用户";
+                        return `- ${char.name}: ${persona}`;
+                    });
+                    characterSettings = `\n【参与评论的角色设定】:\n${settingsParts.join('\n')}`;
+                }
+
+                // 构建未回复评论列表
+                let unrepliedContext = "";
+                if (unrepliedUserComments.length > 0) {
+                    const unrepliedList = unrepliedUserComments.map((item, idx) => {
+                        if (item.type === 'main') {
+                            return `${idx + 1}. 主评论(ID:${item.comment.id}): "${item.comment.text}"`;
+                        } else {
+                            return `${idx + 1}. 楼中楼回复(在${item.parentUser}评论下,ID:${item.comment.id}): "${item.comment.text}"`;
+                        }
+                    }).join('\n');
+                    unrepliedContext = `\n【用户"${myName}"的未被回复的评论（必须回复这些！）】:\n${unrepliedList}`;
+                }
+
+                // 构建笔记@角色必须评论的上下文（仅首次评论时）
+                let noteMentionContext = "";
+                if (noteMustCommentCharacters.length > 0) {
+                    noteMentionContext = `\n【笔记内容中@的角色（这些角色必须参与评论，作为主评论）】:\n${noteMustCommentCharacters.map(c => c.name).join('、')}`;
+                }
+
+                // 构建未被回复评论中@的角色必须回复的上下文
+                let mustReplyContext = "";
+                if (mustReplyCharacters.length > 0) {
+                    mustReplyContext = `\n【未被回复评论中@的角色（这些角色必须回复对应的评论）】:\n${mustReplyCharacters.map(c => c.name).join('、')}`;
+                }
+
+                // 构建现有评论上下文
+                let existingCommentsContext = "";
+                if (note.comments && note.comments.length > 0) {
+                    const commentsList = note.comments.slice(-10).map(c => {
+                        let text = `- ${c.user}: "${c.text}"`;
+                        if (c.replies && c.replies.length > 0) {
+                            const repliesList = c.replies.slice(-3).map(r => `  └ ${r.user}: "${r.text}"`).join('\n');
+                            text += '\n' + repliesList;
+                        }
+                        return text;
+                    }).join('\n');
+                    existingCommentsContext = `\n【当前评论区已有的评论（用于参考，避免重复）】:\n${commentsList}`;
+                }
+
+                // 构建世界书上下文
+                let worldBookContext = "";
+                const linkedBookIds = window.state.xhsSettings?.linkedWorldBooks;
+                if (linkedBookIds && linkedBookIds.length > 0) {
+                    let allBooks = window.state.worldBooks || [];
+                    if (allBooks.length === 0 && window.db && window.db.worldBooks) {
+                        allBooks = await window.db.worldBooks.toArray();
+                        window.state.worldBooks = allBooks;
+                    }
+                    let booksContent = "";
+                    linkedBookIds.forEach(id => {
+                        const book = allBooks.find(b => String(b.id) === String(id));
+                        if (book) {
+                            booksContent += `\n《${book.name}》设定:\n${book.content || ''}\n`;
+                        }
+                    });
+                    if (booksContent) {
+                        worldBookContext = `\n【世界观设定】:\n请确保生成的评论内容符合以下世界观设定：${booksContent}`;
+                    }
+                }
+
+                // 构建prompt
+                const prompt = `
+你是一个小红书评论生成器。请为以下笔记生成评论。
+
+【笔记信息】:
+- 标题: ${note.title}
+- 内容: ${note.content}
+- 作者: ${note.authorName}
+- 是否首次生成评论: ${isFirstComment ? '是' : '否'}
+${characterSettings}
+${chatMemoryContext}
+${worldBookContext}
+${existingCommentsContext}
+${unrepliedContext}
+${noteMentionContext}
+${mustReplyContext}
+
+【评论生成规则】:
+1. 生成5条随机评论：从以下角色中选择发评论:
+   - 角色（有人设）: ${selectedChars.map(c => c.name).join('、') || '无'}
+   - 路人用户: 随机生成2个路人网名
+   
+2. 评论类型分配（在5条随机评论中）:
+   - 2-3条主评论（直接评论笔记内容）
+   - 2-3条楼中楼回复（回复已有的评论）
+
+3. ${unrepliedUserComments.length > 0 ? `【重要】必须回复用户"${myName}"的所有未被回复的评论！这些回复不计入5条随机评论数量。` : '如果用户有评论未被回复，优先回复用户的评论。'}
+
+4. ${noteMustCommentCharacters.length > 0 ? `【重要-笔记@角色】笔记内容中@了这些角色（${noteMustCommentCharacters.map(c => c.name).join('、')}），这是首次生成评论，这些角色必须发表主评论！不计入5条随机评论数量。评论内容要体现被作者@的感觉，比如"被cue到了"、"你@我干嘛"等互动感。` : ''}
+
+5. ${mustReplyCharacters.length > 0 ? `【重要-回复@角色】用户未被回复的评论中@了这些角色（${mustReplyCharacters.map(c => c.name).join('、')}），这些角色必须回复对应@他们的评论！不计入5条随机评论数量。` : ''}
+
+6. 楼中楼回复格式必须为: "回复 @被回复者：评论内容"
+
+7. 评论风格要求:
+   - 符合小红书风格，可使用emoji、网络用语
+   - 有人设的角色要符合其人设特点
+   - 路人评论要多样化，有正面也可以有中性评价
+   - 评论长度适中，有长有短
+
+8. 互动数据增量：根据本次生成的评论质量和热度，估算应该增加的点赞和收藏数：
+   - 评论越正面热情，互动增量越高
+   - 有角色参与评论时互动通常更活跃
+   - 点赞增量范围：10-100，收藏增量范围：5-30
+
+【JSON返回格式】:
+{
+    "comments": [
+        {
+            "user": "评论者名字",
+            "text": "评论内容",
+            "isCharacter": true/false,
+            "isMainComment": true/false,
+            "replyToCommentId": "如果是楼中楼回复，填写被回复的主评论ID，否则为null",
+            "replyToUser": "如果是楼中楼回复，填写被回复的用户名，否则为null",
+            "isMustReply": true/false
+        }
+    ],
+    "engagement": {
+        "likesIncrease": 数字(10-100),
+        "collectsIncrease": 数字(5-30),
+        "reason": "简短说明为什么给这个增量"
+    }
+}
+
+现有评论的ID列表供参考:
+${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`).join('\n') : '暂无评论'}
+
+请只返回JSON数据，不要包含markdown代码块标记。
+`;
+
+                let responseData;
+                const isGemini = proxyUrl.includes("googleapis");
+                const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.9;
+
+                if (isGemini) {
+                    const url = `${proxyUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                    const body = {
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { temperature: requestTemp }
+                    };
+                    const res = await fetch(url, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(body)
+                    });
+                    const json = await res.json();
+                    if (!json.candidates || !json.candidates[0] || !json.candidates[0].content) {
+                        throw new Error("API响应格式异常");
+                    }
+                    responseData = json.candidates[0].content.parts[0].text;
+                } else {
+                    const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${apiKey}`
+                        },
+                        body: JSON.stringify({
+                            model: model,
+                            messages: [{ role: "user", content: prompt }],
+                            temperature: requestTemp
+                        })
+                    });
+                    const json = await res.json();
+                    if (!json.choices || !json.choices[0] || !json.choices[0].message) {
+                        throw new Error(json.error?.message || "API响应格式异常");
+                    }
+                    responseData = json.choices[0].message.content;
+                }
+
+                // 解析响应
+                let cleanJson = responseData;
+                const jsonMatch = responseData.match(/\{[\s\S]*\}/);
+                if (jsonMatch) cleanJson = jsonMatch[0];
+                else cleanJson = responseData.replace(/```json/g, '').replace(/```/g, '').trim();
+
+                const result = JSON.parse(cleanJson);
+
+                if (result && result.comments && Array.isArray(result.comments)) {
+                    const now = Date.now();
+
+                    // 确保note.comments存在
+                    if (!note.comments) note.comments = [];
+
+                    // 用于存储新生成的评论以添加通知
+                    const newCommentsForNotification = [];
+
+                    // 处理每条生成的评论
+                    for (const genComment of result.comments) {
+                        // 获取角色头像
+                        let avatar;
+                        if (genComment.isCharacter) {
+                            const char = availableChars.find(c => c.name === genComment.user);
+                            avatar = char?.settings?.aiAvatar || char?.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(genComment.user)}`;
+                        } else {
+                            avatar = `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(genComment.user)}`;
+                        }
+
+                        const newComment = {
+                            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+                            user: genComment.user,
+                            avatar: avatar,
+                            text: genComment.text,
+                            timestamp: now - Math.floor(Math.random() * 60 * 60 * 1000), // 过去1小时内的随机时间
+                            dateStr: formatXhsDate(now - Math.floor(Math.random() * 60 * 60 * 1000)),
+                            likes: Math.floor(Math.random() * 50),
+                            isLiked: false,
+                            isMine: false
+                        };
+
+                        if (genComment.isMainComment || !genComment.replyToCommentId) {
+                            // 主评论
+                            note.comments.push(newComment);
+                            newCommentsForNotification.push(newComment);
+                        } else {
+                            // 楼中楼回复
+                            const parentComment = note.comments.find(c => c.id === genComment.replyToCommentId);
+                            if (parentComment) {
+                                if (!parentComment.replies) parentComment.replies = [];
+                                // 确保回复格式正确
+                                if (genComment.replyToUser && !newComment.text.startsWith('回复')) {
+                                    newComment.text = `回复 @${genComment.replyToUser}：${newComment.text}`;
+                                }
+                                parentComment.replies.push(newComment);
+                                newCommentsForNotification.push(newComment);
+                            } else {
+                                // 如果找不到父评论，作为主评论添加
+                                note.comments.push(newComment);
+                                newCommentsForNotification.push(newComment);
+                            }
+                        }
+                    }
+
+                    // 添加评论通知记录
+                    for (const comment of newCommentsForNotification) {
+                        await addXhsNotification('comment', {
+                            noteId: note.id,
+                            noteTitle: note.title,
+                            noteCover: note.images?.[0] || '',
+                            userName: comment.user,
+                            userAvatar: comment.avatar,
+                            text: comment.text,
+                            timestamp: comment.timestamp
+                        });
+                    }
+
+                    // 处理互动数据增量
+                    if (result.engagement) {
+                        if (!note.stats) note.stats = { likes: 0, collects: 0 };
+                        const likesInc = parseInt(result.engagement.likesIncrease) || Math.floor(Math.random() * 30 + 10);
+                        const collectsInc = parseInt(result.engagement.collectsIncrease) || Math.floor(Math.random() * 10 + 5);
+                        note.stats.likes = (note.stats.likes || 0) + likesInc;
+                        note.stats.collects = (note.stats.collects || 0) + collectsInc;
+
+                        // 更新详情页显示
+                        const likeCountEl = document.getElementById('xhs-detail-like-count');
+                        const collectCountEl = document.getElementById('xhs-detail-collect-count');
+                        if (likeCountEl) likeCountEl.textContent = note.stats.likes;
+                        if (collectCountEl) collectCountEl.textContent = note.stats.collects;
+
+                        // 添加点赞收藏通知记录
+                        await addXhsNotification('engagement', {
+                            noteId: note.id,
+                            noteTitle: note.title,
+                            noteCover: note.images?.[0] || '',
+                            likesIncrease: likesInc,
+                            collectsIncrease: collectsInc,
+                            reason: result.engagement.reason || '评论互动带来的热度提升',
+                            timestamp: now
+                        });
+
+                        console.log(`[XHS] 互动增量 - 点赞+${likesInc}, 收藏+${collectsInc}`, result.engagement.reason || '');
+                    }
+
+                    // 更新消息页红点
+                    updateMessageBadges();
+
+                    // 保存到数据库
+                    if (window.db && window.db.xhsNotes) {
+                        await window.db.xhsNotes.put(note);
+                    }
+
+                    // 重新渲染评论
+                    renderComments();
+                    updateCommentCount();
+
+                    // 显示成功提示
+                    const toast = document.createElement('div');
+                    const engagementText = result.engagement ? ` | 点赞+${result.engagement.likesIncrease || 0} 收藏+${result.engagement.collectsIncrease || 0}` : '';
+                    toast.textContent = `成功生成 ${result.comments.length} 条评论${engagementText}`;
+                    toast.className = 'xhs-toast';
+                    document.body.appendChild(toast);
+                    setTimeout(() => document.body.removeChild(toast), 2500);
+                }
+
+            } catch (e) {
+                console.error("生成评论失败:", e);
+                alert("生成评论失败: " + e.message);
+            } finally {
+                if (generateBtn) {
+                    generateBtn.classList.remove('loading');
+                    generateBtn.querySelector('span').textContent = '生成评论';
+                }
+            }
+        }
+
+        // 绑定生成评论按钮
+        const generateCommentsBtn = document.getElementById('xhs-generate-comments-btn');
+        if (generateCommentsBtn) {
+            const newGenerateBtn = generateCommentsBtn.cloneNode(true);
+            generateCommentsBtn.parentNode.replaceChild(newGenerateBtn, generateCommentsBtn);
+            newGenerateBtn.onclick = generateCommentsForNote;
+        }
+
+        // 绑定分享按钮
+        const shareBtn = document.getElementById('xhs-detail-share-btn');
+        if (shareBtn) {
+            const newShareBtn = shareBtn.cloneNode(true);
+            shareBtn.parentNode.replaceChild(newShareBtn, shareBtn);
+            newShareBtn.onclick = () => showShareModal(note);
+        }
+
         renderComments();
-        views.noteDetail.style.zIndex = '1000'; // 确保在搜索页之上
+        bringToFront(views.noteDetail); // 动态提升z-index，确保在最上面
         views.noteDetail.style.display = 'flex';
     }
 
+    // 暴露 openXhsNoteDetail 到全局，供其他模块调用
+    window.openXhsNoteDetail = openXhsNoteDetail;
+
+    // 显示分享弹窗
+    function showShareModal(note) {
+        // 创建分享弹窗
+        let modal = document.getElementById('xhs-share-modal');
+        if (modal) modal.remove();
+
+        modal = document.createElement('div');
+        modal.id = 'xhs-share-modal';
+        modal.className = 'xhs-modal-overlay';
+        modal.innerHTML = `
+            <div class="xhs-share-modal-content">
+                <div class="xhs-share-header">
+                    <span>转发到聊天</span>
+                    <span class="xhs-share-close">&times;</span>
+                </div>
+                <div class="xhs-share-preview">
+                    <div class="xhs-share-card">
+                        <img class="xhs-share-cover" src="${note.images?.[0] || note.imageUrl || ''}" onerror="this.style.display='none'" />
+                        <div class="xhs-share-info">
+                            <div class="xhs-share-title">${note.title}</div>
+                            <div class="xhs-share-author">
+                                <img src="${note.authorAvatar}" class="xhs-share-avatar" />
+                                <span>${note.authorName}</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="xhs-share-chat-list" id="xhs-share-chat-list">
+                    <!-- 聊天列表由JS生成 -->
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+        modal.style.display = 'flex';
+
+        // 关闭按钮
+        modal.querySelector('.xhs-share-close').onclick = () => {
+            modal.remove();
+        };
+
+        // 点击背景关闭
+        modal.onclick = (e) => {
+            if (e.target === modal) modal.remove();
+        };
+
+        // 加载聊天列表（包含私聊和群聊）
+        const chatList = modal.querySelector('#xhs-share-chat-list');
+        const chats = Object.values(window.state.chats || {});
+
+        if (chats.length === 0) {
+            chatList.innerHTML = '<div class="xhs-empty-state" style="padding: 30px;">暂无可转发的聊天</div>';
+            return;
+        }
+
+        chatList.innerHTML = chats.map(chat => `
+            <div class="xhs-share-chat-item" data-chat-id="${chat.id}">
+                <img class="xhs-share-chat-avatar" src="${chat.settings?.aiAvatar || chat.avatar || 'https://api.dicebear.com/7.x/notionists/svg?seed=' + encodeURIComponent(chat.name)}" />
+                <div class="xhs-share-chat-name">${chat.name}</div>
+            </div>
+        `).join('');
+
+        // 绑定聊天点击事件
+        chatList.querySelectorAll('.xhs-share-chat-item').forEach(item => {
+            item.onclick = async () => {
+                const chatId = item.dataset.chatId;
+                await shareNoteToChat(note, chatId);
+                modal.remove();
+
+                // 显示成功提示
+                const toast = document.createElement('div');
+                toast.textContent = '✨ 已转发到聊天';
+                toast.className = 'xhs-toast';
+                document.body.appendChild(toast);
+                setTimeout(() => document.body.removeChild(toast), 2000);
+            };
+        });
+    }
+
+    // 转发笔记到聊天
+    async function shareNoteToChat(note, chatId) {
+        const chat = window.state.chats[chatId];
+        if (!chat) return;
+
+        // 创建分享卡片消息（使用 chat.history 以兼容 QQ 聊天系统）
+        // 保存完整笔记数据，以便点击卡片时可以打开完整详情
+        const shareMessage = {
+            id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
+            role: 'user',
+            content: `[分享小红书笔记] ${note.title}`,
+            timestamp: Date.now(),
+            type: 'xhs-share',
+            shareData: {
+                noteId: note.id,
+                title: note.title,
+                cover: note.images?.[0] || note.imageUrl || '',
+                imageUrl: note.imageUrl || '',
+                images: note.images || [],
+                authorName: note.authorName,
+                authorAvatar: note.authorAvatar,
+                content: note.content || '', // 保存完整内容，不截断
+                stats: note.stats,
+                tags: note.tags || [],
+                dateStr: note.dateStr || '',
+                location: note.location || '',
+                comments: note.comments || []
+            }
+        };
+
+        // 添加到聊天记录（使用 history 以兼容 QQ 聊天系统）
+        if (!chat.history) chat.history = [];
+        chat.history.push(shareMessage);
+
+        // 保存到数据库
+        if (window.db && window.db.chats) {
+            await window.db.chats.put(chat);
+        }
+
+        // 更新state
+        window.state.chats[chatId] = chat;
+    }
+
+    // 当前激活的首页Tab（discover/follow）
+    let currentHomeTab = 'discover';
+
     // 绑定事件
     if (refreshBtn) {
-        refreshBtn.addEventListener('click', generateXhsNotes);
+        refreshBtn.addEventListener('click', async () => {
+            if (currentHomeTab === 'follow') {
+                // 关注页：为已关注角色生成笔记
+                await generateFollowedUsersNotes();
+            } else {
+                // 发现页：原有逻辑
+                await generateXhsNotes();
+            }
+        });
     }
 
     if (detailBackBtn) {
@@ -1977,12 +3477,15 @@ document.addEventListener('DOMContentLoaded', () => {
             topTabItems.forEach(t => t.classList.remove('active'));
             tab.classList.add('active');
             const target = tab.dataset.target;
+            currentHomeTab = target; // 更新当前激活的tab
             if (feeds.discover) feeds.discover.style.display = 'none';
             if (feeds.follow) feeds.follow.style.display = 'none';
             if (target === 'discover') {
                 if (feeds.discover) feeds.discover.style.display = '';
             } else if (target === 'follow') {
                 if (feeds.follow) feeds.follow.style.display = '';
+                // 加载关注页笔记
+                loadFollowedUsersNotes();
             }
         });
     });
@@ -2037,7 +3540,6 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <path d="M21 12a9 9 0 1 1-6.219-8.56"></path>
                             </svg>
                             <p style="margin-top: 15px; font-size: 15px; font-weight: 500; color: #333;">正在挖掘宝藏笔记...</p>
-                            <p style="margin-top: 5px; font-size: 12px; color: #999;">AI 正在创作中，请耐心等待 10-20 秒</p>
                         </div>
                     `;
                 }
@@ -2051,46 +3553,1098 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (createBtn && createView) {
-        createBtn.onclick = () => {
-            createView.classList.add('active');
-            createView.style.display = 'block';
-            const editorMain = createView.querySelector('.xhs-editor-main');
-            if (editorMain) {
-                editorMain.style.backgroundImage = 'none';
-                editorMain.innerHTML = '<div class="xhs-empty-state"><p>点击上传图片或输入文字</p></div>';
-            }
+        // 初始化发布笔记功能
+        initXhsNoteCreator();
+    }
+
+    /* =========================================
+        6.1 发布笔记功能完整实现
+       ========================================= */
+    function initXhsNoteCreator() {
+        // 状态管理
+        let currentStep = 'step1';
+        let coverType = null; // 'text', 'upload', 'ai'
+        let coverImageData = null; // Base64或URL
+        let selectedTexture = 0;
+        let noteTags = [];
+        let noteLocation = '';
+        let mentionedCharacters = []; // 被@的角色列表
+        let cropImageSrc = null;
+        let cropScale = 1;
+        let cropOffsetX = 0;
+        let cropOffsetY = 0;
+        let currentCropRatio = 3 / 4;
+
+        // 纹理背景配置（预设渐变）
+        const defaultTextures = [
+            { name: '渐变紫', css: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', type: 'gradient' },
+            { name: '渐变橙', css: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', type: 'gradient' },
+            { name: '渐变蓝', css: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)', type: 'gradient' },
+            { name: '渐变绿', css: 'linear-gradient(135deg, #43e97b 0%, #38f9d7 100%)', type: 'gradient' },
+            { name: '渐变粉', css: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', type: 'gradient' },
+            { name: '深蓝', css: 'linear-gradient(135deg, #0c3483 0%, #a2b6df 100%)', type: 'gradient' },
+            { name: '暖阳', css: 'linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%)', type: 'gradient' },
+            { name: '星空', css: 'linear-gradient(135deg, #2c3e50 0%, #4ca1af 100%)', type: 'gradient' },
+            { name: '火焰', css: 'linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%)', type: 'gradient' },
+            { name: '森林', css: 'linear-gradient(135deg, #134e5e 0%, #71b280 100%)', type: 'gradient' }
+        ];
+
+        // 自定义背景存储（从localStorage加载）
+        let customTextures = [];
+        try {
+            const saved = localStorage.getItem('xhs-custom-textures');
+            if (saved) customTextures = JSON.parse(saved);
+        } catch (e) { }
+
+        // 合并纹理列表
+        const getTextures = () => [...defaultTextures, ...customTextures];
+
+        // DOM元素
+        const steps = {
+            step1: document.getElementById('xhs-create-step1'),
+            step2Text: document.getElementById('xhs-create-step2-text'),
+            step2Upload: document.getElementById('xhs-create-step2-upload'),
+            step2Ai: document.getElementById('xhs-create-step2-ai'),
+            step2Crop: document.getElementById('xhs-create-step2-crop'),
+            step3: document.getElementById('xhs-create-step3')
         };
 
-        const closeSpan = createView.querySelector('.header span:first-child');
-        if (closeSpan) {
-            closeSpan.onclick = () => {
+        // 切换步骤
+        function showStep(stepName) {
+            Object.values(steps).forEach(step => {
+                if (step) step.classList.remove('active');
+            });
+            if (steps[stepName]) {
+                steps[stepName].classList.add('active');
+                currentStep = stepName;
+            }
+        }
+
+        // 重置状态
+        function resetCreator() {
+            currentStep = 'step1';
+            coverType = null;
+            coverImageData = null;
+            selectedTexture = 0;
+            noteTags = [];
+            noteLocation = '';
+            mentionedCharacters = [];
+            cropImageSrc = null;
+            cropScale = 1;
+            cropOffsetX = 0;
+            cropOffsetY = 0;
+
+            // 重置输入框
+            const titleInput = document.getElementById('xhs-text-cover-title-input');
+            if (titleInput) titleInput.value = '';
+            const noteTitleInput = document.getElementById('xhs-note-title-input');
+            if (noteTitleInput) noteTitleInput.value = '';
+            const contentInput = document.getElementById('xhs-note-content-input');
+            if (contentInput) contentInput.value = '';
+            const tagInput = document.getElementById('xhs-tag-input');
+            if (tagInput) tagInput.value = '';
+            const tagsContainer = document.getElementById('xhs-tags-container');
+            if (tagsContainer) tagsContainer.innerHTML = '';
+            const locationText = document.getElementById('xhs-location-text');
+            if (locationText) {
+                locationText.textContent = '点击选择地点';
+                locationText.classList.remove('selected');
+            }
+            const aiPromptInput = document.getElementById('xhs-ai-prompt-input');
+            if (aiPromptInput) aiPromptInput.value = '';
+
+            // 重置预览
+            const textPreview = document.getElementById('xhs-text-cover-title-preview');
+            if (textPreview) textPreview.textContent = '在此输入标题';
+            const uploadPreview = document.getElementById('xhs-upload-preview');
+            if (uploadPreview) {
+                uploadPreview.style.display = 'none';
+                uploadPreview.src = '';
+            }
+            const uploadPlaceholder = document.getElementById('xhs-upload-placeholder');
+            if (uploadPlaceholder) uploadPlaceholder.style.display = 'flex';
+            const aiPreviewImg = document.getElementById('xhs-ai-preview-img');
+            if (aiPreviewImg) {
+                aiPreviewImg.style.display = 'none';
+                aiPreviewImg.src = '';
+            }
+            const aiPlaceholder = document.getElementById('xhs-ai-preview-placeholder');
+            if (aiPlaceholder) aiPlaceholder.style.display = 'flex';
+            const urlInput = document.getElementById('xhs-url-input');
+            if (urlInput) urlInput.value = '';
+
+            // 更新计数
+            updateTitleCount();
+            updateContentCount();
+
+            showStep('step1');
+        }
+
+        // 打开创建界面
+        createBtn.onclick = () => {
+            resetCreator();
+            createView.classList.add('active');
+            createView.style.display = 'block';
+            bringToFront(createView);
+        };
+
+        // 关闭按钮
+        const closeBtn = document.getElementById('xhs-create-close-btn');
+        if (closeBtn) {
+            closeBtn.onclick = () => {
                 createView.classList.remove('active');
                 createView.style.display = 'none';
             };
         }
-        const publishSpan = createView.querySelector('.header span:last-child');
-        if (publishSpan) {
-            publishSpan.onclick = () => {
-                publishSpan.textContent = '发布中...';
-                publishSpan.style.opacity = '0.5';
-                setTimeout(() => {
-                    alert('✨ 笔记发布成功！');
-                    createView.classList.remove('active');
-                    createView.style.display = 'none';
-                    publishSpan.textContent = '发布';
-                    publishSpan.style.opacity = '1';
-                }, 800);
+
+        // 返回按钮
+        document.querySelectorAll('.xhs-create-back').forEach(btn => {
+            btn.onclick = () => {
+                const backTo = btn.dataset.back;
+                if (backTo === 'step1') {
+                    showStep('step1');
+                } else if (backTo === 'step2-upload') {
+                    showStep('step2Upload');
+                }
+            };
+        });
+
+        // 内容页返回按钮
+        const contentBackBtn = document.getElementById('xhs-content-back');
+        if (contentBackBtn) {
+            contentBackBtn.onclick = () => {
+                if (coverType === 'text') {
+                    showStep('step2Text');
+                } else if (coverType === 'upload') {
+                    showStep('step2Crop');
+                } else if (coverType === 'ai') {
+                    showStep('step2Ai');
+                }
             };
         }
-        const editorMain = createView.querySelector('.xhs-editor-main');
-        if (editorMain) {
-            editorMain.onclick = () => {
-                editorMain.innerHTML = '';
-                editorMain.style.backgroundImage = 'url("https://i.postimg.cc/pT2xKzPz/album-cover-placeholder.png")';
-                editorMain.style.backgroundSize = 'contain';
-                editorMain.style.backgroundRepeat = 'no-repeat';
-                editorMain.style.backgroundPosition = 'center';
+
+        // === 步骤1: 选择封面类型 ===
+        document.querySelectorAll('.xhs-cover-option').forEach(option => {
+            option.onclick = () => {
+                coverType = option.dataset.type;
+                if (coverType === 'text') {
+                    initTextureList();
+                    showStep('step2Text');
+                } else if (coverType === 'upload') {
+                    showStep('step2Upload');
+                } else if (coverType === 'ai') {
+                    showStep('step2Ai');
+                }
             };
+        });
+
+        // === 步骤2a: 文字图 ===
+        function initTextureList() {
+            const listEl = document.getElementById('xhs-texture-list');
+            if (!listEl) return;
+            listEl.innerHTML = '';
+
+            const textures = getTextures();
+            textures.forEach((tex, idx) => {
+                const item = document.createElement('div');
+                item.className = 'xhs-texture-item' + (idx === selectedTexture ? ' active' : '') + (tex.type === 'image' ? ' custom-bg' : '');
+
+                if (tex.type === 'image') {
+                    item.style.backgroundImage = `url(${tex.css})`;
+                    item.style.backgroundSize = 'cover';
+                    item.style.backgroundPosition = 'center';
+
+                    // 删除按钮
+                    const delBtn = document.createElement('span');
+                    delBtn.className = 'delete-btn';
+                    delBtn.textContent = '×';
+                    delBtn.onclick = (e) => {
+                        e.stopPropagation();
+                        deleteCustomTexture(idx - defaultTextures.length);
+                    };
+                    item.appendChild(delBtn);
+                } else {
+                    item.style.background = tex.css;
+                }
+
+                item.onclick = () => {
+                    document.querySelectorAll('.xhs-texture-item').forEach(i => i.classList.remove('active'));
+                    item.classList.add('active');
+                    selectedTexture = idx;
+                    updateTextCoverPreview();
+                };
+                listEl.appendChild(item);
+            });
+            updateTextCoverPreview();
+        }
+
+        // 删除自定义背景
+        function deleteCustomTexture(customIdx) {
+            if (customIdx >= 0 && customIdx < customTextures.length) {
+                customTextures.splice(customIdx, 1);
+                localStorage.setItem('xhs-custom-textures', JSON.stringify(customTextures));
+                // 如果当前选中的是被删除的，重置为第一个
+                if (selectedTexture >= defaultTextures.length + customIdx) {
+                    selectedTexture = 0;
+                }
+                initTextureList();
+            }
+        }
+
+        // 上传自定义背景
+        const textureUploadBtn = document.getElementById('xhs-texture-upload-btn');
+        const textureUploadInput = document.getElementById('xhs-texture-upload-input');
+
+        if (textureUploadBtn && textureUploadInput) {
+            textureUploadBtn.onclick = () => textureUploadInput.click();
+
+            textureUploadInput.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    const imageData = ev.target.result;
+                    // 添加到自定义背景列表
+                    customTextures.push({
+                        name: '自定义背景',
+                        css: imageData,
+                        type: 'image'
+                    });
+                    localStorage.setItem('xhs-custom-textures', JSON.stringify(customTextures));
+
+                    // 选中新添加的背景
+                    selectedTexture = getTextures().length - 1;
+                    initTextureList();
+                };
+                reader.readAsDataURL(file);
+                textureUploadInput.value = '';
+            };
+        }
+
+        function updateTextCoverPreview() {
+            const canvas = document.getElementById('xhs-text-cover-canvas');
+            const preview = document.getElementById('xhs-text-cover-title-preview');
+            const textures = getTextures();
+            if (canvas && textures[selectedTexture]) {
+                const tex = textures[selectedTexture];
+                if (tex.type === 'image') {
+                    canvas.style.background = `url(${tex.css}) center/cover no-repeat`;
+                } else {
+                    canvas.style.background = tex.css;
+                }
+            }
+            const titleInput = document.getElementById('xhs-text-cover-title-input');
+            if (preview && titleInput) {
+                preview.textContent = titleInput.value || '在此输入标题';
+            }
+        }
+
+        const textTitleInput = document.getElementById('xhs-text-cover-title-input');
+        if (textTitleInput) {
+            textTitleInput.oninput = updateTextCoverPreview;
+        }
+
+        // 文字图下一步
+        const textNextBtn = document.getElementById('xhs-text-cover-next');
+        if (textNextBtn) {
+            textNextBtn.onclick = async () => {
+                const titleInput = document.getElementById('xhs-text-cover-title-input');
+                const title = titleInput ? titleInput.value.trim() : '';
+                if (!title) {
+                    alert('请输入标题文字');
+                    return;
+                }
+
+                // 生成文字图
+                textNextBtn.textContent = '生成中...';
+                textNextBtn.style.opacity = '0.5';
+
+                try {
+                    const textures = getTextures();
+                    const selectedTex = textures[selectedTexture];
+                    coverImageData = await generateTextCoverImage(title, selectedTex);
+                    goToContentStep(title);
+                } catch (e) {
+                    console.error('生成文字图失败:', e);
+                    alert('生成失败，请重试');
+                } finally {
+                    textNextBtn.textContent = '下一步';
+                    textNextBtn.style.opacity = '1';
+                }
+            };
+        }
+
+        // 生成文字图
+        async function generateTextCoverImage(text, texture) {
+            const canvas = document.createElement('canvas');
+            canvas.width = 832;
+            canvas.height = 1110;
+            const ctx = canvas.getContext('2d');
+
+            // 根据类型处理背景
+            if (texture.type === 'image') {
+                // 图片背景
+                await new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    img.onload = () => {
+                        // 居中裁剪绘制
+                        const imgRatio = img.width / img.height;
+                        const canvasRatio = canvas.width / canvas.height;
+                        let sx, sy, sw, sh;
+
+                        if (imgRatio > canvasRatio) {
+                            sh = img.height;
+                            sw = sh * canvasRatio;
+                            sx = (img.width - sw) / 2;
+                            sy = 0;
+                        } else {
+                            sw = img.width;
+                            sh = sw / canvasRatio;
+                            sx = 0;
+                            sy = (img.height - sh) / 2;
+                        }
+
+                        ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+                        resolve();
+                    };
+                    img.onerror = () => reject(new Error('加载背景图片失败'));
+                    img.src = texture.css;
+                });
+            } else {
+                // 渐变背景
+                const gradient = texture.css;
+                const gradientMatch = gradient.match(/linear-gradient\((\d+)deg,\s*(#[a-fA-F0-9]{6}|#[a-fA-F0-9]{3}|rgb[a]?\([^)]+\))\s*\d*%?,\s*(#[a-fA-F0-9]{6}|#[a-fA-F0-9]{3}|rgb[a]?\([^)]+\))\s*\d*%?\)/);
+                if (gradientMatch) {
+                    const angle = parseInt(gradientMatch[1]) || 135;
+                    const color1 = gradientMatch[2].trim();
+                    const color2 = gradientMatch[3].trim();
+
+                    const rad = (angle - 90) * Math.PI / 180;
+                    const x1 = canvas.width / 2 - Math.cos(rad) * canvas.width;
+                    const y1 = canvas.height / 2 - Math.sin(rad) * canvas.height;
+                    const x2 = canvas.width / 2 + Math.cos(rad) * canvas.width;
+                    const y2 = canvas.height / 2 + Math.sin(rad) * canvas.height;
+
+                    const grd = ctx.createLinearGradient(x1, y1, x2, y2);
+                    grd.addColorStop(0, color1);
+                    grd.addColorStop(1, color2);
+                    ctx.fillStyle = grd;
+                } else {
+                    ctx.fillStyle = '#667eea';
+                }
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+            }
+
+            // 绘制文字
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+
+            // 自动调整字号
+            let fontSize = 80;
+            ctx.font = `bold ${fontSize}px "PingFang SC", "Microsoft YaHei", sans-serif`;
+
+            // 文字换行处理
+            const maxWidth = canvas.width - 120;
+            const lines = wrapText(ctx, text, maxWidth);
+
+            // 如果行数太多，减小字号
+            while (lines.length > 6 && fontSize > 40) {
+                fontSize -= 5;
+                ctx.font = `bold ${fontSize}px "PingFang SC", "Microsoft YaHei", sans-serif`;
+                lines.length = 0;
+                lines.push(...wrapText(ctx, text, maxWidth));
+            }
+
+            const lineHeight = fontSize * 1.4;
+            const startY = (canvas.height - lines.length * lineHeight) / 2;
+
+            // 绘制阴影
+            ctx.shadowColor = 'rgba(0,0,0,0.3)';
+            ctx.shadowBlur = 10;
+            ctx.shadowOffsetX = 2;
+            ctx.shadowOffsetY = 2;
+
+            lines.forEach((line, i) => {
+                ctx.fillText(line, canvas.width / 2, startY + i * lineHeight + lineHeight / 2);
+            });
+
+            return canvas.toDataURL('image/jpeg', 0.9);
+        }
+
+        function wrapText(ctx, text, maxWidth) {
+            const lines = [];
+            let line = '';
+            for (let i = 0; i < text.length; i++) {
+                const testLine = line + text[i];
+                const metrics = ctx.measureText(testLine);
+                if (metrics.width > maxWidth && line.length > 0) {
+                    lines.push(line);
+                    line = text[i];
+                } else {
+                    line = testLine;
+                }
+            }
+            if (line) lines.push(line);
+            return lines;
+        }
+
+        // === 步骤2b: 上传图片 ===
+        const uploadArea = document.getElementById('xhs-upload-area');
+        const uploadInput = document.getElementById('xhs-upload-input');
+        const uploadPreview = document.getElementById('xhs-upload-preview');
+        const uploadPlaceholder = document.getElementById('xhs-upload-placeholder');
+        const uploadNextBtn = document.getElementById('xhs-upload-next');
+
+        if (uploadArea && uploadInput) {
+            uploadArea.onclick = (e) => {
+                if (e.target.closest('#xhs-upload-preview')) return;
+                uploadInput.click();
+            };
+
+            uploadInput.onchange = async (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    cropImageSrc = ev.target.result;
+                    showUploadPreview(cropImageSrc);
+                };
+                reader.readAsDataURL(file);
+            };
+        }
+
+        function showUploadPreview(src) {
+            if (uploadPreview && uploadPlaceholder && uploadNextBtn) {
+                uploadPreview.src = src;
+                uploadPreview.style.display = 'block';
+                uploadPlaceholder.style.display = 'none';
+                uploadNextBtn.style.opacity = '1';
+            }
+        }
+
+        // URL加载
+        const urlInput = document.getElementById('xhs-url-input');
+        const urlLoadBtn = document.getElementById('xhs-url-load-btn');
+        if (urlLoadBtn && urlInput) {
+            urlLoadBtn.onclick = async () => {
+                const url = urlInput.value.trim();
+                if (!url) {
+                    alert('请输入图片URL');
+                    return;
+                }
+
+                urlLoadBtn.textContent = '加载中...';
+                urlLoadBtn.disabled = true;
+
+                try {
+                    // 直接使用URL
+                    cropImageSrc = url;
+                    showUploadPreview(url);
+                } catch (e) {
+                    console.error('加载图片失败:', e);
+                    alert('加载失败，请检查URL');
+                } finally {
+                    urlLoadBtn.textContent = '加载';
+                    urlLoadBtn.disabled = false;
+                }
+            };
+        }
+
+        // 上传图片下一步 - 进入裁剪
+        if (uploadNextBtn) {
+            uploadNextBtn.onclick = () => {
+                if (!cropImageSrc) {
+                    alert('请先上传图片');
+                    return;
+                }
+                initCropView();
+                showStep('step2Crop');
+            };
+        }
+
+        // === 步骤2c: AI生成 ===
+        const aiGenerateBtn = document.getElementById('xhs-ai-generate-btn');
+        const aiPromptInput = document.getElementById('xhs-ai-prompt-input');
+        const aiPreviewImg = document.getElementById('xhs-ai-preview-img');
+        const aiPlaceholder = document.getElementById('xhs-ai-preview-placeholder');
+        const aiNextBtn = document.getElementById('xhs-ai-next');
+
+        if (aiGenerateBtn) {
+            aiGenerateBtn.onclick = async () => {
+                const prompt = aiPromptInput ? aiPromptInput.value.trim() : '';
+                if (!prompt) {
+                    alert('请输入图片描述');
+                    return;
+                }
+
+                aiGenerateBtn.classList.add('loading');
+                aiGenerateBtn.disabled = true;
+
+                try {
+                    const imageUrl = await window.generatePollinationsImage(prompt, {
+                        width: 832,
+                        height: 1110,
+                        nologo: true,
+                        model: 'flux'
+                    });
+
+                    if (aiPreviewImg && aiPlaceholder) {
+                        aiPreviewImg.src = imageUrl;
+                        aiPreviewImg.style.display = 'block';
+                        aiPlaceholder.style.display = 'none';
+                        coverImageData = imageUrl;
+                        if (aiNextBtn) aiNextBtn.style.opacity = '1';
+                    }
+                } catch (e) {
+                    console.error('AI生成图片失败:', e);
+                    alert('生成失败，请重试');
+                } finally {
+                    aiGenerateBtn.classList.remove('loading');
+                    aiGenerateBtn.disabled = false;
+                }
+            };
+        }
+
+        // AI生成下一步
+        if (aiNextBtn) {
+            aiNextBtn.onclick = () => {
+                if (!coverImageData) {
+                    alert('请先生成图片');
+                    return;
+                }
+                goToContentStep();
+            };
+        }
+
+        // === 步骤2d: 图片裁剪 ===
+        let cropImage = null;
+        let isDragging = false;
+        let startX = 0, startY = 0;
+        let imgNaturalWidth = 0, imgNaturalHeight = 0;
+
+        function initCropView() {
+            cropImage = document.getElementById('xhs-crop-image');
+            if (!cropImage || !cropImageSrc) return;
+
+            cropImage.src = cropImageSrc;
+            cropScale = 1;
+            cropOffsetX = 0;
+            cropOffsetY = 0;
+
+            cropImage.onload = () => {
+                imgNaturalWidth = cropImage.naturalWidth;
+                imgNaturalHeight = cropImage.naturalHeight;
+
+                // 计算初始缩放，使图片填满裁剪框
+                const frame = document.getElementById('xhs-crop-frame');
+                const frameWidth = 260;
+                const frameHeight = frameWidth / currentCropRatio;
+                frame.style.height = frameHeight + 'px';
+
+                const scaleX = frameWidth / imgNaturalWidth;
+                const scaleY = frameHeight / imgNaturalHeight;
+                cropScale = Math.max(scaleX, scaleY) * 1.2;
+
+                updateCropTransform();
+            };
+
+            // 拖动事件
+            const container = document.getElementById('xhs-crop-container');
+            if (container) {
+                container.ontouchstart = container.onmousedown = (e) => {
+                    isDragging = true;
+                    const point = e.touches ? e.touches[0] : e;
+                    startX = point.clientX - cropOffsetX;
+                    startY = point.clientY - cropOffsetY;
+                    e.preventDefault();
+                };
+
+                container.ontouchmove = container.onmousemove = (e) => {
+                    if (!isDragging) return;
+                    const point = e.touches ? e.touches[0] : e;
+                    cropOffsetX = point.clientX - startX;
+                    cropOffsetY = point.clientY - startY;
+                    updateCropTransform();
+                    e.preventDefault();
+                };
+
+                container.ontouchend = container.onmouseup = container.onmouseleave = () => {
+                    isDragging = false;
+                };
+
+                // 双指缩放
+                let initialDistance = 0;
+                let initialScale = 1;
+
+                container.ontouchstart = (e) => {
+                    if (e.touches.length === 2) {
+                        initialDistance = Math.hypot(
+                            e.touches[0].clientX - e.touches[1].clientX,
+                            e.touches[0].clientY - e.touches[1].clientY
+                        );
+                        initialScale = cropScale;
+                    } else if (e.touches.length === 1) {
+                        isDragging = true;
+                        startX = e.touches[0].clientX - cropOffsetX;
+                        startY = e.touches[0].clientY - cropOffsetY;
+                    }
+                    e.preventDefault();
+                };
+
+                container.ontouchmove = (e) => {
+                    if (e.touches.length === 2) {
+                        const currentDistance = Math.hypot(
+                            e.touches[0].clientX - e.touches[1].clientX,
+                            e.touches[0].clientY - e.touches[1].clientY
+                        );
+                        cropScale = Math.max(0.5, Math.min(3, initialScale * (currentDistance / initialDistance)));
+                        updateCropTransform();
+                    } else if (e.touches.length === 1 && isDragging) {
+                        cropOffsetX = e.touches[0].clientX - startX;
+                        cropOffsetY = e.touches[0].clientY - startY;
+                        updateCropTransform();
+                    }
+                    e.preventDefault();
+                };
+            }
+        }
+
+        function updateCropTransform() {
+            if (cropImage) {
+                cropImage.style.transform = `translate(${cropOffsetX}px, ${cropOffsetY}px) scale(${cropScale})`;
+            }
+        }
+
+        // 裁剪比例选择
+        document.querySelectorAll('.xhs-crop-ratio').forEach(btn => {
+            btn.onclick = () => {
+                document.querySelectorAll('.xhs-crop-ratio').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+                const ratio = btn.dataset.ratio;
+                if (ratio === '3:4') currentCropRatio = 3 / 4;
+                else if (ratio === '1:1') currentCropRatio = 1;
+                else if (ratio === '4:3') currentCropRatio = 4 / 3;
+
+                const frame = document.getElementById('xhs-crop-frame');
+                if (frame) {
+                    const frameWidth = 260;
+                    frame.style.height = (frameWidth / currentCropRatio) + 'px';
+                }
+            };
+        });
+
+        // 裁剪确认
+        const cropNextBtn = document.getElementById('xhs-crop-next');
+        if (cropNextBtn) {
+            cropNextBtn.onclick = async () => {
+                cropNextBtn.textContent = '处理中...';
+                cropNextBtn.style.opacity = '0.5';
+
+                try {
+                    coverImageData = await performCrop();
+                    goToContentStep();
+                } catch (e) {
+                    console.error('裁剪失败:', e);
+                    alert('裁剪失败，请重试');
+                } finally {
+                    cropNextBtn.textContent = '确认裁剪';
+                    cropNextBtn.style.opacity = '1';
+                }
+            };
+        }
+
+        async function performCrop() {
+            return new Promise((resolve, reject) => {
+                const img = new Image();
+                img.crossOrigin = 'anonymous';
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const frameWidth = 260;
+                    const frameHeight = frameWidth / currentCropRatio;
+
+                    // 目标尺寸
+                    canvas.width = 832;
+                    canvas.height = Math.round(832 / currentCropRatio);
+
+                    const ctx = canvas.getContext('2d');
+
+                    // 计算裁剪区域
+                    const scaledWidth = img.naturalWidth * cropScale;
+                    const scaledHeight = img.naturalHeight * cropScale;
+
+                    // 裁剪框在缩放后图片上的相对位置
+                    const cropX = (scaledWidth / 2 - frameWidth / 2 - cropOffsetX) / cropScale;
+                    const cropY = (scaledHeight / 2 - frameHeight / 2 - cropOffsetY) / cropScale;
+                    const cropW = frameWidth / cropScale;
+                    const cropH = frameHeight / cropScale;
+
+                    ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, canvas.width, canvas.height);
+                    resolve(canvas.toDataURL('image/jpeg', 0.9));
+                };
+                img.onerror = reject;
+                img.src = cropImageSrc;
+            });
+        }
+
+        // === 步骤3: 编辑内容 ===
+        function goToContentStep(defaultTitle = '') {
+            const finalCoverImg = document.getElementById('xhs-final-cover-img');
+            if (finalCoverImg && coverImageData) {
+                finalCoverImg.src = coverImageData;
+            }
+
+            // 设置默认标题
+            const noteTitleInput = document.getElementById('xhs-note-title-input');
+            if (noteTitleInput && defaultTitle) {
+                noteTitleInput.value = defaultTitle;
+                updateTitleCount();
+            }
+
+            showStep('step3');
+        }
+
+        // 更换封面
+        const changeCoverBtn = document.getElementById('xhs-change-cover-btn');
+        if (changeCoverBtn) {
+            changeCoverBtn.onclick = () => {
+                showStep('step1');
+            };
+        }
+
+        // 标题字数统计
+        const noteTitleInput = document.getElementById('xhs-note-title-input');
+        function updateTitleCount() {
+            const count = noteTitleInput ? noteTitleInput.value.length : 0;
+            const countEl = document.getElementById('xhs-title-count-num');
+            if (countEl) countEl.textContent = count;
+        }
+        if (noteTitleInput) {
+            noteTitleInput.oninput = updateTitleCount;
+        }
+
+        // 内容字数统计
+        const noteContentInput = document.getElementById('xhs-note-content-input');
+        function updateContentCount() {
+            const count = noteContentInput ? noteContentInput.value.length : 0;
+            const countEl = document.getElementById('xhs-content-count-num');
+            if (countEl) countEl.textContent = count;
+        }
+        if (noteContentInput) {
+            noteContentInput.oninput = () => {
+                updateContentCount();
+                checkForMentions();
+            };
+        }
+
+        // 检测@角色
+        function checkForMentions() {
+            const content = noteContentInput ? noteContentInput.value : '';
+            const cursorPos = noteContentInput ? noteContentInput.selectionStart : 0;
+
+            // 检查光标前是否刚输入@
+            if (content[cursorPos - 1] === '@') {
+                showMentionModal();
+            }
+        }
+
+        // @角色选择弹窗
+        const mentionModal = document.getElementById('xhs-mention-modal');
+        const mentionList = document.getElementById('xhs-mention-list');
+        const mentionSearch = document.getElementById('xhs-mention-search');
+        const mentionModalClose = document.getElementById('xhs-mention-modal-close');
+
+        function showMentionModal() {
+            if (!mentionModal) return;
+            renderMentionList();
+            mentionModal.style.display = 'flex';
+        }
+
+        function hideMentionModal() {
+            if (mentionModal) mentionModal.style.display = 'none';
+        }
+
+        if (mentionModalClose) {
+            mentionModalClose.onclick = hideMentionModal;
+        }
+        if (mentionModal) {
+            mentionModal.onclick = (e) => {
+                if (e.target === mentionModal) hideMentionModal();
+            };
+        }
+
+        function renderMentionList(filter = '') {
+            if (!mentionList) return;
+            mentionList.innerHTML = '';
+
+            const chatsMap = window.state.chats || {};
+            const characters = Object.values(chatsMap).filter(c => !c.isGroup);
+
+            const filtered = filter
+                ? characters.filter(c => c.name.toLowerCase().includes(filter.toLowerCase()))
+                : characters;
+
+            if (filtered.length === 0) {
+                mentionList.innerHTML = '<div class="xhs-empty-state" style="padding: 40px;">暂无角色</div>';
+                return;
+            }
+
+            filtered.forEach(char => {
+                const item = document.createElement('div');
+                item.className = 'xhs-mention-item';
+                const avatar = char.avatar || char.settings?.aiAvatar || "https://api.dicebear.com/7.x/notionists/svg?seed=" + encodeURIComponent(char.name);
+                item.innerHTML = `
+                    <img src="${avatar}" alt="${char.name}">
+                    <div class="xhs-mention-item-info">
+                        <div class="xhs-mention-item-name">${char.name}</div>
+                        <div class="xhs-mention-item-desc">${char.settings?.aiPersona?.substring(0, 30) || '角色'}...</div>
+                    </div>
+                `;
+                item.onclick = () => {
+                    insertMention(char.name);
+                    if (!mentionedCharacters.includes(char.name)) {
+                        mentionedCharacters.push(char.name);
+                    }
+                    hideMentionModal();
+                };
+                mentionList.appendChild(item);
+            });
+        }
+
+        if (mentionSearch) {
+            mentionSearch.oninput = () => {
+                renderMentionList(mentionSearch.value);
+            };
+        }
+
+        function insertMention(name) {
+            if (!noteContentInput) return;
+            const content = noteContentInput.value;
+            const cursorPos = noteContentInput.selectionStart;
+
+            // 找到@的位置（应该在光标前一位）
+            const beforeCursor = content.substring(0, cursorPos);
+            const afterCursor = content.substring(cursorPos);
+
+            // 如果@在光标前，替换@为@name
+            if (beforeCursor.endsWith('@')) {
+                noteContentInput.value = beforeCursor.slice(0, -1) + '@' + name + ' ' + afterCursor;
+            } else {
+                noteContentInput.value = beforeCursor + name + ' ' + afterCursor;
+            }
+
+            noteContentInput.focus();
+            const newPos = cursorPos + name.length + 1;
+            noteContentInput.setSelectionRange(newPos, newPos);
+            updateContentCount();
+        }
+
+        // Tag输入
+        const tagInput = document.getElementById('xhs-tag-input');
+        const tagsContainer = document.getElementById('xhs-tags-container');
+
+        if (tagInput) {
+            tagInput.onkeydown = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addTag(tagInput.value.trim());
+                    tagInput.value = '';
+                }
+            };
+        }
+
+        function addTag(tag) {
+            if (!tag || noteTags.includes(tag)) return;
+            if (noteTags.length >= 5) {
+                alert('最多添加5个话题');
+                return;
+            }
+
+            // 确保tag以#开头
+            if (!tag.startsWith('#')) tag = '#' + tag;
+            noteTags.push(tag);
+            renderTags();
+        }
+
+        function removeTag(tag) {
+            const idx = noteTags.indexOf(tag);
+            if (idx > -1) {
+                noteTags.splice(idx, 1);
+                renderTags();
+            }
+        }
+
+        function renderTags() {
+            if (!tagsContainer) return;
+            tagsContainer.innerHTML = '';
+            noteTags.forEach(tag => {
+                const tagEl = document.createElement('div');
+                tagEl.className = 'xhs-tag-item';
+                tagEl.innerHTML = `
+                    <span>${tag}</span>
+                    <span class="xhs-tag-remove">×</span>
+                `;
+                tagEl.querySelector('.xhs-tag-remove').onclick = () => removeTag(tag);
+                tagsContainer.appendChild(tagEl);
+            });
+        }
+
+        // 地点选择
+        const locationSection = document.getElementById('xhs-location-section');
+        const locationModal = document.getElementById('xhs-location-modal');
+        const locationModalClose = document.getElementById('xhs-location-modal-close');
+        const locationText = document.getElementById('xhs-location-text');
+        const locationInput = document.getElementById('xhs-location-input');
+        const locationConfirmBtn = document.getElementById('xhs-location-confirm-btn');
+
+        if (locationSection) {
+            locationSection.onclick = () => {
+                if (locationModal) locationModal.style.display = 'flex';
+            };
+        }
+
+        if (locationModalClose) {
+            locationModalClose.onclick = () => {
+                if (locationModal) locationModal.style.display = 'none';
+            };
+        }
+
+        if (locationModal) {
+            locationModal.onclick = (e) => {
+                if (e.target === locationModal) locationModal.style.display = 'none';
+            };
+        }
+
+        // 手动输入地点确认
+        if (locationConfirmBtn && locationInput) {
+            locationConfirmBtn.onclick = () => {
+                const inputLocation = locationInput.value.trim();
+                if (inputLocation) {
+                    noteLocation = inputLocation;
+                    if (locationText) {
+                        locationText.textContent = noteLocation;
+                        locationText.classList.add('selected');
+                    }
+                    locationInput.value = '';
+                    if (locationModal) locationModal.style.display = 'none';
+                }
+            };
+
+            locationInput.onkeydown = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    locationConfirmBtn.click();
+                }
+            };
+        }
+
+        // 不显示位置选项
+        document.querySelectorAll('.xhs-location-item').forEach(item => {
+            item.onclick = () => {
+                noteLocation = item.dataset.location;
+                if (locationText) {
+                    if (noteLocation === '不显示位置') {
+                        locationText.textContent = '点击选择地点';
+                        locationText.classList.remove('selected');
+                        noteLocation = '';
+                    } else {
+                        locationText.textContent = noteLocation;
+                        locationText.classList.add('selected');
+                    }
+                }
+                if (locationModal) locationModal.style.display = 'none';
+            };
+        });
+
+        // 发布按钮
+        const publishBtn = document.getElementById('xhs-publish-btn');
+        if (publishBtn) {
+            publishBtn.onclick = async () => {
+                const title = noteTitleInput ? noteTitleInput.value.trim() : '';
+                const content = noteContentInput ? noteContentInput.value.trim() : '';
+
+                if (!title) {
+                    alert('请填写标题');
+                    return;
+                }
+
+                if (!coverImageData) {
+                    alert('请选择封面图片');
+                    return;
+                }
+
+                publishBtn.textContent = '发布中...';
+                publishBtn.style.opacity = '0.5';
+
+                try {
+                    await publishNote(title, content);
+
+                    // 显示成功提示
+                    const toast = document.createElement('div');
+                    toast.textContent = '✨ 笔记发布成功！';
+                    toast.className = 'xhs-toast';
+                    document.body.appendChild(toast);
+                    setTimeout(() => document.body.removeChild(toast), 2000);
+
+                    // 关闭发布界面
+                    createView.classList.remove('active');
+                    createView.style.display = 'none';
+
+                    // 刷新首页
+                    loadXhsNotes();
+
+                    // 如果在个人主页，刷新
+                    if (views.profile && views.profile.style.display !== 'none') {
+                        window.renderXhsProfile();
+                    }
+                } catch (e) {
+                    console.error('发布失败:', e);
+                    alert('发布失败: ' + e.message);
+                } finally {
+                    publishBtn.textContent = '发布';
+                    publishBtn.style.opacity = '1';
+                }
+            };
+        }
+
+        async function publishNote(title, content) {
+            const mySettings = window.state.xhsSettings;
+            const myName = mySettings.nickname || "我";
+            const myAvatar = mySettings.avatar || "https://i.postimg.cc/qRqpK5kP/anime-avatar.jpg";
+
+            // 提取内容中的@角色
+            const mentionMatches = content.match(/@([^\s@]+)/g) || [];
+            const contentMentions = mentionMatches.map(m => m.substring(1));
+            mentionedCharacters = [...new Set([...mentionedCharacters, ...contentMentions])];
+
+            const note = {
+                id: Date.now().toString(),
+                authorName: myName,
+                authorAvatar: myAvatar,
+                isCharacter: false,
+                isMine: true, // 标记为用户自己发布的笔记
+                title: title,
+                content: content,
+                tags: noteTags,
+                imageUrl: coverImageData,
+                location: noteLocation || "未知地点",
+                timestamp: Date.now(),
+                dateStr: formatXhsDate(Date.now()),
+                stats: { likes: 0, collects: 0, comments: 0 },
+                comments: [],
+                mentionedCharacters: mentionedCharacters, // 保存被@的角色
+                isNew: false // 自己发的笔记不标记为新
+            };
+
+            // 保存到数据库
+            if (window.db && window.db.xhsNotes) {
+                await window.db.xhsNotes.add(note);
+            }
+
+            return note;
         }
     }
 
@@ -2366,4 +4920,1142 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // 初始化自动刷新
     setTimeout(startXhsAutoRefresh, 1000);
+
+    // 初始化消息页面事件
+    setTimeout(initMessagePageEvents, 500);
+
+    /* =========================================
+        9. 角色主页功能 (User Profile)
+       ========================================= */
+
+    // 角色主页数据存储 (key: authorName, value: profile data)
+    // 存储在 xhsSettings.characterProfiles 中
+
+    // 获取角色主页数据
+    function getCharacterProfile(authorName) {
+        if (!window.state || !window.state.xhsSettings) return null;
+        const profiles = window.state.xhsSettings.characterProfiles || {};
+        return profiles[authorName] || null;
+    }
+
+    // 智能匹配角色 - 根据名称在角色列表中查找匹配的角色
+    function findMatchingCharacter(userName) {
+        if (!userName) return null;
+        const chatsMap = window.state.chats || {};
+        const characters = Object.values(chatsMap).filter(c => !c.isGroup);
+
+        // 精确匹配
+        let matched = characters.find(c => c.name === userName);
+        if (matched) {
+            return {
+                name: matched.name,
+                avatar: matched.settings?.aiAvatar || matched.avatar,
+                isCharacter: true,
+                chatData: matched
+            };
+        }
+
+        return null;
+    }
+
+    // 获取用户信息（优先从角色列表匹配，其次从主页数据获取）
+    function getUserInfo(userName) {
+        // 1. 先尝试从角色列表中匹配
+        const charMatch = findMatchingCharacter(userName);
+        if (charMatch) {
+            return {
+                name: charMatch.name,
+                avatar: charMatch.avatar,
+                isCharacter: true
+            };
+        }
+
+        // 2. 再尝试从已保存的主页数据获取
+        const profile = getCharacterProfile(userName);
+        if (profile) {
+            return {
+                name: userName,
+                avatar: profile.avatar,
+                isCharacter: false
+            };
+        }
+
+        // 3. 默认返回随机头像
+        return {
+            name: userName,
+            avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(userName)}`,
+            isCharacter: false
+        };
+    }
+
+    // 保存角色主页数据
+    async function saveCharacterProfile(authorName, profileData) {
+        if (!window.state || !window.state.xhsSettings) return;
+        if (!window.state.xhsSettings.characterProfiles) {
+            window.state.xhsSettings.characterProfiles = {};
+        }
+        window.state.xhsSettings.characterProfiles[authorName] = profileData;
+        await saveXhsSettings({});
+    }
+
+    // 生成角色主页数据 (使用AI)
+    async function generateCharacterProfile(authorName, authorAvatar) {
+        const { proxyUrl, apiKey, model, temperature } = window.state.apiConfig;
+        if (!proxyUrl || !apiKey || !model) {
+            alert("请先在设置中配置API Key");
+            return null;
+        }
+
+        // 获取该角色的笔记数据
+        let userNotes = [];
+        let totalLikes = 0;
+        let totalCollects = 0;
+        if (window.db && window.db.xhsNotes) {
+            const allNotes = await window.db.xhsNotes.toArray();
+            userNotes = allNotes.filter(n => n.authorName === authorName);
+            userNotes.forEach(note => {
+                if (note.stats) {
+                    totalLikes += note.stats.likes || 0;
+                    totalCollects += note.stats.collects || 0;
+                }
+            });
+        }
+
+        // 检查是否是聊天角色
+        let characterContext = "";
+        let accountType = "路人用户";
+        const chatsMap = window.state.chats || {};
+        const matchedChat = Object.values(chatsMap).find(c => c.name === authorName && !c.isGroup);
+
+        if (matchedChat && matchedChat.settings && matchedChat.settings.aiPersona) {
+            accountType = "已知角色";
+            characterContext = `
+            【角色设定参考】：
+            该用户是一个角色扮演角色，设定如下：
+            ${matchedChat.settings.aiPersona}
+            
+            请根据这个角色设定生成符合其性格和背景的小红书个人简介。
+            根据角色设定分析其社交属性：
+            - 如果是明星/网红/公众人物，粉丝数应较高（10万-1000万）
+            - 如果是普通人设定，粉丝数应较为正常（100-5万）
+            - 如果是内向/低调性格，粉丝数可以较少
+            `;
+        } else {
+            // 路人用户，根据笔记内容分析
+            let notesContext = "";
+            if (userNotes.length > 0) {
+                const notesTitles = userNotes.slice(0, 5).map(n => n.title).join("、");
+                const notesContents = userNotes.slice(0, 3).map(n => n.content).join("\n");
+                notesContext = `
+                【用户笔记分析】：
+                该用户已发布 ${userNotes.length} 篇笔记，笔记标题包括：${notesTitles}
+                笔记内容：
+                ${notesContents}
+                
+                请根据笔记内容分析该用户的兴趣爱好、职业、生活方式，生成匹配的个人简介。
+                `;
+            }
+
+            characterContext = `
+            【用户类型】：路人用户（非特定角色）
+            用户名称：${authorName}
+            ${notesContext}
+            
+            请根据用户名称和笔记内容（如果有）分析这是什么类型的用户，生成符合其特点的资料。
+            路人用户的粉丝数通常在 100-50000 范围内。
+            `;
+        }
+
+        // 计算建议的数据范围
+        const noteCount = userNotes.length;
+        let suggestedStats = "";
+        if (noteCount > 0) {
+            suggestedStats = `
+            【已知数据参考】：
+            - 已发布笔记数：${noteCount} 篇
+            - 笔记总获赞数：${totalLikes}
+            - 笔记总收藏数：${totalCollects}
+            
+            请根据这些数据合理估算粉丝数和获赞收藏数，获赞收藏数应该略高于笔记总点赞数。
+            `;
+        }
+
+        const prompt = `
+        你是一个小红书用户资料生成器。请为用户"${authorName}"生成一个完整的小红书个人主页资料。
+        
+        ${characterContext}
+        ${suggestedStats}
+        
+        【要求】：
+        1. 生成一个符合小红书风格的个人简介（20-60字），可以包含emoji，体现个性
+        2. 生成3-5个个人标签（如星座、城市、职业、爱好等）
+        3. 根据角色属性和笔记数据生成合理的：
+           - 关注数：通常在 50-2000 范围
+           - 粉丝数：根据角色类型调整（普通用户 100-5万，网红/明星 10万-1000万）
+           - 获赞与收藏数：应与粉丝数成正比，通常是粉丝数的2-10倍
+        4. 生成一个8-12位的小红书号（纯数字）
+        
+        【JSON返回格式】：
+        {
+            "bio": "个人简介文字",
+            "tags": ["标签1", "标签2", "标签3"],
+            "followCount": 数字,
+            "fansCount": 数字,
+            "likesCount": 数字,
+            "xhsId": "小红书号"
+        }
+        
+        请只返回JSON数据，不要包含markdown代码块标记。
+        `;
+
+        try {
+            let responseData;
+            const isGemini = proxyUrl.includes("googleapis");
+            const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.8;
+
+            if (isGemini) {
+                const url = `${proxyUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                const body = {
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { temperature: requestTemp }
+                };
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+                const json = await res.json();
+                // 添加错误检查
+                if (!json.candidates || !json.candidates[0] || !json.candidates[0].content) {
+                    console.error("[XHS] Gemini API响应异常:", json);
+                    throw new Error("API响应格式异常");
+                }
+                responseData = json.candidates[0].content.parts[0].text;
+            } else {
+                const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: [{ role: "user", content: prompt }],
+                        temperature: requestTemp
+                    })
+                });
+                const json = await res.json();
+                // 添加错误检查
+                if (!json.choices || !json.choices[0] || !json.choices[0].message) {
+                    console.error("[XHS] OpenAI API响应异常:", json);
+                    throw new Error(json.error?.message || "API响应格式异常");
+                }
+                responseData = json.choices[0].message.content;
+            }
+
+            let cleanJson = responseData;
+            const jsonMatch = responseData.match(/\{[\s\S]*\}/);
+            if (jsonMatch) cleanJson = jsonMatch[0];
+            else cleanJson = responseData.replace(/```json/g, '').replace(/```/g, '').trim();
+
+            const result = JSON.parse(cleanJson);
+
+            // 构建完整的profile数据
+            const profileData = {
+                authorName: authorName,
+                avatar: authorAvatar,
+                bio: result.bio || "这个人很懒，什么都没写~",
+                tags: result.tags || [],
+                followCount: result.followCount || Math.floor(Math.random() * 500) + 100,
+                fansCount: result.fansCount || Math.floor(Math.random() * 10000) + 1000,
+                likesCount: result.likesCount || Math.floor(Math.random() * 50000) + 5000,
+                xhsId: result.xhsId || Math.floor(Math.random() * 900000000 + 100000000).toString(),
+                isFollowed: false,
+                createdAt: Date.now()
+            };
+
+            return profileData;
+        } catch (e) {
+            console.error("生成角色主页失败:", e);
+            // 返回默认数据
+            return {
+                authorName: authorName,
+                avatar: authorAvatar,
+                bio: "这个人很懒，什么都没写~",
+                tags: ["小红书用户"],
+                followCount: Math.floor(Math.random() * 500) + 100,
+                fansCount: Math.floor(Math.random() * 10000) + 1000,
+                likesCount: Math.floor(Math.random() * 50000) + 5000,
+                xhsId: Math.floor(Math.random() * 900000000 + 100000000).toString(),
+                isFollowed: false,
+                createdAt: Date.now()
+            };
+        }
+    }
+
+    // 显示生成主页确认弹窗
+    function showGenerateProfileConfirm(authorName, authorAvatar, onConfirm) {
+        const modal = document.createElement('div');
+        modal.className = 'xhs-generate-profile-modal';
+
+        modal.innerHTML = `
+            <div class="xhs-generate-profile-content">
+                <div class="xhs-generate-profile-header">
+                    <img src="${authorAvatar}" class="xhs-generate-profile-avatar">
+                    <div class="xhs-generate-profile-name">${authorName}</div>
+                    <div class="xhs-generate-profile-desc">该用户还没有主页，是否为TA生成一个小红书主页？</div>
+                </div>
+                <div class="xhs-generate-profile-actions">
+                    <button class="xhs-generate-profile-btn xhs-generate-profile-cancel">取消</button>
+                    <button class="xhs-generate-profile-btn xhs-generate-profile-confirm">生成主页</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        requestAnimationFrame(() => {
+            modal.classList.add('visible');
+        });
+
+        const close = () => {
+            modal.classList.remove('visible');
+            setTimeout(() => {
+                if (modal.parentNode) modal.parentNode.removeChild(modal);
+            }, 200);
+        };
+
+        modal.querySelector('.xhs-generate-profile-cancel').onclick = close;
+        modal.querySelector('.xhs-generate-profile-confirm').onclick = async () => {
+            close();
+            if (onConfirm) onConfirm();
+        };
+
+        // 点击遮罩关闭
+        modal.onclick = (e) => {
+            if (e.target === modal) close();
+        };
+    }
+
+    // 打开角色主页
+    async function openUserProfile(authorName, authorAvatar) {
+        if (!views.userProfile) return;
+
+        // 检查是否是当前用户自己
+        const mySettings = window.state.xhsSettings;
+        if (mySettings && authorName === mySettings.nickname) {
+            // 是自己，切换到个人主页
+            const profileTab = document.querySelector('#xhs-screen .xhs-bottom-nav .xhs-nav-item:last-child');
+            if (profileTab) profileTab.click();
+            return;
+        }
+
+        // 检查是否已有主页数据
+        let profile = getCharacterProfile(authorName);
+
+        if (!profile) {
+            // 没有主页，显示确认弹窗
+            showGenerateProfileConfirm(authorName, authorAvatar, async () => {
+                // 显示加载状态
+                bringToFront(views.userProfile); // 动态提升z-index，确保在最上面
+                views.userProfile.style.display = 'flex';
+                const scrollArea = views.userProfile.querySelector('.xhs-user-profile-scroll');
+                if (scrollArea) {
+                    scrollArea.innerHTML = `
+                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #999;">
+                            <div class="xhs-loading-spinner"></div>
+                            <p style="margin-top: 15px;">正在生成主页...</p>
+                        </div>
+                    `;
+                }
+
+                // 生成主页数据
+                profile = await generateCharacterProfile(authorName, authorAvatar);
+                if (profile) {
+                    await saveCharacterProfile(authorName, profile);
+                    // 重新渲染
+                    renderUserProfile(profile);
+                }
+            });
+            return;
+        }
+
+        // 已有主页，直接显示
+        bringToFront(views.userProfile); // 动态提升z-index，确保在最上面
+        views.userProfile.style.display = 'flex';
+        renderUserProfile(profile);
+    }
+
+    // 渲染角色主页
+    async function renderUserProfile(profile) {
+        if (!views.userProfile || !profile) return;
+
+        // 恢复原始HTML结构（如果被替换了）
+        const scrollArea = views.userProfile.querySelector('.xhs-user-profile-scroll');
+        if (!scrollArea || !scrollArea.querySelector('.xhs-user-profile-header')) {
+            // 重建HTML结构
+            views.userProfile.innerHTML = `
+                <div class="xhs-user-profile-topbar">
+                    <div class="xhs-user-profile-back" id="xhs-user-profile-back-btn">
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+                    </div>
+                    <div class="xhs-user-profile-topbar-right">
+                        <div class="xhs-user-refresh-btn" id="xhs-user-refresh-btn" style="padding: 8px; cursor: pointer;">
+                            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M23 4v6h-6"></path>
+                                <path d="M1 20v-6h6"></path>
+                                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+                            </svg>
+                        </div>
+                        <div class="xhs-user-settings-btn" id="xhs-user-settings-btn" style="padding: 8px; cursor: pointer;">
+                            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2">
+                                <circle cx="12" cy="12" r="1"></circle>
+                                <circle cx="19" cy="12" r="1"></circle>
+                                <circle cx="5" cy="12" r="1"></circle>
+                            </svg>
+                        </div>
+                    </div>
+                </div>
+                <div class="xhs-user-profile-scroll">
+                    <div class="xhs-user-profile-header">
+                        <div class="xhs-user-avatar-section">
+                            <img id="xhs-user-avatar" class="xhs-user-avatar" src="" alt="头像">
+                        </div>
+                        <div class="xhs-user-info-section">
+                            <div class="xhs-user-nickname" id="xhs-user-nickname">用户昵称</div>
+                            <div class="xhs-user-xhsid">小红书号：<span id="xhs-user-xhsid">123456789</span></div>
+                            <div class="xhs-user-bio" id="xhs-user-bio">这个人很懒，什么都没写~</div>
+                            <div class="xhs-user-tags" id="xhs-user-tags"></div>
+                        </div>
+                        <div class="xhs-user-stats">
+                            <div class="xhs-user-stat-item">
+                                <div class="xhs-user-stat-num" id="xhs-user-stat-follow">0</div>
+                                <div class="xhs-user-stat-label">关注</div>
+                            </div>
+                            <div class="xhs-user-stat-item">
+                                <div class="xhs-user-stat-num" id="xhs-user-stat-fans">0</div>
+                                <div class="xhs-user-stat-label">粉丝</div>
+                            </div>
+                            <div class="xhs-user-stat-item">
+                                <div class="xhs-user-stat-num" id="xhs-user-stat-likes">0</div>
+                                <div class="xhs-user-stat-label">获赞与收藏</div>
+                            </div>
+                        </div>
+                        <div class="xhs-user-action-btns">
+                            <button class="xhs-user-follow-btn" id="xhs-user-follow-btn"><span>+ 关注</span></button>
+                            <button class="xhs-user-msg-btn" id="xhs-user-msg-btn"><span>私信</span></button>
+                        </div>
+                    </div>
+                    <div class="xhs-user-profile-tabs">
+                        <div class="xhs-user-profile-tab active" data-tab="notes">笔记</div>
+                        <div class="xhs-user-profile-tab" data-tab="comments">评论</div>
+                        <div class="xhs-user-profile-tab" data-tab="collects">收藏</div>
+                    </div>
+                    <div class="xhs-user-profile-content">
+                        <div id="xhs-user-notes-grid" class="xhs-waterfall" style="padding: 10px;"></div>
+                        <div id="xhs-user-comments-grid" class="xhs-waterfall" style="padding: 10px; display: none;"></div>
+                        <div id="xhs-user-collects-grid" class="xhs-waterfall" style="padding: 10px; display: none;"></div>
+                    </div>
+                </div>
+            `;
+
+            // 重新绑定返回按钮事件
+            bindUserProfileBackBtn();
+        }
+
+        // 填充数据
+        const avatarEl = views.userProfile.querySelector('#xhs-user-avatar');
+        if (avatarEl) avatarEl.src = profile.avatar || "https://api.dicebear.com/7.x/notionists/svg?seed=" + encodeURIComponent(profile.authorName);
+
+        const nicknameEl = views.userProfile.querySelector('#xhs-user-nickname');
+        if (nicknameEl) nicknameEl.textContent = profile.authorName;
+
+        const xhsIdEl = views.userProfile.querySelector('#xhs-user-xhsid');
+        if (xhsIdEl) xhsIdEl.textContent = profile.xhsId || "123456789";
+
+        const bioEl = views.userProfile.querySelector('#xhs-user-bio');
+        if (bioEl) bioEl.textContent = profile.bio || "这个人很懒，什么都没写~";
+
+        // 标签
+        const tagsEl = views.userProfile.querySelector('#xhs-user-tags');
+        if (tagsEl) {
+            tagsEl.innerHTML = '';
+            (profile.tags || []).forEach(tag => {
+                const tagDiv = document.createElement('div');
+                tagDiv.className = 'xhs-tag';
+                tagDiv.textContent = tag;
+                tagsEl.appendChild(tagDiv);
+            });
+        }
+
+        // 统计数据
+        const followEl = views.userProfile.querySelector('#xhs-user-stat-follow');
+        if (followEl) followEl.textContent = formatStatNumber(profile.followCount || 0);
+
+        const fansEl = views.userProfile.querySelector('#xhs-user-stat-fans');
+        if (fansEl) fansEl.textContent = formatStatNumber(profile.fansCount || 0);
+
+        const likesEl = views.userProfile.querySelector('#xhs-user-stat-likes');
+        if (likesEl) likesEl.textContent = formatStatNumber(profile.likesCount || 0);
+
+        // 关注按钮状态
+        const followBtn = views.userProfile.querySelector('#xhs-user-follow-btn');
+        if (followBtn) {
+            updateFollowButton(followBtn, profile.isFollowed);
+
+            // 绑定点击事件
+            const newFollowBtn = followBtn.cloneNode(true);
+            followBtn.parentNode.replaceChild(newFollowBtn, followBtn);
+            newFollowBtn.onclick = async () => {
+                profile.isFollowed = !profile.isFollowed;
+                updateFollowButton(newFollowBtn, profile.isFollowed);
+                await saveCharacterProfile(profile.authorName, profile);
+            };
+        }
+
+        // 私信按钮
+        const msgBtn = views.userProfile.querySelector('#xhs-user-msg-btn');
+        if (msgBtn) {
+            const newMsgBtn = msgBtn.cloneNode(true);
+            msgBtn.parentNode.replaceChild(newMsgBtn, msgBtn);
+            newMsgBtn.onclick = () => {
+                alert('私信功能开发中~');
+            };
+        }
+
+        // 绑定标签页切换
+        const tabs = views.userProfile.querySelectorAll('.xhs-user-profile-tab');
+        tabs.forEach(tab => {
+            const newTab = tab.cloneNode(true);
+            tab.parentNode.replaceChild(newTab, tab);
+            newTab.onclick = () => {
+                switchUserProfileTab(newTab.dataset.tab, profile);
+            };
+        });
+
+        // 绑定刷新按钮
+        bindUserProfileRefreshBtn(profile);
+
+        // 绑定设置按钮
+        bindUserProfileSettingsBtn(profile);
+
+        // 渲染笔记列表
+        switchUserProfileTab('notes', profile);
+    }
+
+    // 格式化统计数字
+    function formatStatNumber(num) {
+        if (num >= 10000) {
+            return (num / 10000).toFixed(1) + 'w';
+        }
+        return num.toString();
+    }
+
+    // 更新关注按钮状态
+    function updateFollowButton(btn, isFollowed) {
+        if (isFollowed) {
+            btn.classList.add('followed');
+            btn.innerHTML = '<span>已关注</span>';
+        } else {
+            btn.classList.remove('followed');
+            btn.innerHTML = '<span>+ 关注</span>';
+        }
+    }
+
+    // 切换角色主页标签页
+    async function switchUserProfileTab(tabName, profile) {
+        // 更新标签页激活状态
+        views.userProfile.querySelectorAll('.xhs-user-profile-tab').forEach(t => {
+            if (t.dataset.tab === tabName) t.classList.add('active');
+            else t.classList.remove('active');
+        });
+
+        // 显示/隐藏内容区域
+        const notesGrid = views.userProfile.querySelector('#xhs-user-notes-grid');
+        const commentsGrid = views.userProfile.querySelector('#xhs-user-comments-grid');
+        const collectsGrid = views.userProfile.querySelector('#xhs-user-collects-grid');
+
+        if (notesGrid) notesGrid.style.display = 'none';
+        if (commentsGrid) commentsGrid.style.display = 'none';
+        if (collectsGrid) collectsGrid.style.display = 'none';
+
+        // 获取该角色的笔记
+        let allNotes = [];
+        if (window.db && window.db.xhsNotes) {
+            allNotes = await window.db.xhsNotes.toArray();
+        }
+
+        if (tabName === 'notes') {
+            if (notesGrid) {
+                notesGrid.style.display = 'block';
+                const userNotes = allNotes.filter(n => n.authorName === profile.authorName);
+                renderUserNotesList(notesGrid, userNotes, '还没有发布笔记');
+            }
+        } else if (tabName === 'comments') {
+            if (commentsGrid) {
+                commentsGrid.style.display = 'block';
+                // 获取该角色的评论
+                const userComments = [];
+                allNotes.forEach(note => {
+                    if (note.comments && note.comments.length > 0) {
+                        note.comments.forEach(comment => {
+                            if (comment.user === profile.authorName) {
+                                userComments.push({
+                                    ...comment,
+                                    noteId: note.id,
+                                    noteTitle: note.title,
+                                    noteImage: note.imageUrl
+                                });
+                            }
+                            // 检查回复
+                            if (comment.replies && comment.replies.length > 0) {
+                                comment.replies.forEach(reply => {
+                                    if (reply.user === profile.authorName) {
+                                        userComments.push({
+                                            ...reply,
+                                            noteId: note.id,
+                                            noteTitle: note.title,
+                                            noteImage: note.imageUrl,
+                                            isReply: true
+                                        });
+                                    }
+                                });
+                            }
+                        });
+                    }
+                });
+                renderUserCommentsList(commentsGrid, userComments, '还没有发表评论');
+            }
+        } else if (tabName === 'collects') {
+            if (collectsGrid) {
+                collectsGrid.style.display = 'block';
+                // 角色收藏列表暂时为空
+                renderUserNotesList(collectsGrid, [], '还没有收藏');
+            }
+        }
+    }
+
+    // 渲染角色笔记列表
+    function renderUserNotesList(container, notes, emptyText) {
+        container.innerHTML = '';
+
+        if (!notes || notes.length === 0) {
+            container.classList.remove('xhs-waterfall');
+            container.innerHTML = `
+                <div class="xhs-user-empty-state">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18z"></path>
+                        <path d="M12 8v4"></path>
+                        <path d="M12 16h.01"></path>
+                    </svg>
+                    <p>${emptyText}</p>
+                </div>
+            `;
+            return;
+        }
+
+        // 使用瀑布流渲染
+        renderWaterfall(container, notes, (note) => {
+            const card = document.createElement('div');
+            card.className = 'xhs-card';
+            card.dataset.noteId = note.id;
+
+            const likeCount = note.stats && note.stats.likes ? note.stats.likes : 0;
+            const s = window.state.xhsSettings;
+            const isLiked = s && s.likedNoteIds && s.likedNoteIds.includes(note.id);
+            const heartFill = isLiked ? '#ff2442' : 'none';
+            const heartStroke = isLiked ? '#ff2442' : '#666';
+
+            card.innerHTML = `
+                <div class="xhs-card-img-wrap xhs-card-img-wrap-ratio">
+                    <img src="${note.imageUrl}" class="xhs-card-img xhs-card-img-abs" loading="lazy">
+                </div>
+                <div class="xhs-card-footer">
+                    <div class="xhs-card-title">${note.title}</div>
+                    <div class="xhs-card-user">
+                        <div class="xhs-user-info-mini">
+                            <img src="${note.authorAvatar}" class="xhs-avatar-mini">
+                            <span>${note.authorName}</span>
+                        </div>
+                        <div class="xhs-like-wrap">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="${heartFill}" stroke="${heartStroke}" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                            <span>${likeCount}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+
+            card.onclick = () => openXhsNoteDetail(note);
+            return card;
+        });
+    }
+
+    // 渲染角色评论列表
+    function renderUserCommentsList(container, comments, emptyText) {
+        container.innerHTML = '';
+        container.classList.remove('xhs-waterfall');
+
+        if (!comments || comments.length === 0) {
+            container.innerHTML = `
+                <div class="xhs-user-empty-state">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"></path>
+                    </svg>
+                    <p>${emptyText}</p>
+                </div>
+            `;
+            return;
+        }
+
+        // 渲染评论列表
+        comments.forEach(comment => {
+            const commentItem = document.createElement('div');
+            commentItem.className = 'xhs-user-comment-item';
+            commentItem.innerHTML = `
+                <div class="xhs-user-comment-note" data-note-id="${comment.noteId}">
+                    <img src="${comment.noteImage}" class="xhs-user-comment-note-img">
+                    <span class="xhs-user-comment-note-title">${comment.noteTitle}</span>
+                </div>
+                <div class="xhs-user-comment-content">
+                    ${comment.isReply ? '<span class="xhs-user-comment-reply-tag">回复</span>' : ''}
+                    <span class="xhs-user-comment-text">${comment.text}</span>
+                </div>
+                <div class="xhs-user-comment-meta">
+                    <span>${comment.dateStr || '刚刚'}</span>
+                    <span>❤ ${comment.likes || 0}</span>
+                </div>
+            `;
+
+            // 点击跳转到笔记详情
+            commentItem.querySelector('.xhs-user-comment-note').onclick = async () => {
+                if (window.db && window.db.xhsNotes) {
+                    const note = await window.db.xhsNotes.get(comment.noteId);
+                    if (note) openXhsNoteDetail(note);
+                }
+            };
+
+            container.appendChild(commentItem);
+        });
+    }
+
+    // 绑定角色主页返回按钮和刷新按钮
+    function bindUserProfileBackBtn() {
+        const backBtn = views.userProfile.querySelector('#xhs-user-profile-back-btn');
+        if (backBtn) {
+            backBtn.onclick = () => {
+                views.userProfile.style.display = 'none';
+            };
+        }
+    }
+
+    // 绑定刷新按钮
+    function bindUserProfileRefreshBtn(profile) {
+        const refreshBtn = views.userProfile.querySelector('#xhs-user-refresh-btn');
+        if (refreshBtn) {
+            refreshBtn.onclick = async () => {
+                // 添加旋转动画
+                refreshBtn.classList.add('spinning');
+
+                // 显示加载状态
+                const scrollArea = views.userProfile.querySelector('.xhs-user-profile-scroll');
+                if (scrollArea) {
+                    scrollArea.innerHTML = `
+                        <div style="display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100%; color: #999;">
+                            <div class="xhs-loading-spinner"></div>
+                            <p style="margin-top: 15px;">正在重新生成主页...</p>
+                        </div>
+                    `;
+                }
+
+                // 重新生成主页数据
+                const newProfile = await generateCharacterProfile(profile.authorName, profile.avatar);
+                if (newProfile) {
+                    // 保留关注状态
+                    newProfile.isFollowed = profile.isFollowed;
+                    await saveCharacterProfile(profile.authorName, newProfile);
+                    // 重新渲染
+                    renderUserProfile(newProfile);
+                }
+
+                refreshBtn.classList.remove('spinning');
+            };
+        }
+    }
+
+    // 绑定设置按钮
+    function bindUserProfileSettingsBtn(profile) {
+        const settingsBtn = views.userProfile.querySelector('#xhs-user-settings-btn');
+        if (settingsBtn) {
+            settingsBtn.onclick = () => {
+                showUserProfileSettingsModal(profile);
+            };
+        }
+    }
+
+    // 显示角色主页设置弹窗
+    function showUserProfileSettingsModal(profile) {
+        // 移除已存在的弹窗
+        const existingModal = document.getElementById('xhs-user-profile-settings-modal');
+        if (existingModal) existingModal.remove();
+
+        const modal = document.createElement('div');
+        modal.id = 'xhs-user-profile-settings-modal';
+        modal.className = 'xhs-user-profile-settings-modal';
+        modal.innerHTML = `
+            <div class="xhs-user-profile-settings-content">
+                <div class="xhs-user-profile-settings-header">
+                    <span>编辑主页信息</span>
+                    <span class="xhs-user-profile-settings-close">×</span>
+                </div>
+                <div class="xhs-user-profile-settings-body">
+                    <div class="xhs-user-profile-settings-item">
+                        <label>头像</label>
+                        <div class="xhs-user-profile-settings-avatar-wrap">
+                            <img id="xhs-user-settings-avatar-preview" src="${profile.avatar || ''}" class="xhs-user-profile-settings-avatar">
+                            <input type="file" id="xhs-user-settings-avatar-input" accept="image/*" style="display: none;">
+                            <button id="xhs-user-settings-avatar-btn" class="xhs-user-profile-settings-avatar-btn">更换</button>
+                        </div>
+                    </div>
+                    <div class="xhs-user-profile-settings-item">
+                        <label>昵称</label>
+                        <input type="text" id="xhs-user-settings-nickname" value="${profile.authorName || ''}" placeholder="输入昵称">
+                    </div>
+                    <div class="xhs-user-profile-settings-item">
+                        <label>小红书号</label>
+                        <input type="text" id="xhs-user-settings-xhsid" value="${profile.xhsId || ''}" placeholder="输入小红书号">
+                    </div>
+                    <div class="xhs-user-profile-settings-item">
+                        <label>个人简介</label>
+                        <textarea id="xhs-user-settings-bio" placeholder="输入个人简介">${profile.bio || ''}</textarea>
+                    </div>
+                    <div class="xhs-user-profile-settings-item">
+                        <label>标签 (空格分隔)</label>
+                        <input type="text" id="xhs-user-settings-tags" value="${(profile.tags || []).join(' ')}" placeholder="如：双子座 北京 设计师">
+                    </div>
+                    <div class="xhs-user-profile-settings-row">
+                        <div class="xhs-user-profile-settings-item half">
+                            <label>关注数</label>
+                            <input type="number" id="xhs-user-settings-follow" value="${profile.followCount || 0}">
+                        </div>
+                        <div class="xhs-user-profile-settings-item half">
+                            <label>粉丝数</label>
+                            <input type="number" id="xhs-user-settings-fans" value="${profile.fansCount || 0}">
+                        </div>
+                    </div>
+                    <div class="xhs-user-profile-settings-item">
+                        <label>获赞与收藏</label>
+                        <input type="number" id="xhs-user-settings-likes" value="${profile.likesCount || 0}">
+                    </div>
+                </div>
+                <div class="xhs-user-profile-settings-footer">
+                    <button class="xhs-user-profile-settings-cancel">取消</button>
+                    <button class="xhs-user-profile-settings-save">保存</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // 动画显示
+        requestAnimationFrame(() => {
+            modal.classList.add('visible');
+        });
+
+        const closeModal = () => {
+            modal.classList.remove('visible');
+            setTimeout(() => {
+                if (modal.parentNode) modal.parentNode.removeChild(modal);
+            }, 200);
+        };
+
+        // 关闭按钮
+        modal.querySelector('.xhs-user-profile-settings-close').onclick = closeModal;
+        modal.querySelector('.xhs-user-profile-settings-cancel').onclick = closeModal;
+
+        // 点击遮罩关闭
+        modal.onclick = (e) => {
+            if (e.target === modal) closeModal();
+        };
+
+        // 头像更换
+        const avatarBtn = modal.querySelector('#xhs-user-settings-avatar-btn');
+        const avatarInput = modal.querySelector('#xhs-user-settings-avatar-input');
+        const avatarPreview = modal.querySelector('#xhs-user-settings-avatar-preview');
+
+        avatarBtn.onclick = () => avatarInput.click();
+        avatarInput.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (file && window.handleImageUploadAndCompress) {
+                const base64 = await window.handleImageUploadAndCompress(file);
+                avatarPreview.src = base64;
+            }
+        };
+
+        // 保存按钮
+        modal.querySelector('.xhs-user-profile-settings-save').onclick = async () => {
+            const oldName = profile.authorName;
+            const newName = modal.querySelector('#xhs-user-settings-nickname').value.trim();
+
+            const updatedProfile = {
+                ...profile,
+                avatar: avatarPreview.src,
+                authorName: newName || oldName,
+                xhsId: modal.querySelector('#xhs-user-settings-xhsid').value.trim(),
+                bio: modal.querySelector('#xhs-user-settings-bio').value.trim(),
+                tags: modal.querySelector('#xhs-user-settings-tags').value.trim().split(/\s+/).filter(t => t),
+                followCount: parseInt(modal.querySelector('#xhs-user-settings-follow').value) || 0,
+                fansCount: parseInt(modal.querySelector('#xhs-user-settings-fans').value) || 0,
+                likesCount: parseInt(modal.querySelector('#xhs-user-settings-likes').value) || 0
+            };
+
+            // 如果昵称改变了，需要删除旧的profile并创建新的
+            if (newName && newName !== oldName) {
+                // 删除旧的
+                if (window.state.xhsSettings.characterProfiles) {
+                    delete window.state.xhsSettings.characterProfiles[oldName];
+                }
+            }
+
+            await saveCharacterProfile(updatedProfile.authorName, updatedProfile);
+            closeModal();
+            renderUserProfile(updatedProfile);
+        };
+    }
+
+    // 初始化时绑定返回按钮
+    bindUserProfileBackBtn();
+
+    /* =========================================
+        10. 关注列表功能
+       ========================================= */
+
+    // 打开关注列表页面
+    function openFollowingList() {
+        // 创建关注列表视图（如果不存在）
+        let followingView = document.getElementById('xhs-following-view');
+        if (!followingView) {
+            followingView = document.createElement('div');
+            followingView.id = 'xhs-following-view';
+            followingView.className = 'xhs-following-view';
+            document.getElementById('xhs-view-container').appendChild(followingView);
+        }
+
+        // 渲染关注列表
+        renderFollowingList(followingView);
+
+        bringToFront(followingView);
+        followingView.style.display = 'flex';
+    }
+
+    // 渲染关注列表
+    function renderFollowingList(container) {
+        const s = window.state.xhsSettings;
+        const profiles = s.characterProfiles || {};
+        const followedProfiles = Object.values(profiles).filter(p => p.isFollowed);
+
+        container.innerHTML = `
+            <div class="xhs-following-header">
+                <div class="xhs-following-back-btn" id="xhs-following-back-btn">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+                </div>
+                <div class="xhs-following-title">关注</div>
+                <div class="xhs-following-placeholder"></div>
+            </div>
+            <div class="xhs-following-tabs">
+                <div class="xhs-following-tab active" data-tab="following">关注 ${followedProfiles.length}</div>
+                <div class="xhs-following-tab" data-tab="fans">粉丝 ${s.fansCount || 0}</div>
+            </div>
+            <div class="xhs-following-content">
+                <div id="xhs-following-list" class="xhs-following-list"></div>
+                <div id="xhs-fans-list" class="xhs-fans-list" style="display: none;"></div>
+            </div>
+        `;
+
+        // 绑定返回按钮
+        container.querySelector('#xhs-following-back-btn').onclick = () => {
+            container.style.display = 'none';
+        };
+
+        // 绑定标签页切换
+        const tabs = container.querySelectorAll('.xhs-following-tab');
+        tabs.forEach(tab => {
+            tab.onclick = () => {
+                tabs.forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+
+                const followingList = container.querySelector('#xhs-following-list');
+                const fansList = container.querySelector('#xhs-fans-list');
+
+                if (tab.dataset.tab === 'following') {
+                    followingList.style.display = 'block';
+                    fansList.style.display = 'none';
+                } else {
+                    followingList.style.display = 'none';
+                    fansList.style.display = 'block';
+                }
+            };
+        });
+
+        // 渲染关注列表内容
+        const listEl = container.querySelector('#xhs-following-list');
+
+        if (followedProfiles.length === 0) {
+            listEl.innerHTML = `
+                <div class="xhs-following-empty">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5" width="60" height="60">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="9" cy="7" r="4"></circle>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                    </svg>
+                    <p>暂无关注</p>
+                    <span>关注感兴趣的博主，发现更多精彩内容</span>
+                </div>
+            `;
+        } else {
+            listEl.innerHTML = '';
+            followedProfiles.forEach(profile => {
+                const item = document.createElement('div');
+                item.className = 'xhs-following-item';
+                item.innerHTML = `
+                    <img src="${profile.avatar || 'https://api.dicebear.com/7.x/notionists/svg?seed=' + encodeURIComponent(profile.authorName)}" class="xhs-following-avatar">
+                    <div class="xhs-following-info">
+                        <div class="xhs-following-name">${profile.authorName}</div>
+                        <div class="xhs-following-bio">${profile.bio || '这个人很懒，什么都没写~'}</div>
+                    </div>
+                    <button class="xhs-following-action-btn followed" data-author="${profile.authorName}">
+                        <span>已关注</span>
+                    </button>
+                `;
+
+                // 点击头像或名字打开主页
+                item.querySelector('.xhs-following-avatar').onclick = () => {
+                    container.style.display = 'none';
+                    openUserProfile(profile.authorName, profile.avatar);
+                };
+                item.querySelector('.xhs-following-info').onclick = () => {
+                    container.style.display = 'none';
+                    openUserProfile(profile.authorName, profile.avatar);
+                };
+
+                // 点击关注按钮取消关注
+                const actionBtn = item.querySelector('.xhs-following-action-btn');
+                actionBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    profile.isFollowed = false;
+                    await saveCharacterProfile(profile.authorName, profile);
+                    // 重新渲染列表
+                    renderFollowingList(container);
+                    // 更新个人主页的关注数
+                    if (window.renderXhsProfile) window.renderXhsProfile();
+                };
+
+                listEl.appendChild(item);
+            });
+        }
+
+        // 渲染粉丝列表（模拟数据）
+        const fansListEl = container.querySelector('#xhs-fans-list');
+        fansListEl.innerHTML = `
+            <div class="xhs-following-empty">
+                <svg viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5" width="60" height="60">
+                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                    <circle cx="9" cy="7" r="4"></circle>
+                    <path d="M23 21v-2a4 4 0 0 0-3-3.87"></path>
+                    <path d="M16 3.13a4 4 0 0 1 0 7.75"></path>
+                </svg>
+                <p>暂无粉丝</p>
+                <span>发布优质内容，吸引更多粉丝关注你</span>
+            </div>
+        `;
+    }
+
+    /* =========================================
+        11. 详情页关注按钮功能
+       ========================================= */
+
+    // 更新详情页关注按钮状态
+    function updateDetailFollowButton(btn, profile) {
+        if (!btn) return;
+
+        if (profile && profile.isFollowed) {
+            btn.classList.add('followed');
+            btn.textContent = '已关注';
+        } else {
+            btn.classList.remove('followed');
+            btn.textContent = '关注';
+        }
+    }
+
+    // 处理详情页关注按钮点击
+    async function handleDetailFollowClick(authorName, authorAvatar, btn) {
+        // 检查是否是当前用户自己
+        const mySettings = window.state.xhsSettings;
+        if (mySettings && authorName === mySettings.nickname) {
+            // 是自己，不能关注自己
+            const toast = document.createElement('div');
+            toast.textContent = '不能关注自己哦~';
+            toast.className = 'xhs-toast';
+            document.body.appendChild(toast);
+            setTimeout(() => document.body.removeChild(toast), 2000);
+            return;
+        }
+
+        // 检查是否已有主页
+        let profile = getCharacterProfile(authorName);
+
+        if (!profile) {
+            // 没有主页，显示确认弹窗（和点击头像相同）
+            showGenerateProfileConfirm(authorName, authorAvatar, async () => {
+                // 显示加载状态
+                btn.textContent = '...';
+                btn.disabled = true;
+
+                // 生成主页数据
+                profile = await generateCharacterProfile(authorName, authorAvatar);
+                if (profile) {
+                    // 直接设为已关注
+                    profile.isFollowed = true;
+                    await saveCharacterProfile(authorName, profile);
+
+                    // 更新按钮状态
+                    updateDetailFollowButton(btn, profile);
+                    btn.disabled = false;
+
+                    // 显示提示
+                    const toast = document.createElement('div');
+                    toast.textContent = '关注成功';
+                    toast.className = 'xhs-toast';
+                    document.body.appendChild(toast);
+                    setTimeout(() => document.body.removeChild(toast), 2000);
+
+                    // 更新个人主页的关注数
+                    if (window.renderXhsProfile) window.renderXhsProfile();
+                } else {
+                    btn.textContent = '关注';
+                    btn.disabled = false;
+                }
+            });
+        } else {
+            // 已有主页，切换关注状态
+            profile.isFollowed = !profile.isFollowed;
+            await saveCharacterProfile(authorName, profile);
+
+            // 更新按钮状态
+            updateDetailFollowButton(btn, profile);
+
+            // 显示提示
+            const toast = document.createElement('div');
+            toast.textContent = profile.isFollowed ? '关注成功' : '已取消关注';
+            toast.className = 'xhs-toast';
+            document.body.appendChild(toast);
+            setTimeout(() => document.body.removeChild(toast), 2000);
+
+            // 更新个人主页的关注数
+            if (window.renderXhsProfile) window.renderXhsProfile();
+        }
+    }
+
+    // 暴露给全局使用
+    window.openXhsUserProfile = openUserProfile;
 });

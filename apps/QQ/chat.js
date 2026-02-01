@@ -1,4 +1,4 @@
-
+﻿
 if (!window.videoCallState) {
     window.videoCallState = { isActive: false, activeChatId: null, isAwaitingResponse: false, isGroupCall: false, participants: [], timerId: null, callRequester: null, initiator: null };
 }
@@ -165,6 +165,8 @@ function createChatListItem(chat) {
             lastMsgDisplay = '[照片]';
         } else if (lastMsgObj.type === 'voice_message') {
             lastMsgDisplay = '[语音]';
+        } else if (lastMsgObj.type === 'xhs-share') {
+            lastMsgDisplay = '[小红书] ' + (lastMsgObj.shareData?.title || '分享笔记');
         } else if (typeof lastMsgObj.content === 'string' && STICKER_REGEX.test(lastMsgObj.content)) {
             lastMsgDisplay = lastMsgObj.meaning ? `[表情: ${lastMsgObj.meaning}]` : '[表情]';
         } else if (Array.isArray(lastMsgObj.content)) {
@@ -178,8 +180,23 @@ function createChatListItem(chat) {
             lastMsgDisplay = `${displayName}: ${lastMsgDisplay}`;
         }
     } else {
-        const statusText = chat.status?.text || '在线';
-        lastMsgDisplay = `[${statusText}]`;
+        // 非群聊：显示最后一条消息内容
+        if (lastMsgObj.type === 'xhs-share') {
+            lastMsgDisplay = '[小红书] ' + (lastMsgObj.shareData?.title || '分享笔记');
+        } else if (lastMsgObj.type === 'transfer') {
+            lastMsgDisplay = '[转账]';
+        } else if (lastMsgObj.type === 'ai_image' || lastMsgObj.type === 'user_photo') {
+            lastMsgDisplay = '[照片]';
+        } else if (lastMsgObj.type === 'voice_message') {
+            lastMsgDisplay = '[语音]';
+        } else if (typeof lastMsgObj.content === 'string' && STICKER_REGEX.test(lastMsgObj.content)) {
+            lastMsgDisplay = lastMsgObj.meaning ? `[表情: ${lastMsgObj.meaning}]` : '[表情]';
+        } else if (lastMsgObj.content) {
+            lastMsgDisplay = String(lastMsgObj.content).substring(0, 20);
+        } else {
+            const statusText = chat.status?.text || '在线';
+            lastMsgDisplay = `[${statusText}]`;
+        }
     }
 
     const lastMsgTimestamp = lastMsgObj?.timestamp;
@@ -1474,6 +1491,28 @@ function createMessageElement(msg, chat) {
 			            </div>
 			        </div>
 			    `;
+    } else if (msg.type === 'xhs-share') {
+        // 小红书笔记分享卡片
+        bubble.classList.add('is-xhs-share');
+        const data = msg.shareData || {};
+        contentHtml = `
+            <div class="xhs-share-card-in-chat" data-note-id="${data.noteId || ''}">
+                <div class="xhs-share-card-header">
+                    <img src="https://is1-ssl.mzstatic.com/image/thumb/Purple211/v4/cc/13/20/cc13205d-308c-5633-d956-2960d0c75476/AppIcon-0-0-1x_U007emarketing-0-7-0-85-220.png/230x0w.webp" class="xhs-share-app-icon" />
+                    <span>小红书</span>
+                </div>
+                <div class="xhs-share-card-body">
+                    ${data.cover ? `<img src="${data.cover}" class="xhs-share-card-cover" onerror="this.style.display='none'" />` : ''}
+                    <div class="xhs-share-card-info">
+                        <div class="xhs-share-card-title">${data.title || '分享笔记'}</div>
+                        <div class="xhs-share-card-author">
+                            <img src="${data.authorAvatar || ''}" class="xhs-share-card-avatar" onerror="this.style.display='none'" />
+                            <span>${data.authorName || '用户'}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     } else if (msg.type === 'sticker' && msg.content) {
         bubble.classList.add('is-sticker');
         // 直接从消息对象中获取 url 和 meaning
@@ -1669,6 +1708,38 @@ function formatMessageForContext(msg, chat) {
         contentText = `[语音]: ${msg.content}`;
     } else if (msg.type === 'transfer') {
         contentText = `[转账] 金额: ${msg.amount}, 备注: ${msg.note || '无'}`;
+    } else if (msg.type === 'xhs-share' && msg.shareData) {
+        // 小红书笔记分享 - 包含完整信息
+        const data = msg.shareData;
+        let xhsContent = `[分享了一条小红书笔记]\n`;
+        xhsContent += `标题: ${data.title || '无标题'}\n`;
+        xhsContent += `作者: ${data.authorName || '未知'}\n`;
+        if (data.content) {
+            xhsContent += `内容: ${data.content}\n`;
+        }
+        if (data.tags && data.tags.length > 0) {
+            xhsContent += `标签: ${data.tags.join(' ')}\n`;
+        }
+        if (data.location) {
+            xhsContent += `地点: ${data.location}\n`;
+        }
+        if (data.stats) {
+            xhsContent += `互动: ${data.stats.likes || 0}赞 ${data.stats.collects || 0}收藏\n`;
+        }
+        // 包含评论（含楼中楼）
+        if (data.comments && data.comments.length > 0) {
+            xhsContent += `评论区:\n`;
+            data.comments.forEach((c, idx) => {
+                xhsContent += `  ${idx + 1}. ${c.user || '匿名'}: ${c.text || ''}\n`;
+                // 楼中楼回复
+                if (c.replies && c.replies.length > 0) {
+                    c.replies.forEach(r => {
+                        xhsContent += `     └ ${r.user || '匿名'}: ${r.text || ''}\n`;
+                    });
+                }
+            });
+        }
+        contentText = xhsContent.trim();
     } else {
         contentText = String(msg.content || '');
     }
@@ -2755,6 +2826,29 @@ window.triggerAiResponse = async function triggerAiResponse() {
                         if (!stickerMeaning) stickerMeaning = '表情包';
                         contentStr = `[用户发送了一个表情: ${stickerMeaning}]`;
                     }
+                    else if (msg.type === 'xhs-share' && msg.shareData) {
+                        // 小红书笔记分享 - 包含完整信息
+                        const data = msg.shareData;
+                        let xhsContent = `[用户分享了一条小红书笔记]\n`;
+                        xhsContent += `标题: ${data.title || '无标题'}\n`;
+                        xhsContent += `作者: ${data.authorName || '未知'}\n`;
+                        if (data.content) xhsContent += `内容: ${data.content}\n`;
+                        if (data.tags && data.tags.length > 0) xhsContent += `标签: ${data.tags.join(' ')}\n`;
+                        if (data.location) xhsContent += `地点: ${data.location}\n`;
+                        if (data.stats) xhsContent += `互动: ${data.stats.likes || 0}赞 ${data.stats.collects || 0}收藏\n`;
+                        if (data.comments && data.comments.length > 0) {
+                            xhsContent += `评论区:\n`;
+                            data.comments.forEach((c, idx) => {
+                                xhsContent += `  ${idx + 1}. ${c.user || '匿名'}: ${c.text || ''}\n`;
+                                if (c.replies && c.replies.length > 0) {
+                                    c.replies.forEach(r => {
+                                        xhsContent += `     └ ${r.user || '匿名'}: ${r.text || ''}\n`;
+                                    });
+                                }
+                            });
+                        }
+                        contentStr = xhsContent.trim();
+                    }
 
                     return `${timestampStr} ${myNickname}: ${contentStr}`;
                 })
@@ -3102,6 +3196,28 @@ ${libraryList}
                         contentStr = `[用户发送了图片内容]`;
                     } else if (msg.meaning) {
                         contentStr = `[用户发送了一个表情，意思是：'${msg.meaning}']`;
+                    } else if (msg.type === 'xhs-share' && msg.shareData) {
+                        // 小红书笔记分享 - 包含完整信息
+                        const data = msg.shareData;
+                        let xhsContent = `[用户分享了一条小红书笔记]\n`;
+                        xhsContent += `标题: ${data.title || '无标题'}\n`;
+                        xhsContent += `作者: ${data.authorName || '未知'}\n`;
+                        if (data.content) xhsContent += `内容: ${data.content}\n`;
+                        if (data.tags && data.tags.length > 0) xhsContent += `标签: ${data.tags.join(' ')}\n`;
+                        if (data.location) xhsContent += `地点: ${data.location}\n`;
+                        if (data.stats) xhsContent += `互动: ${data.stats.likes || 0}赞 ${data.stats.collects || 0}收藏\n`;
+                        if (data.comments && data.comments.length > 0) {
+                            xhsContent += `评论区:\n`;
+                            data.comments.forEach((c, idx) => {
+                                xhsContent += `  ${idx + 1}. ${c.user || '匿名'}: ${c.text || ''}\n`;
+                                if (c.replies && c.replies.length > 0) {
+                                    c.replies.forEach(r => {
+                                        xhsContent += `     └ ${r.user || '匿名'}: ${r.text || ''}\n`;
+                                    });
+                                }
+                            });
+                        }
+                        contentStr = xhsContent.trim();
                     }
                     return `${timestampStr} ${myNickname}: ${contentStr}`;
                 })
@@ -6587,6 +6703,143 @@ function setupChatListeners() {
         viewerModal.classList.add('visible');
     }
 
+    // Function for XHS note viewer (used in click listener)
+    function openXhsNoteViewer(shareData) {
+        if (!shareData) return;
+
+        const viewerModal = document.getElementById('xhs-note-viewer-modal');
+        if (!viewerModal) return;
+
+        // 填充作者信息
+        const avatarEl = document.getElementById('xhs-note-viewer-avatar');
+        const authorNameEl = document.getElementById('xhs-note-viewer-author-name');
+        if (avatarEl) avatarEl.src = shareData.authorAvatar || '';
+        if (authorNameEl) authorNameEl.textContent = shareData.authorName || '用户';
+
+        // 填充封面图
+        const coverEl = document.getElementById('xhs-note-viewer-cover');
+        const coverWrap = document.getElementById('xhs-note-viewer-cover-wrap');
+        const coverUrl = shareData.cover || shareData.imageUrl || '';
+        if (coverEl && coverWrap) {
+            if (coverUrl) {
+                coverEl.src = coverUrl;
+                coverEl.onerror = () => { coverWrap.style.display = 'none'; };
+                coverWrap.style.display = 'block';
+            } else {
+                coverWrap.style.display = 'none';
+            }
+        }
+
+        // 填充标题和内容
+        const titleEl = document.getElementById('xhs-note-viewer-title');
+        const contentEl = document.getElementById('xhs-note-viewer-content');
+        if (titleEl) titleEl.textContent = shareData.title || '分享笔记';
+        if (contentEl) {
+            // 处理换行
+            contentEl.innerHTML = (shareData.content || '').replace(/\n/g, '<br>');
+        }
+
+        // 填充标签
+        const tagsEl = document.getElementById('xhs-note-viewer-tags');
+        if (tagsEl) {
+            if (shareData.tags && shareData.tags.length > 0) {
+                tagsEl.innerHTML = shareData.tags.map(tag =>
+                    `<span class="xhs-note-viewer-tag-item">${tag.startsWith('#') ? tag : '#' + tag}</span>`
+                ).join('');
+                tagsEl.style.display = 'flex';
+            } else {
+                tagsEl.style.display = 'none';
+            }
+        }
+
+        // 填充日期和地点
+        const dateEl = document.getElementById('xhs-note-viewer-date');
+        const locationEl = document.getElementById('xhs-note-viewer-location');
+        if (dateEl) dateEl.textContent = shareData.dateStr || '';
+        if (locationEl) locationEl.textContent = shareData.location || '';
+
+        // 填充统计数据
+        const likesEl = document.getElementById('xhs-note-viewer-likes');
+        const collectsEl = document.getElementById('xhs-note-viewer-collects');
+        if (likesEl) likesEl.textContent = shareData.stats?.likes || 0;
+        if (collectsEl) collectsEl.textContent = shareData.stats?.collects || 0;
+
+        // 填充评论区域
+        const commentsSection = document.getElementById('xhs-note-viewer-comments-section');
+        const commentsCountEl = document.getElementById('xhs-note-viewer-comments-count');
+        const commentsListEl = document.getElementById('xhs-note-viewer-comments-list');
+
+        if (commentsSection && commentsListEl) {
+            const comments = shareData.comments || [];
+
+            // 计算总评论数（包含楼中楼回复）
+            let totalCommentCount = comments.length;
+            comments.forEach(c => {
+                if (c.replies && c.replies.length > 0) {
+                    totalCommentCount += c.replies.length;
+                }
+            });
+
+            if (comments.length > 0) {
+                commentsSection.style.display = 'block';
+                if (commentsCountEl) commentsCountEl.textContent = totalCommentCount;
+
+                // 渲染评论列表（包含楼中楼）
+                commentsListEl.innerHTML = comments.map(comment => {
+                    const userName = comment.user || comment.authorName || '匿名用户';
+                    const commentText = comment.text || comment.content || '';
+                    // 如果没有头像，使用 dicebear API 生成
+                    const userAvatar = comment.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(userName)}`;
+
+                    // 渲染楼中楼回复
+                    let repliesHtml = '';
+                    if (comment.replies && comment.replies.length > 0) {
+                        repliesHtml = `
+                            <div class="xhs-note-viewer-replies">
+                                ${comment.replies.map(reply => {
+                            const replyUserName = reply.user || reply.authorName || '匿名用户';
+                            const replyText = reply.text || reply.content || '';
+                            // 如果没有头像，使用 dicebear API 生成
+                            const replyAvatar = reply.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(replyUserName)}`;
+
+                            return `
+                                        <div class="xhs-note-viewer-reply-item">
+                                            <div class="xhs-note-viewer-reply-avatar">
+                                                <img src="${replyAvatar}" alt="avatar" />
+                                            </div>
+                                            <div class="xhs-note-viewer-reply-body">
+                                                <span class="xhs-note-viewer-reply-user">${replyUserName}</span>
+                                                <span class="xhs-note-viewer-reply-text">${replyText}</span>
+                                            </div>
+                                        </div>
+                                    `;
+                        }).join('')}
+                            </div>
+                        `;
+                    }
+
+                    return `
+                        <div class="xhs-note-viewer-comment-item">
+                            <div class="xhs-note-viewer-comment-avatar">
+                                <img src="${userAvatar}" alt="avatar" />
+                            </div>
+                            <div class="xhs-note-viewer-comment-body">
+                                <div class="xhs-note-viewer-comment-user">${userName}</div>
+                                <div class="xhs-note-viewer-comment-text">${commentText}</div>
+                                ${repliesHtml}
+                            </div>
+                        </div>
+                    `;
+                }).join('');
+            } else {
+                commentsSection.style.display = 'none';
+            }
+        }
+
+        // 显示模态框
+        viewerModal.classList.add('visible');
+    }
+
     const setupFileUpload = (inputId, callback) => {
         document.getElementById(inputId).addEventListener('change', async (event) => {
             const file = event.target.files[0];
@@ -6976,6 +7229,21 @@ function setupChatListeners() {
             }
         }
 
+        // 处理小红书分享卡片的点击
+        const xhsShareCard = e.target.closest('.xhs-share-card-in-chat[data-note-id]');
+        if (xhsShareCard) {
+            const noteId = xhsShareCard.dataset.noteId;
+            const messageBubble = xhsShareCard.closest('.message-bubble');
+            if (messageBubble) {
+                const timestamp = parseInt(messageBubble.dataset.timestamp);
+                const msg = window.state.chats[window.state.activeChatId]?.history.find((m) => m.timestamp === timestamp);
+                if (msg && msg.type === 'xhs-share' && msg.shareData) {
+                    // 在聊天页面内打开笔记详情查看器
+                    openXhsNoteViewer(msg.shareData);
+                }
+            }
+        }
+
         // 处理分享卡片的点击
         const shareCard = e.target.closest('.link-share-card[data-timestamp]');
         if (shareCard && shareCard.closest('.message-bubble.is-link-share')) {
@@ -7057,45 +7325,17 @@ function setupChatListeners() {
 
     document.getElementById('selection-delete-btn').addEventListener('click', async () => {
         if (selectedMessages.size === 0) return;
-        const confirmed = await showCustomConfirm('删除消息', `确定要删除选中的 ${selectedMessages.size} 条消息吗？这将改变AI的记忆。`, { confirmButtonClass: 'btn-danger' });
+        const confirmed = await showCustomConfirm('删除消息', `确定要删除选中的 ${selectedMessages.size} 条消息吗？`, { confirmButtonClass: 'btn-danger' });
         if (confirmed) {
             const chat = window.state.chats[window.state.activeChatId];
 
-            // 1. 在删除前，检查被删除的消息中是否包含投票
-            let deletedPollsInfo = [];
-            for (const timestamp of selectedMessages) {
-                const msg = chat.history.find((m) => m.timestamp === timestamp);
-                if (msg && msg.type === 'poll') {
-                    deletedPollsInfo.push(`关于“${msg.question}”的投票(时间戳: ${msg.timestamp})`);
-                }
-            }
-
-            // 2. 更新后端的历史记录
+            // 直接从历史记录中删除选中的消息，不留任何痕迹
             chat.history = chat.history.filter((msg) => !selectedMessages.has(msg.timestamp));
 
-            // 获取最后一条实际消息的时间戳，用于保持最后消息时间不变
-            const lastActualMsg = chat.history.length > 0 ? chat.history[chat.history.length - 1] : null;
-            const instructionTimestamp = lastActualMsg ? lastActualMsg.timestamp + 0.1 : Date.now();
-
-            // 3. 构建更具体的“遗忘指令”
-            let forgetReason = '一些之前的消息已被用户删除。';
-            if (deletedPollsInfo.length > 0) {
-                forgetReason += ` 其中包括以下投票：${deletedPollsInfo.join('；')}。`;
-            }
-            forgetReason += ' 你应该像它们从未存在过一样继续对话，并相应地调整你的记忆和行为，不要再提及这些被删除的内容。';
-
-            const forgetInstruction = {
-                role: 'system',
-                content: `[系统提示：${forgetReason}]`,
-                timestamp: instructionTimestamp,
-                isHidden: true,
-            };
-            chat.history.push(forgetInstruction);
-
-            // 4. 将包含“遗忘指令”的、更新后的chat对象存回数据库
+            // 将更新后的chat对象存回数据库
             await window.db.chats.put(chat);
 
-            // 5. 最后才更新UI
+            // 更新UI
             renderChatInterface(window.state.activeChatId);
             renderChatList();
         }
@@ -7275,6 +7515,11 @@ function setupChatListeners() {
     // Shared History Viewer Close
     document.getElementById('close-shared-history-viewer-btn').addEventListener('click', () => {
         document.getElementById('shared-history-viewer-modal').classList.remove('visible');
+    });
+
+    // XHS Note Viewer Close
+    document.getElementById('close-xhs-note-viewer-btn').addEventListener('click', () => {
+        document.getElementById('xhs-note-viewer-modal').classList.remove('visible');
     });
 
     // Chat List Swipe / Click
