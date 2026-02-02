@@ -33208,22 +33208,30 @@ input:checked + .slider::after {
 .lofter-feed {
     display: none;
     padding: 12px;
+    position: relative;
 }
 
 .lofter-feed.active {
     display: block;
 }
 
-/* Lofter 瀑布流布局 */
-.lofter-waterfall {
-    column-count: 2;
-    column-gap: 10px;
+/* 瀑布流激活时使用flex布局 */
+.lofter-feed.lofter-waterfall.active {
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
     padding: 10px;
 }
 
+/* Lofter 瀑布流布局 - 双列Flex横向排列（只在active时生效） */
+.lofter-waterfall-column {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
 .lofter-waterfall .lofter-waterfall-card {
-    break-inside: avoid;
-    margin-bottom: 10px;
     background: #fff;
     border-radius: 10px;
     overflow: hidden;
@@ -33603,6 +33611,8 @@ input:checked + .slider::after {
 .lofter-legu-content {
     padding: 0 !important;
     background: #f5f5f5;
+    position: relative;
+    overflow: hidden;
 }
 
 .lofter-legu-topbar {
@@ -34931,33 +34941,48 @@ input:checked + .slider::after {
     display: inline-block;
 }
 
-/* Lofter 生成中遮罩 */
+/* Lofter 生成中弹窗（右下角悬浮） */
 .lofter-generating-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
+    bottom: 80px;
+    right: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 9999;
+    border-radius: 16px;
+    padding: 16px 20px;
+    box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4);
+    animation: lofter-popup-in 0.3s ease-out;
+}
+
+@keyframes lofter-popup-in {
+    from {
+        opacity: 0;
+        transform: translateY(20px) scale(0.9);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
 }
 
 .lofter-generating-content {
-    text-align: center;
+    display: flex;
+    align-items: center;
+    gap: 12px;
     color: #fff;
 }
 
 .lofter-generating-spinner {
-    width: 50px;
-    height: 50px;
-    border: 3px solid rgba(255, 255, 255, 0.3);
-    border-top-color: #00c3ff;
+    width: 24px;
+    height: 24px;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
     border-radius: 50%;
-    animation: lofter-spin 1s linear infinite;
-    margin: 0 auto 20px;
+    animation: lofter-spin 0.8s linear infinite;
+    flex-shrink: 0;
 }
 
 @keyframes lofter-spin {
@@ -34965,13 +34990,62 @@ input:checked + .slider::after {
 }
 
 .lofter-generating-text {
-    font-size: 16px;
-    margin-bottom: 10px;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
 }
 
 .lofter-generating-progress {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.8);
+    margin-left: 4px;
+}
+
+/* 开发中遮罩层 */
+.lofter-dev-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.95);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    backdrop-filter: blur(3px);
+}
+
+/* 乐谷页面遮罩需要使用固定定位覆盖整个内容区 */
+.lofter-legu-content > .lofter-dev-overlay {
+    position: fixed;
+    top: 95px;
+    bottom: 55px;
+    left: 0;
+    right: 0;
+}
+
+/* 广场页面内容需要设置高度以支持遮罩层 */
+#lofter-plaza-feed {
+    min-height: calc(100vh - 160px);
+}
+
+.lofter-dev-overlay .dev-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.lofter-dev-overlay .dev-title {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+}
+
+.lofter-dev-overlay .dev-hint {
     font-size: 14px;
-    color: rgba(255, 255, 255, 0.7);
+    color: #666;
 }
 
 /* Lofter 作品类型标签 */
@@ -35181,6 +35255,275 @@ input:checked + .slider::after {
 
 .lofter-gen-add-preset button:hover {
     opacity: 0.9;
+}
+
+/* Lofter 生成模式选择 */
+.lofter-gen-mode-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.lofter-gen-mode-item {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    padding: 15px;
+    background: linear-gradient(135deg, #f8f9fa, #fff);
+    border: 2px solid #eee;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.lofter-gen-mode-item:hover {
+    border-color: #00c3ff;
+    background: linear-gradient(135deg, #f0faff, #fff);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 195, 255, 0.15);
+}
+
+.lofter-gen-mode-icon {
+    font-size: 32px;
+}
+
+.lofter-gen-mode-info {
+    flex: 1;
+}
+
+.lofter-gen-mode-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.lofter-gen-mode-desc {
+    font-size: 12px;
+    color: #999;
+}
+
+/* Lofter 自定义生成模态框 */
+.lofter-custom-char-select {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    max-height: 120px;
+    overflow-y: auto;
+    padding: 5px 0;
+}
+
+.lofter-custom-char-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #f5f5f5;
+    border: 2px solid transparent;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.lofter-custom-char-item:hover {
+    background: #e8f4fd;
+}
+
+.lofter-custom-char-item.selected {
+    background: linear-gradient(135deg, #e3f7ff, #d0f0ff);
+    border-color: #00c3ff;
+}
+
+.lofter-custom-char-item img {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.lofter-custom-char-item span {
+    font-size: 13px;
+    color: #333;
+}
+
+#lofter-custom-gen-modal textarea {
+    width: 100%;
+    padding: 12px;
+    font-size: 14px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    resize: none;
+    outline: none;
+}
+
+#lofter-custom-gen-modal textarea:focus {
+    border-color: #00c3ff;
+}
+
+/* Lofter 充值/兑换模态框 */
+.lofter-recharge-balance {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px;
+    background: linear-gradient(135deg, #fff9e6, #fff3cc);
+    border-radius: 12px;
+    margin-bottom: 20px;
+}
+
+.lofter-recharge-balance span:first-child {
+    font-size: 14px;
+    color: #666;
+}
+
+.lofter-recharge-current {
+    font-size: 24px;
+    font-weight: 700;
+    color: #f5a623;
+}
+
+.lofter-recharge-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    margin-bottom: 20px;
+}
+
+.lofter-recharge-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 15px 10px;
+    background: #f8f9fa;
+    border: 2px solid #eee;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.lofter-recharge-option:hover {
+    border-color: #f5a623;
+    background: #fffbf0;
+}
+
+.lofter-recharge-option.selected {
+    border-color: #f5a623;
+    background: linear-gradient(135deg, #fff9e6, #fff3cc);
+}
+
+.lofter-recharge-amount {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.lofter-recharge-price {
+    font-size: 14px;
+    color: #f5a623;
+}
+
+.lofter-recharge-price small {
+    font-size: 11px;
+    color: #e74c3c;
+    background: rgba(231, 76, 60, 0.1);
+    padding: 2px 5px;
+    border-radius: 8px;
+    margin-left: 5px;
+}
+
+.lofter-recharge-wallet {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 15px;
+    background: #f0f0f0;
+    border-radius: 10px;
+    font-size: 13px;
+    color: #666;
+}
+
+.lofter-wallet-balance {
+    font-weight: 600;
+    color: #333;
+}
+
+/* 糖果兑换样式 */
+.lofter-exchange-info {
+    padding: 15px;
+    background: linear-gradient(135deg, #fef6f9, #fff0f5);
+    border-radius: 12px;
+    margin-bottom: 15px;
+}
+
+.lofter-exchange-balance-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+}
+
+.lofter-exchange-balance-row span:first-child {
+    font-size: 14px;
+    color: #666;
+}
+
+.lofter-exchange-value {
+    font-size: 18px;
+    font-weight: 600;
+    color: #333;
+}
+
+.lofter-exchange-arrow {
+    text-align: center;
+    font-size: 20px;
+    color: #999;
+    padding: 5px 0;
+}
+
+.lofter-exchange-rate {
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+    padding: 10px 0;
+    border-top: 1px dashed #eee;
+    border-bottom: 1px dashed #eee;
+    margin-bottom: 15px;
+}
+
+.lofter-exchange-options {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+}
+
+.lofter-exchange-option {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px;
+    background: #f8f9fa;
+    border: 2px solid #eee;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.lofter-exchange-option:hover {
+    border-color: #e91e63;
+    background: #fff0f5;
+}
+
+.lofter-exchange-option span:first-child {
+    font-size: 18px;
+    font-weight: 600;
+    color: #e91e63;
+    margin-bottom: 5px;
+}
+
+.lofter-exchange-option span:last-child {
+    font-size: 12px;
+    color: #999;
 }
 
 /* 顶部按钮区域优化 */

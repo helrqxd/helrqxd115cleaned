@@ -74,14 +74,19 @@ document.addEventListener('DOMContentLoaded', () => {
     // 默认头像
     const defaultAvatar = 'https://files.catbox.moe/q6z5fc.jpeg';
 
+    // 默认文风预设版本号（当更新预设内容时，需要增加此版本号）
+    const STYLE_PRESETS_VERSION = 2;
+
     // 默认文风预设
     const defaultStylePresets = [
-        '清新治愈风：语言温柔细腻，多用自然意象和温暖的比喻，给人安心舒适的感觉',
-        '古风雅韵：语言优美典雅，多用诗词化表达和古典意象，文辞华丽又不失深情',
-        '现代都市风：语言简练利落，贴近都市生活，带有一点讽刺或幽默感',
-        '甜宠撒糖风：语言甜蜜可爱，多用亲昵称呼和心理描写，充满少女心',
-        '虐心刀子风：语言深沉克制，善用留白和隐喻，情感冲击力强',
-        '爽文快节奏：情节紧凑，语言干脆，爽点密集，阅读感畅快'
+        '清新文艺：语言清新淡雅如晨露，善用意象与留白，情感内敛含蓄，以诗意笔触描绘日常美好',
+        '甜宠治愈：温暖甜蜜的糖分文风，细腻刻画心动瞬间，氛围轻松明快，充满温馨治愈的生活气息',
+        '幽默搞笑：轻松诙谐的喜剧风格，善用吐槽、反差萌和意外展开，对话机智有趣，让人会心一笑',
+        '虐心催泪：细腻深沉的情感刻画，善于铺垫与反转，用克制的笔触写浓烈的情感，直击心灵深处',
+        '热血激昂：充满张力的燃系文风，节奏明快、场面宏大，用激情澎湃的文字点燃读者的热血与斗志',
+        '悬疑烧脑：环环相扣的推理风格，善设伏笔与悬念，氛围紧张神秘，引导读者抽丝剥茧探寻真相',
+        '古风雅韵：典雅蕴藉的古典文风，遣词考究、意境悠远，善用诗词典故，展现传统美学韵味',
+        '现代都市：贴近生活的都市笔触，节奏利落、描写真实，展现当代人的情感与生活状态'
     ];
 
     /* =========================================
@@ -116,6 +121,18 @@ document.addEventListener('DOMContentLoaded', () => {
         const m = (d.getMonth() + 1).toString().padStart(2, '0');
         const day = d.getDate().toString().padStart(2, '0');
         return `${y}-${m}-${day}`;
+    }
+
+    // 完整日期时间格式（包含时分）
+    function formatFullDateTime(ts) {
+        if (!ts) return '';
+        const d = new Date(ts);
+        const y = d.getFullYear();
+        const m = (d.getMonth() + 1).toString().padStart(2, '0');
+        const day = d.getDate().toString().padStart(2, '0');
+        const h = d.getHours().toString().padStart(2, '0');
+        const min = d.getMinutes().toString().padStart(2, '0');
+        return `${y}-${m}-${day} ${h}:${min}`;
     }
 
     // 生成唯一ID
@@ -187,13 +204,21 @@ document.addEventListener('DOMContentLoaded', () => {
     function getLofterGenSettings() {
         const settings = localStorage.getItem('lofterGenSettings');
         if (settings) {
-            return JSON.parse(settings);
+            const parsed = JSON.parse(settings);
+            // 检查文风预设版本，如果版本不匹配则更新为最新默认预设
+            if (parsed.stylePresetsVersion !== STYLE_PRESETS_VERSION) {
+                parsed.stylePresets = [...defaultStylePresets];
+                parsed.stylePresetsVersion = STYLE_PRESETS_VERSION;
+                saveLofterGenSettings(parsed);
+            }
+            return parsed;
         }
         return {
             workCount: 3,
             allowedCharacters: [], // 空数组表示允许所有角色
             worldBookId: '',
-            stylePresets: [...defaultStylePresets]
+            stylePresets: [...defaultStylePresets],
+            stylePresetsVersion: STYLE_PRESETS_VERSION
         };
     }
 
@@ -650,7 +675,7 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
                         comments: generatedComments,
                         tips: [],
                         views: Math.floor(Math.random() * 2000) + 100,
-                        timestamp: now - Math.floor(Math.random() * 3600000 * i), // 稍微错开时间
+                        timestamp: now, // 使用实际发布时间
                         isLiked: false,
                         isCollected: false,
                         isAIGenerated: true
@@ -847,9 +872,23 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
         // 按时间倒序排列
         articles.sort((a, b) => b.timestamp - a.timestamp);
 
-        articles.forEach(article => {
+        // 创建双列容器（横向排列：左-右-左-右）
+        const leftCol = document.createElement('div');
+        leftCol.className = 'lofter-waterfall-column';
+        const rightCol = document.createElement('div');
+        rightCol.className = 'lofter-waterfall-column';
+
+        feed.appendChild(leftCol);
+        feed.appendChild(rightCol);
+
+        articles.forEach((article, index) => {
             const card = createWaterfallCard(article);
-            feed.appendChild(card);
+            // 偶数索引放左边，奇数索引放右边
+            if (index % 2 === 0) {
+                leftCol.appendChild(card);
+            } else {
+                rightCol.appendChild(card);
+            }
         });
     }
 
@@ -1130,7 +1169,7 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
         document.getElementById('lofter-article-author-avatar').src = article.authorAvatar || defaultAvatar;
         document.getElementById('lofter-article-author-name').textContent = article.authorName;
         document.getElementById('lofter-article-title').textContent = article.title;
-        document.getElementById('lofter-article-date').textContent = formatFullDate(article.timestamp);
+        document.getElementById('lofter-article-date').textContent = formatFullDateTime(article.timestamp);
         document.getElementById('lofter-article-views').textContent = `阅读 ${article.views}`;
         document.getElementById('lofter-article-body').textContent = article.content;
 
@@ -2199,7 +2238,698 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
     }
 
     /* =========================================
-        11. 应用入口
+        11. 生成模式选择和自定义生成
+       ========================================= */
+
+    const genModeModal = document.getElementById('lofter-gen-mode-modal');
+    const genModeClose = document.getElementById('lofter-gen-mode-close');
+    const customGenModal = document.getElementById('lofter-custom-gen-modal');
+    const customGenClose = document.getElementById('lofter-custom-gen-close');
+    const customGenSubmit = document.getElementById('lofter-custom-gen-submit');
+
+    // 打开生成模式选择弹窗
+    function openGenModeModal() {
+        if (genModeModal) {
+            genModeModal.style.display = 'flex';
+        }
+    }
+
+    // 关闭生成模式选择弹窗
+    if (genModeClose) {
+        genModeClose.addEventListener('click', () => {
+            if (genModeModal) genModeModal.style.display = 'none';
+        });
+    }
+
+    // 点击模态框背景关闭
+    if (genModeModal) {
+        genModeModal.addEventListener('click', (e) => {
+            if (e.target === genModeModal) {
+                genModeModal.style.display = 'none';
+            }
+        });
+    }
+
+    // 生成模式选项点击
+    document.querySelectorAll('.lofter-gen-mode-item').forEach(item => {
+        item.addEventListener('click', () => {
+            const mode = item.dataset.mode;
+            if (genModeModal) genModeModal.style.display = 'none';
+
+            if (mode === 'free') {
+                // 自由生成 - 使用原有逻辑
+                generateFanWorks();
+            } else if (mode === 'custom') {
+                // 按设定生成 - 打开自定义生成弹窗
+                openCustomGenModal();
+            }
+        });
+    });
+
+    // 打开自定义生成弹窗
+    function openCustomGenModal() {
+        renderCustomGenModal();
+        if (customGenModal) {
+            customGenModal.style.display = 'flex';
+        }
+    }
+
+    // 渲染自定义生成弹窗内容
+    function renderCustomGenModal() {
+        const characters = getAllCharacterProfiles();
+
+        // 渲染主角选择（多选）
+        const protagonistContainer = document.getElementById('lofter-custom-protagonist');
+        if (protagonistContainer) {
+            protagonistContainer.innerHTML = '';
+            characters.forEach(char => {
+                const item = document.createElement('div');
+                item.className = 'lofter-custom-char-item';
+                item.dataset.id = char.id;
+                item.innerHTML = `
+                    <img src="${char.avatar}" alt="${char.name}">
+                    <span>${char.name}</span>
+                `;
+                item.addEventListener('click', () => {
+                    // 多选
+                    item.classList.toggle('selected');
+                });
+                protagonistContainer.appendChild(item);
+            });
+        }
+
+        // 渲染配角选择
+        const supportingContainer = document.getElementById('lofter-custom-supporting');
+        if (supportingContainer) {
+            supportingContainer.innerHTML = '';
+            characters.forEach(char => {
+                const item = document.createElement('div');
+                item.className = 'lofter-custom-char-item';
+                item.dataset.id = char.id;
+                item.innerHTML = `
+                    <img src="${char.avatar}" alt="${char.name}">
+                    <span>${char.name}</span>
+                `;
+                item.addEventListener('click', () => {
+                    // 多选
+                    item.classList.toggle('selected');
+                });
+                supportingContainer.appendChild(item);
+            });
+        }
+
+        // 渲染文风选择
+        const genSettings = getLofterGenSettings();
+        const stylePresets = genSettings.stylePresets && genSettings.stylePresets.length > 0
+            ? genSettings.stylePresets
+            : defaultStylePresets;
+
+        const styleSelect = document.getElementById('lofter-custom-style');
+        if (styleSelect) {
+            styleSelect.innerHTML = '<option value="">随机选择</option>';
+            stylePresets.forEach((preset, index) => {
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = preset.length > 30 ? preset.substring(0, 30) + '...' : preset;
+                styleSelect.appendChild(option);
+            });
+        }
+    }
+
+    // 关闭自定义生成弹窗
+    if (customGenClose) {
+        customGenClose.addEventListener('click', () => {
+            if (customGenModal) customGenModal.style.display = 'none';
+        });
+    }
+
+    // 点击模态框背景关闭
+    if (customGenModal) {
+        customGenModal.addEventListener('click', (e) => {
+            if (e.target === customGenModal) {
+                customGenModal.style.display = 'none';
+            }
+        });
+    }
+
+    // 提交自定义生成
+    if (customGenSubmit) {
+        customGenSubmit.addEventListener('click', async () => {
+            // 获取选中的主角（多选）
+            const protagonistEls = document.querySelectorAll('#lofter-custom-protagonist .lofter-custom-char-item.selected');
+            if (protagonistEls.length === 0) {
+                showLofterToast('请至少选择一个主角');
+                return;
+            }
+            const protagonistIds = Array.from(protagonistEls).map(el => el.dataset.id);
+
+            // 获取选中的配角
+            const supportingEls = document.querySelectorAll('#lofter-custom-supporting .lofter-custom-char-item.selected');
+            const supportingIds = Array.from(supportingEls).map(el => el.dataset.id);
+
+            // 获取其他设置
+            const workType = document.getElementById('lofter-custom-work-type')?.value || 'short_story';
+            const styleIndex = document.getElementById('lofter-custom-style')?.value;
+            const wordCount = document.getElementById('lofter-custom-word-count')?.value || '800';
+            const plotHint = document.getElementById('lofter-custom-plot-hint')?.value.trim() || '';
+
+            // 关闭弹窗
+            if (customGenModal) customGenModal.style.display = 'none';
+
+            // 调用自定义生成
+            await generateCustomWork(protagonistIds, supportingIds, workType, styleIndex, wordCount, plotHint);
+        });
+    }
+
+    // 构建自定义生成提示词
+    function buildCustomGenerationPrompt(protagonists, supportingChars, workType, stylePreset, wordCount, plotHint, worldBookContent) {
+        // 主角信息（支持多主角）
+        let protagonistInfo = '';
+        if (protagonists.length === 1) {
+            protagonistInfo = `【主角】${protagonists[0].name}\n【完整人设】\n${protagonists[0].persona}`;
+        } else {
+            protagonistInfo = '【主角群像】\n' + protagonists.map(p => {
+                return `◆ ${p.name}：\n${p.persona}`;
+            }).join('\n\n');
+        }
+
+        // 配角信息
+        let supportingInfo = '';
+        if (supportingChars && supportingChars.length > 0) {
+            supportingInfo = '\n\n【配角角色】\n' + supportingChars.map(c => {
+                return `◇ ${c.name}：\n${c.persona}`;
+            }).join('\n\n');
+        }
+
+        // 作品类型详细说明
+        const workTypeDetails = {
+            'short_story': {
+                name: '短篇小说（单篇完结）',
+                desc: '独立完整的短篇故事，有开头、发展、高潮、结尾，情节紧凑，主题明确'
+            },
+            'short_series': {
+                name: '短篇系列',
+                desc: '属于某个主题系列的短篇，可以独立阅读但与系列其他作品有关联，需要系列名和章节号'
+            },
+            'long_complete': {
+                name: '长篇一篇完',
+                desc: '较长的完整故事，情节丰富，人物刻画深入，有完整的故事弧线，不允许分章节'
+            },
+            'long_serial': {
+                name: '长篇连载章节',
+                desc: '连载小说的一个章节，有承上启下的作用，结尾可以留有悬念，需要小说名和章节号'
+            },
+            'image': {
+                name: '同人图/漫画',
+                desc: '详细描述一幅同人插画或漫画的画面内容，包括构图、人物神态、动作、场景氛围等'
+            }
+        };
+
+        const typeInfo = workTypeDetails[workType] || workTypeDetails['short_story'];
+
+        // 世界书设定
+        let worldBookSection = '';
+        if (worldBookContent) {
+            worldBookSection = `\n\n## 📚 世界观设定背景：
+请严格遵循以下世界观设定进行创作，确保作品与设定相符：
+${worldBookContent}`;
+        }
+
+        // 文风要求
+        let styleSection = '';
+        if (stylePreset) {
+            styleSection = `\n\n## ✍️ 文风与写作风格要求：
+请按照以下风格特点进行创作，贯穿全文：
+${stylePreset}
+
+具体要求：
+- 语言风格需保持一致
+- 叙事节奏符合文风特点
+- 对话和描写要体现风格特色`;
+        }
+
+        // 剧情提示
+        let plotSection = '';
+        if (plotHint) {
+            plotSection = `\n\n## 🎬 剧情方向与创作提示：
+请围绕以下主题/场景/梗进行创作：
+${plotHint}
+
+创作建议：
+- 将提示元素自然融入故事
+- 可以创意发挥但不偏离主题
+- 注意情感铺垫和氛围营造`;
+        }
+
+        // 角色互动指导
+        let interactionGuide = '';
+        const protagonistNames = protagonists.map(p => p.name).join('、');
+        if (protagonists.length > 1 || supportingChars.length > 0) {
+            let guideContent = '';
+            if (protagonists.length > 1) {
+                guideContent += `- 多主角群像故事，${protagonistNames}均为核心角色\n- 合理分配每个主角的戏份和视角\n- 注重主角之间的互动和关系发展`;
+            } else {
+                guideContent += `- 主角${protagonistNames}是故事的核心视角`;
+            }
+            if (supportingChars.length > 0) {
+                guideContent += `\n- 配角${supportingChars.map(c => c.name).join('、')}需要有适当的戏份和互动`;
+            }
+            guideContent += `\n- 注意角色之间的关系发展和情感张力\n- 对话要符合每个角色的性格特点`;
+            interactionGuide = `\n\n## 💫 角色互动指导：\n${guideContent}`;
+        }
+
+        return `你是一位资深的同人文创作者，擅长根据角色人设创作高质量的同人作品。请基于以下详细设定，创作一篇精彩的同人作品。
+
+═══════════════════════════════════════
+📖 角色资料卡
+═══════════════════════════════════════
+
+${protagonistInfo}${supportingInfo}${worldBookSection}${styleSection}${plotSection}${interactionGuide}
+
+═══════════════════════════════════════
+📝 创作要求
+═══════════════════════════════════════
+
+【作品类型】${typeInfo.name}
+${typeInfo.desc}
+
+【字数要求】约 ${wordCount} 字
+- 请严格控制在 ${Math.floor(wordCount * 0.9)} ~ ${Math.floor(wordCount * 1.1)} 字范围内
+- 内容充实，不要为凑字数而注水
+- 如果是长篇类型，确保情节完整不仓促
+
+【内容质量要求】
+1. 开头要引人入胜，迅速抓住读者注意力
+2. 人物塑造要立体，对话要生动有个性
+3. 情节发展要合理，转折要有铺垫
+4. 情感描写要细腻，能引起读者共鸣
+5. 结尾要有余韵，让人回味
+
+【必须包含的元素】
+- 一个有创意的作者笔名（符合同人圈风格）
+- 一个吸引人的标题（可以是诗意的、有梗的或直接点题的）
+- 3-5个精准的标签：CP标签（如"XX×XX"）、主题标签（如"校园AU"、"原著向"）、情感标签（如"甜宠"、"虐心"）
+- 一段真诚的"作者有话说"（50-150字，可以聊聊创作灵感、心路历程、碎碎念等）
+- 2-4条精彩的读者评论（模拟同人圈读者的真实反应，可以是尖叫、催更、深度分析等）
+
+【可选元素】
+- 彩蛋内容：番外小剧场、角色花絮、if线等（如果添加，需设置5-30的糖果券解锁价格）
+- 如果是 short_series 或 long_serial 类型，必须提供合集名(collectionName)和章节号(chapterNum)
+
+═══════════════════════════════════════
+📤 输出格式（严格JSON）
+═══════════════════════════════════════
+
+{
+  "type": "${workType}",
+  "authorName": "作者笔名",
+  "title": "作品标题",
+  "content": "作品正文内容（必须达到${wordCount}字左右）",
+  "tags": ["CP标签", "主题标签", "情感标签", "其他标签"],
+  "authorNotes": "作者有话说的内容",
+  "hasBonus": true或false,
+  "bonusContent": "彩蛋内容（如果hasBonus为true）",
+  "bonusCost": 5到30之间的数字,
+  "collectionName": "合集名（short_series和long_serial必填）",
+  "chapterNum": 1,
+  "comments": [
+    {"name": "评论者昵称", "text": "评论内容（要符合同人圈氛围）"},
+    {"name": "评论者昵称2", "text": "评论内容2"}
+  ]
+}
+
+⚠️ 注意：直接输出JSON，不要添加任何markdown代码块标记或其他说明文字。`;
+    }
+
+    // 自定义生成作品
+    async function generateCustomWork(protagonistIds, supportingIds, workType, styleIndex, wordCount, plotHint) {
+        const overlay = document.getElementById('lofter-generating-overlay');
+        const progressEl = document.getElementById('lofter-generating-progress');
+
+        // 检查API配置
+        const apiConfig = window.state?.apiConfig;
+        if (!apiConfig || !apiConfig.proxyUrl || !apiConfig.apiKey) {
+            showLofterToast('请先在设置中配置API');
+            return;
+        }
+
+        // 获取角色信息
+        const allCharacters = getAllCharacterProfiles();
+        const protagonists = allCharacters.filter(c => protagonistIds.includes(c.id));
+        if (protagonists.length === 0) {
+            showLofterToast('未找到主角信息');
+            return;
+        }
+
+        const supportingChars = allCharacters.filter(c => supportingIds.includes(c.id));
+
+        // 获取生成设置
+        const genSettings = getLofterGenSettings();
+
+        // 获取世界书内容
+        let worldBookContent = '';
+        if (genSettings.worldBookId) {
+            worldBookContent = await getWorldBookContent(genSettings.worldBookId);
+        }
+
+        // 获取文风预设
+        const stylePresets = genSettings.stylePresets && genSettings.stylePresets.length > 0
+            ? genSettings.stylePresets
+            : defaultStylePresets;
+
+        let selectedStyle = '';
+        if (styleIndex !== '' && styleIndex !== undefined) {
+            selectedStyle = stylePresets[parseInt(styleIndex)] || '';
+        } else {
+            // 随机选择
+            selectedStyle = stylePresets[Math.floor(Math.random() * stylePresets.length)];
+        }
+
+        overlay.style.display = 'flex';
+        progressEl.textContent = '正在按设定生成作品...';
+
+        try {
+            const prompt = buildCustomGenerationPrompt(protagonists, supportingChars, workType, selectedStyle, wordCount, plotHint, worldBookContent);
+
+            // 调用API
+            const { proxyUrl, apiKey, model, temperature } = apiConfig;
+            const isGemini = proxyUrl.includes('googleapis');
+            const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.8;
+
+            let responseData;
+
+            if (isGemini) {
+                const url = `${proxyUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { temperature: requestTemp }
+                    })
+                });
+                const json = await res.json();
+                if (!json.candidates?.[0]?.content?.parts?.[0]) {
+                    throw new Error(json.error?.message || 'API返回格式异常');
+                }
+                responseData = json.candidates[0].content.parts[0].text;
+            } else {
+                const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: model || 'gpt-3.5-turbo',
+                        messages: [{ role: 'user', content: prompt }],
+                        temperature: requestTemp
+                    })
+                });
+                const json = await res.json();
+                if (!json.choices?.[0]?.message) {
+                    throw new Error(json.error?.message || 'API返回格式异常');
+                }
+                responseData = json.choices[0].message.content;
+            }
+
+            // 解析JSON
+            let cleanJson = responseData;
+            const jsonMatch = responseData.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                cleanJson = jsonMatch[0];
+            }
+
+            const work = JSON.parse(cleanJson);
+            const now = Date.now();
+            const authorId = 'author_' + generateId();
+
+            // 处理合集
+            let collectionId = null;
+            if ((work.type === 'short_series' || work.type === 'long_serial') && work.collectionName) {
+                const collection = getOrCreateCollection(
+                    authorId,
+                    work.authorName,
+                    work.collectionName,
+                    work.type === 'short_series' ? 'series' : 'serial'
+                );
+                collectionId = collection.id;
+            }
+
+            // 处理AI生成的评论
+            let generatedComments = [];
+            if (work.comments && Array.isArray(work.comments)) {
+                const commentAvatars = [
+                    'https://api.dicebear.com/7.x/notionists/svg?seed=custom1',
+                    'https://api.dicebear.com/7.x/notionists/svg?seed=custom2',
+                    'https://api.dicebear.com/7.x/notionists/svg?seed=custom3',
+                    'https://api.dicebear.com/7.x/notionists/svg?seed=custom4'
+                ];
+                generatedComments = work.comments.map((c, idx) => ({
+                    id: generateId(),
+                    name: c.name || `读者${idx + 1}`,
+                    avatar: commentAvatars[idx % commentAvatars.length],
+                    text: c.text || c.content || '写得太棒了！',
+                    timestamp: now - Math.floor(Math.random() * 3600000)
+                }));
+            }
+
+            // 创建文章对象
+            const newArticle = {
+                id: generateId(),
+                authorId: authorId,
+                authorName: work.authorName,
+                authorAvatar: `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(work.authorName)}`,
+                title: work.title,
+                content: work.content,
+                images: [],
+                tags: work.tags || [],
+                workType: work.type,
+                authorNotes: work.authorNotes || '',
+                hasBonus: work.hasBonus || false,
+                bonusContent: work.bonusContent || '',
+                bonusCost: work.bonusCost || 10,
+                bonusUnlocked: false,
+                collectionId: collectionId,
+                collectionName: work.collectionName || null,
+                chapterNum: work.chapterNum || null,
+                likes: Math.floor(Math.random() * 500) + 50,
+                collects: Math.floor(Math.random() * 100) + 10,
+                comments: generatedComments,
+                tips: [],
+                views: Math.floor(Math.random() * 2000) + 100,
+                timestamp: now,
+                isLiked: false,
+                isCollected: false,
+                isAIGenerated: true,
+                isCustomGenerated: true // 标记为自定义生成
+            };
+
+            let articles = getLofterArticles();
+            articles.unshift(newArticle);
+            saveLofterArticles(articles);
+
+            // 添加到合集
+            if (collectionId) {
+                addArticleToCollection(collectionId, newArticle.id);
+            }
+
+            renderDiscoverFeed();
+            showLofterToast('作品生成成功！');
+
+        } catch (error) {
+            console.error('自定义生成失败:', error);
+            showLofterToast('生成失败: ' + error.message);
+        } finally {
+            overlay.style.display = 'none';
+        }
+    }
+
+    /* =========================================
+        12. 乐乎币/糖果券充值兑换
+       ========================================= */
+
+    const coinsRechargeModal = document.getElementById('lofter-coins-recharge-modal');
+    const coinsRechargeClose = document.getElementById('lofter-coins-recharge-close');
+    const candyExchangeModal = document.getElementById('lofter-candy-exchange-modal');
+    const candyExchangeClose = document.getElementById('lofter-candy-exchange-close');
+
+    // 点击乐乎币卡片打开充值弹窗
+    const coinsCard = document.querySelector('.lofter-account-card:has(#lofter-coins)');
+    if (coinsCard) {
+        coinsCard.style.cursor = 'pointer';
+        coinsCard.addEventListener('click', () => {
+            openCoinsRechargeModal();
+        });
+    }
+
+    // 点击糖果券卡片打开兑换弹窗
+    const candyCard = document.querySelector('.lofter-account-card:has(#lofter-candy)');
+    if (candyCard) {
+        candyCard.style.cursor = 'pointer';
+        candyCard.addEventListener('click', () => {
+            openCandyExchangeModal();
+        });
+    }
+
+    // 打开乐乎币充值弹窗
+    function openCoinsRechargeModal() {
+        const userSettings = getLofterUserSettings();
+
+        // 更新当前乐乎币余额显示
+        const currentCoinsEl = document.getElementById('lofter-recharge-coins-current');
+        if (currentCoinsEl) {
+            currentCoinsEl.textContent = userSettings.coins || 0;
+        }
+
+        // 获取用户钱包余额（从淘宝的 state.globalSettings.userBalance 读取）
+        const walletBalance = state?.globalSettings?.userBalance || 0;
+        const walletBalanceEl = document.getElementById('lofter-wallet-balance');
+        if (walletBalanceEl) {
+            walletBalanceEl.textContent = walletBalance.toFixed(2);
+        }
+
+        if (coinsRechargeModal) {
+            coinsRechargeModal.style.display = 'flex';
+        }
+    }
+
+    // 关闭乐乎币充值弹窗
+    if (coinsRechargeClose) {
+        coinsRechargeClose.addEventListener('click', () => {
+            if (coinsRechargeModal) coinsRechargeModal.style.display = 'none';
+        });
+    }
+
+    if (coinsRechargeModal) {
+        coinsRechargeModal.addEventListener('click', (e) => {
+            if (e.target === coinsRechargeModal) {
+                coinsRechargeModal.style.display = 'none';
+            }
+        });
+    }
+
+    // 充值选项点击
+    document.querySelectorAll('.lofter-recharge-option').forEach(option => {
+        option.addEventListener('click', async () => {
+            const amount = parseInt(option.dataset.amount);
+            const cost = parseInt(option.dataset.cost);
+
+            // 获取用户钱包余额（从淘宝的 state.globalSettings.userBalance）
+            const walletBalance = state?.globalSettings?.userBalance || 0;
+
+            if (walletBalance < cost) {
+                showLofterToast('钱包余额不足');
+                return;
+            }
+
+            // 扣除钱包余额并记录交易（与淘宝一致的方式）
+            state.globalSettings.userBalance = walletBalance - cost;
+
+            const newTransaction = {
+                type: 'expense',
+                amount: cost,
+                description: `购买 ${amount} 乐乎币`,
+                timestamp: Date.now(),
+            };
+
+            // 使用数据库事务，确保余额和交易记录同时更新
+            if (window.db && window.db.globalSettings && window.db.userWalletTransactions) {
+                await window.db.transaction('rw', window.db.globalSettings, window.db.userWalletTransactions, async () => {
+                    await window.db.globalSettings.put(state.globalSettings);
+                    await window.db.userWalletTransactions.add(newTransaction);
+                });
+            }
+
+            // 增加乐乎币
+            const userSettings = getLofterUserSettings();
+            userSettings.coins = (userSettings.coins || 0) + amount;
+            saveLofterUserSettings(userSettings);
+
+            // 更新显示
+            const currentCoinsEl = document.getElementById('lofter-recharge-coins-current');
+            if (currentCoinsEl) {
+                currentCoinsEl.textContent = userSettings.coins;
+            }
+            const walletBalanceEl = document.getElementById('lofter-wallet-balance');
+            if (walletBalanceEl) {
+                walletBalanceEl.textContent = state.globalSettings.userBalance.toFixed(2);
+            }
+            const coinsDisplay = document.getElementById('lofter-coins');
+            if (coinsDisplay) {
+                coinsDisplay.textContent = userSettings.coins;
+            }
+
+            showLofterToast(`充值成功！获得 ${amount} 乐乎币`);
+        });
+    });
+
+    // 打开糖果券兑换弹窗
+    function openCandyExchangeModal() {
+        const userSettings = getLofterUserSettings();
+
+        // 更新余额显示
+        const coinsEl = document.getElementById('lofter-exchange-coins');
+        const candyEl = document.getElementById('lofter-exchange-candy');
+        if (coinsEl) coinsEl.textContent = `${userSettings.coins || 0} 🪙`;
+        if (candyEl) candyEl.textContent = `${userSettings.candy || 0} 🍬`;
+
+        if (candyExchangeModal) {
+            candyExchangeModal.style.display = 'flex';
+        }
+    }
+
+    // 关闭糖果券兑换弹窗
+    if (candyExchangeClose) {
+        candyExchangeClose.addEventListener('click', () => {
+            if (candyExchangeModal) candyExchangeModal.style.display = 'none';
+        });
+    }
+
+    if (candyExchangeModal) {
+        candyExchangeModal.addEventListener('click', (e) => {
+            if (e.target === candyExchangeModal) {
+                candyExchangeModal.style.display = 'none';
+            }
+        });
+    }
+
+    // 兑换选项点击
+    document.querySelectorAll('.lofter-exchange-option').forEach(option => {
+        option.addEventListener('click', () => {
+            const coinsNeeded = parseInt(option.dataset.coins);
+            const candyAmount = parseInt(option.dataset.candy);
+
+            const userSettings = getLofterUserSettings();
+            if ((userSettings.coins || 0) < coinsNeeded) {
+                showLofterToast('乐乎币不足');
+                return;
+            }
+
+            // 扣除乐乎币
+            userSettings.coins = (userSettings.coins || 0) - coinsNeeded;
+            // 增加糖果券
+            userSettings.candy = (userSettings.candy || 0) + candyAmount;
+            saveLofterUserSettings(userSettings);
+
+            // 更新弹窗显示
+            const coinsEl = document.getElementById('lofter-exchange-coins');
+            const candyEl = document.getElementById('lofter-exchange-candy');
+            if (coinsEl) coinsEl.textContent = `${userSettings.coins} 🪙`;
+            if (candyEl) candyEl.textContent = `${userSettings.candy} 🍬`;
+
+            // 更新页面显示
+            const coinsDisplay = document.getElementById('lofter-coins');
+            const candyDisplay = document.getElementById('lofter-candy');
+            if (coinsDisplay) coinsDisplay.textContent = userSettings.coins;
+            if (candyDisplay) candyDisplay.textContent = userSettings.candy;
+
+            showLofterToast(`兑换成功！获得 ${candyAmount} 糖果券`);
+        });
+    });
+
+    /* =========================================
+        13. 应用入口
        ========================================= */
 
     // 点击桌面图标打开Lofter
@@ -2230,10 +2960,10 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
         });
     });
 
-    // 生成按钮点击
+    // 生成按钮点击 - 打开模式选择
     if (generateWorksBtn) {
         generateWorksBtn.addEventListener('click', () => {
-            generateFanWorks();
+            openGenModeModal();
         });
     }
 

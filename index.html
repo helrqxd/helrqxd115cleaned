@@ -9209,6 +9209,12 @@
 							<!-- 文章列表由JS生成 -->
 						</div>
 						<div id="lofter-plaza-feed" class="lofter-feed">
+							<!-- 开发中遮罩 -->
+							<div class="lofter-dev-overlay">
+								<div class="dev-icon">🛠️</div>
+								<div class="dev-title">功能开发中</div>
+								<div class="dev-hint">敬请期待，即将上线~</div>
+							</div>
 							<!-- 广场内容（原乐谷内容） -->
 							<!-- 广场轮播 Banner -->
 							<div class="lofter-plaza-banner">
@@ -9302,6 +9308,12 @@
 						</div>
 					</div>
 					<div class="lofter-content-area lofter-legu-content">
+						<!-- 开发中遮罩 -->
+						<div class="lofter-dev-overlay">
+							<div class="dev-icon">🛠️</div>
+							<div class="dev-title">功能开发中</div>
+							<div class="dev-hint">敬请期待，即将上线~</div>
+						</div>
 						<!-- 乐谷搜索栏 -->
 						<div class="lofter-legu-search">
 							<input type="text" placeholder="搜索喜欢的谷子..." />
@@ -9751,6 +9763,172 @@
 		<!-- Lofter 隐藏的文件上传控件 -->
 		<input type="file" id="lofter-image-input" accept="image/*" multiple hidden />
 
+		<!-- Lofter 生成模式选择弹窗 -->
+		<div id="lofter-gen-mode-modal" class="modal">
+			<div class="modal-content" style="height: auto; max-height: 60%; width: 80%; max-width: 300px">
+				<div class="modal-header">
+					<span></span>
+					<span>选择生成方式</span>
+					<span id="lofter-gen-mode-close" style="cursor: pointer; font-size: 24px">×</span>
+				</div>
+				<div class="modal-body" style="padding: 20px">
+					<div class="lofter-gen-mode-list">
+						<div class="lofter-gen-mode-item" data-mode="free">
+							<div class="lofter-gen-mode-icon">🎲</div>
+							<div class="lofter-gen-mode-info">
+								<div class="lofter-gen-mode-title">自由生成</div>
+								<div class="lofter-gen-mode-desc">AI随机创作，惊喜不断</div>
+							</div>
+						</div>
+						<div class="lofter-gen-mode-item" data-mode="custom">
+							<div class="lofter-gen-mode-icon">✍️</div>
+							<div class="lofter-gen-mode-info">
+								<div class="lofter-gen-mode-title">按设定生成</div>
+								<div class="lofter-gen-mode-desc">自定义主角、类型、剧情等</div>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Lofter 自定义生成模态框 -->
+		<div id="lofter-custom-gen-modal" class="modal">
+			<div class="modal-content" style="height: auto; max-height: 85%">
+				<div class="modal-header">
+					<span id="lofter-custom-gen-close" style="cursor: pointer; font-size: 24px">×</span>
+					<span>自定义生成</span>
+					<span id="lofter-custom-gen-submit" style="cursor: pointer; color: #00c3ff; font-weight: 600">生成</span>
+				</div>
+				<div class="modal-body" style="padding: 20px; overflow-y: auto">
+					<!-- 主角选择 -->
+					<div class="form-group">
+						<label>主角 <span class="lofter-gen-hint">(可多选，至少选一个)</span></label>
+						<div id="lofter-custom-protagonist" class="lofter-custom-char-select">
+							<!-- 由JS生成角色列表 -->
+						</div>
+					</div>
+					<!-- 配角选择 -->
+					<div class="form-group">
+						<label>配角 <span class="lofter-gen-hint">(可多选)</span></label>
+						<div id="lofter-custom-supporting" class="lofter-custom-char-select">
+							<!-- 由JS生成角色列表 -->
+						</div>
+					</div>
+					<!-- 作品类型 -->
+					<div class="form-group">
+						<label>作品类型</label>
+						<select id="lofter-custom-work-type">
+							<option value="short_story">短篇小说</option>
+							<option value="short_series">短篇系列</option>
+							<option value="long_complete">长篇一篇完</option>
+							<option value="long_serial">长篇连载</option>
+							<option value="image">同人图/漫画描述</option>
+						</select>
+					</div>
+					<!-- 文风选择 -->
+					<div class="form-group">
+						<label>文风</label>
+						<select id="lofter-custom-style">
+							<!-- 由JS生成文风选项 -->
+						</select>
+					</div>
+					<!-- 预计字数 -->
+					<div class="form-group">
+						<label>预计字数 <span class="lofter-gen-hint">(建议500-5000)</span></label>
+						<input type="number" id="lofter-custom-word-count" min="100" max="10000" value="800" placeholder="输入预计字数..." />
+					</div>
+					<!-- 剧情提示词 -->
+					<div class="form-group">
+						<label>剧情提示词 <span class="lofter-gen-hint">(可选，引导AI创作方向)</span></label>
+						<textarea id="lofter-custom-plot-hint" placeholder="例如：校园AU、雨天表白、误会后和解..." rows="3"></textarea>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Lofter 乐乎币充值模态框 -->
+		<div id="lofter-coins-recharge-modal" class="modal">
+			<div class="modal-content" style="height: auto; max-height: 70%; width: 85%; max-width: 340px">
+				<div class="modal-header">
+					<span id="lofter-coins-recharge-close" style="cursor: pointer; font-size: 24px">×</span>
+					<span>🪙 乐乎币充值</span>
+					<span></span>
+				</div>
+				<div class="modal-body" style="padding: 20px">
+					<div class="lofter-recharge-balance">
+						<span>当前余额</span>
+						<span class="lofter-recharge-current" id="lofter-recharge-coins-current">0</span>
+					</div>
+					<div class="lofter-recharge-options">
+						<div class="lofter-recharge-option" data-amount="10" data-cost="10">
+							<span class="lofter-recharge-amount">10 🪙</span>
+							<span class="lofter-recharge-price">¥ 10</span>
+						</div>
+						<div class="lofter-recharge-option" data-amount="50" data-cost="45">
+							<span class="lofter-recharge-amount">50 🪙</span>
+							<span class="lofter-recharge-price">¥ 45 <small>省5元</small></span>
+						</div>
+						<div class="lofter-recharge-option" data-amount="100" data-cost="85">
+							<span class="lofter-recharge-amount">100 🪙</span>
+							<span class="lofter-recharge-price">¥ 85 <small>省15元</small></span>
+						</div>
+						<div class="lofter-recharge-option" data-amount="500" data-cost="400">
+							<span class="lofter-recharge-amount">500 🪙</span>
+							<span class="lofter-recharge-price">¥ 400 <small>省100元</small></span>
+						</div>
+					</div>
+					<div class="lofter-recharge-wallet">
+						<span>从账户钱包扣款</span>
+						<span class="lofter-wallet-balance">余额: ¥ <span id="lofter-wallet-balance">0</span></span>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Lofter 糖果券兑换模态框 -->
+		<div id="lofter-candy-exchange-modal" class="modal">
+			<div class="modal-content" style="height: auto; max-height: 70%; width: 85%; max-width: 340px">
+				<div class="modal-header">
+					<span id="lofter-candy-exchange-close" style="cursor: pointer; font-size: 24px">×</span>
+					<span>🍬 糖果券兑换</span>
+					<span></span>
+				</div>
+				<div class="modal-body" style="padding: 20px">
+					<div class="lofter-exchange-info">
+						<div class="lofter-exchange-balance-row">
+							<span>乐乎币</span>
+							<span class="lofter-exchange-value" id="lofter-exchange-coins">0 🪙</span>
+						</div>
+						<div class="lofter-exchange-arrow">↓</div>
+						<div class="lofter-exchange-balance-row">
+							<span>糖果券</span>
+							<span class="lofter-exchange-value" id="lofter-exchange-candy">0 🍬</span>
+						</div>
+					</div>
+					<div class="lofter-exchange-rate">兑换比例：1 🪙 = 10 🍬</div>
+					<div class="lofter-exchange-options">
+						<div class="lofter-exchange-option" data-coins="1" data-candy="10">
+							<span>10 🍬</span>
+							<span>1 🪙</span>
+						</div>
+						<div class="lofter-exchange-option" data-coins="5" data-candy="50">
+							<span>50 🍬</span>
+							<span>5 🪙</span>
+						</div>
+						<div class="lofter-exchange-option" data-coins="10" data-candy="100">
+							<span>100 🍬</span>
+							<span>10 🪙</span>
+						</div>
+						<div class="lofter-exchange-option" data-coins="50" data-candy="500">
+							<span>500 🍬</span>
+							<span>50 🪙</span>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
 		<!-- Lofter 生成设置模态框 -->
 		<div id="lofter-gen-settings-modal" class="modal">
 			<div class="modal-content" style="height: auto; max-height: 85%">
@@ -9811,11 +9989,11 @@
 			</div>
 		</div>
 
-		<!-- Lofter 生成中加载提示 -->
+		<!-- Lofter 生成中悬浮提示 -->
 		<div id="lofter-generating-overlay" class="lofter-generating-overlay" style="display: none">
 			<div class="lofter-generating-content">
 				<div class="lofter-generating-spinner"></div>
-				<div class="lofter-generating-text">正在生成同人作品...</div>
+				<div class="lofter-generating-text">生成中</div>
 				<div class="lofter-generating-progress" id="lofter-generating-progress">0/0</div>
 			</div>
 		</div>
