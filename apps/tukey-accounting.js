@@ -843,16 +843,35 @@ async function initTukeyAccounting() {
         document.getElementById('tukey-export-modal').classList.remove('visible');
     });
 
-    document.getElementById('confirm-tukey-export-btn').addEventListener('click', exportTukeyReportToExcel);
+    document
+        .getElementById("confirm-tukey-export-btn")
+        .addEventListener("click", exportTukeyReportToExcel);
+    // ▲▲▲ 添加结束 ▲▲▲
+    // 在 initTukeyAccounting 函数的末尾添加：
 
-    // 13. 报表页面的点击事件（处理删除）
-    document.getElementById('tukey-reports-view').addEventListener('click', (e) => {
-        // 检查是否点击了删除按钮
-        const deleteBtn = e.target.closest('.delete-record-btn');
-        if (deleteBtn) {
-            const recordId = parseInt(deleteBtn.dataset.id);
+    // ▼▼▼ 修复重Roll按钮点击无效的问题 ▼▼▼
+    const recordsListEl = document.getElementById("tukey-records-list");
+
+    // 使用事件委托，监听列表内的点击
+    recordsListEl.addEventListener("click", async (e) => {
+        // 1. 查找是否点击了重Roll按钮（或其子元素）
+        const rerollBtn = e.target.closest(".tukey-reroll-btn");
+
+        if (rerollBtn) {
+            e.stopPropagation(); // 阻止冒泡
+            e.preventDefault(); // 阻止默认行为
+
+            const recordId = parseInt(rerollBtn.dataset.recordId);
+            console.log("点击了重Roll，账单ID:", recordId);
+
             if (!isNaN(recordId)) {
-                deleteTukeyAccountingRecord(recordId);
+                // 调用全局重生成函数
+                if (typeof window.handleTukeyReroll === "function") {
+                    await window.handleTukeyReroll(recordId);
+                } else {
+                    console.error("找不到 window.handleTukeyReroll 函数");
+                    alert("功能未就绪，请刷新页面重试。");
+                }
             }
         }
     });
@@ -1241,12 +1260,26 @@ async function renderTukeyRecordsList() {
         )}:${String(recordTime.getMinutes()).padStart(2, '0')}`;
 
         // 找到对应分类的图标
-        const categoryData = ACCOUNTING_CATEGORIES[record.type].find(c => c.name === record.category);
-        const categoryIcon = categoryData ? categoryData.icon : '';
+        let categoryIcon = "";
+        // 尝试在支出和收入里找
+        const expenseCat = ACCOUNTING_CATEGORIES["expense"]?.find(
+            (c) => c.name === record.category,
+        );
+        const incomeCat = ACCOUNTING_CATEGORIES["income"]?.find(
+            (c) => c.name === record.category,
+        );
+        const customCat = (ACCOUNTING_CATEGORIES["expense"] || [])
+            .concat(ACCOUNTING_CATEGORIES["income"] || [])
+            .find((c) => c.name === record.category);
 
-        // 创建一个新的外层包裹容器
-        const userRecordWrapper = document.createElement('div');
-        userRecordWrapper.className = 'tukey-record-wrapper user-record'; // 使用新的 wrapper class
+        if (expenseCat) categoryIcon = expenseCat.icon;
+        else if (incomeCat) categoryIcon = incomeCat.icon;
+        else if (customCat) categoryIcon = customCat.icon;
+        else categoryIcon = "https://i.postimg.cc/y88P16yW/default-icon.png"; // 默认图标
+
+        // --- 创建用户记账气泡 (右侧) ---
+        const userRecordWrapper = document.createElement("div");
+        userRecordWrapper.className = "tukey-record-wrapper user-record";
 
         // 创建记账气泡本身
         const recordBubble = document.createElement('div');
@@ -1255,21 +1288,39 @@ async function renderTukeyRecordsList() {
             <div class="record-header">
                 <img src="${categoryIcon}" class="record-category-icon" alt="${record.category}">
                 <span class="record-category-name">${record.category}</span>
+                <span class="record-amount" style="margin-left:auto;">${record.type === "expense" ? "-" : "+"} ${record.amount.toFixed(2)}</span>
             </div>
-            <div class="record-body">
-                <span class="record-remarks">${record.remarks || '无备注'}</span>
-                <span class="record-amount">${record.type === 'expense' ? '-' : '+'} ¥${record.amount.toFixed(2)}</span>
+            <div class="record-body" style="margin-bottom:0;">
+                <span class="record-remarks">${record.remarks || "无备注"}</span>
             </div>
             <div class="record-footer">
-                <span>${record.accountName}</span> · <span>${timeString}</span>
+                <span>${record.accountName || "账户"}</span> · <span>${timeString}</span>
             </div>
+            <!-- 删除按钮 (绝对定位在气泡左侧外面一点，或者做成悬浮显示，这里简单处理放气泡内角落) -->
+            <div class="delete-record-btn" data-id="${record.id}" style="position:absolute; top:-5px; left:-10px; background:#fff; border-radius:50%; width:20px; height:20px; display:flex; align-items:center; justify-content:center; box-shadow:0 2px 5px rgba(0,0,0,0.1); cursor:pointer; color:#ff3b30; font-size:14px; opacity:0; transition:opacity 0.2s;">×</div>
         `;
 
+        // 鼠标悬停显示删除按钮
+        recordBubble.addEventListener("mouseenter", () => {
+            recordBubble.querySelector(".delete-record-btn").style.opacity = "1";
+        });
+        recordBubble.addEventListener("mouseleave", () => {
+            recordBubble.querySelector(".delete-record-btn").style.opacity = "0";
+        });
+
+        // 绑定删除事件
+        recordBubble
+            .querySelector(".delete-record-btn")
+            .addEventListener("click", (e) => {
+                e.stopPropagation();
+                deleteTukeyAccountingRecord(record.id);
+            });
+
         // 创建头像
-        const userAvatarImg = document.createElement('img');
-        userAvatarImg.src = tukeyUserSettings.avatar;
-        userAvatarImg.className = 'record-user-avatar';
-        userAvatarImg.title = tukeyUserSettings.username;
+        const userAvatarImg = document.createElement("img");
+        userAvatarImg.src =
+            tukeyUserSettings.avatar || "https://i.postimg.cc/PxZrFFFL/o-o-1.jpg";
+        userAvatarImg.className = "record-user-avatar";
 
         // 将气泡和头像都添加到新的包裹容器中
         userRecordWrapper.appendChild(recordBubble);
@@ -1281,29 +1332,48 @@ async function renderTukeyRecordsList() {
         // 查询并渲染对应的AI回复
         const replies = await db.tukeyAccountingReplies.where('recordId').equals(record.id).toArray();
         if (replies.length > 0) {
-            const repliesContainer = document.createElement('div');
-            repliesContainer.className = 'tukey-replies-container';
+            const repliesContainer = document.createElement("div");
+            repliesContainer.className = "tukey-replies-container"; // 这个容器是列布局
 
-            replies.forEach(reply => {
-                const member = activeTukeyGroup.members.find(m => m.id === reply.charId);
+            for (const reply of replies) {
+                const member = activeTukeyGroup.members.find(
+                    (m) => m.id === reply.charId,
+                );
                 if (member) {
-                    const replyEl = document.createElement('div');
-                    replyEl.className = 'tukey-reply-item';
+                    const replyEl = document.createElement("div");
+                    replyEl.className = "tukey-reply-item"; // flex row
                     replyEl.innerHTML = `
                         <img src="${member.avatar}" class="reply-avatar" alt="${member.name}">
                         <div class="reply-content">
-                            <div class="reply-sender-name">${member.name}</div>
+                    <div class="reply-sender-name">${member.groupNickname || member.name}</div>
                             <div class="reply-bubble">${reply.content}</div>
                         </div>
                     `;
                     repliesContainer.appendChild(replyEl);
                 }
-            });
+            }
+
+            // ★★★ 新增：添加重Roll按钮 ★★★
+            const rerollBtn = document.createElement("div");
+            rerollBtn.className = "tukey-reroll-btn";
+            rerollBtn.dataset.recordId = record.id; // 绑定账单ID
+            rerollBtn.innerHTML = `
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="23 4 23 10 17 10"></polyline>
+            <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
+        </svg>
+        <span>重生成</span>
+      `;
+            repliesContainer.appendChild(rerollBtn);
+            // ★★★ 新增结束 ★★★
+
             listEl.appendChild(repliesContainer);
         }
     }
     // 滚动到底部
-    listEl.scrollTop = listEl.scrollHeight;
+    setTimeout(() => {
+        listEl.scrollTop = listEl.scrollHeight;
+    }, 100);
 }
 
 /**
@@ -1331,7 +1401,78 @@ async function checkAndTriggerAiReply() {
 }
 
 /**
- * 触发记账群聊的AI回复
+ * 【全局函数】处理单条账单的AI回复重生成
+ * 放在代码的最外层，不要放在其他函数里面！
+ */
+window.handleTukeyReroll = async function (recordId) {
+    console.log("正在重Roll账单 ID:", recordId); // 调试日志
+
+    // 1. 检查是否有激活的群组
+    if (!window.activeTukeyGroup && window.state.chats) {
+        // 尝试自动修复 activeTukeyGroup (防止刷新后丢失)
+        // 这里假设群组ID固定为 main_group，如果你的逻辑不同请调整
+        window.activeTukeyGroup =
+            await window.db.tukeyAccountingGroups.get("main_group");
+    }
+
+    if (!window.activeTukeyGroup) {
+        alert("无法获取当前群聊信息，请刷新页面重试。");
+        return;
+    }
+
+    // 2. 获取账单记录
+    const record = await window.db.tukeyAccountingRecords.get(recordId);
+    if (!record) {
+        alert("找不到该账单记录！");
+        return;
+    }
+
+    // 3. 视觉反馈：将按钮变成“生成中...”
+    const listEl = document.getElementById("tukey-records-list");
+    // 使用更精确的选择器找到那个被点击的按钮
+    const btn = listEl.querySelector(
+        `.tukey-reroll-btn[data-record-id="${recordId}"]`,
+    );
+    if (btn) {
+        btn.innerHTML = "<span>⏳ 生成中...</span>";
+        btn.style.pointerEvents = "none";
+        btn.style.opacity = "0.7";
+    }
+
+    try {
+        // 4. 删除旧的回复
+        const oldReplies = await window.db.tukeyAccountingReplies
+            .where("recordId")
+            .equals(recordId)
+            .toArray();
+
+        if (oldReplies.length > 0) {
+            const replyIds = oldReplies.map((r) => r.id);
+            await window.db.tukeyAccountingReplies.bulkDelete(replyIds);
+            console.log(`已删除 ${replyIds.length} 条旧回复`);
+        }
+
+        // 5. 重新调用生成函数 (注意：传入数组)
+        // 确保 triggerAccountingAiResponse 也是全局可访问的，或者在同一作用域
+        if (typeof triggerAccountingAiResponse === "function") {
+            await triggerAccountingAiResponse([record]);
+        } else if (typeof window.triggerAccountingAiResponse === "function") {
+            await window.triggerAccountingAiResponse([record]);
+        } else {
+            alert("错误：找不到生成函数 triggerAccountingAiResponse");
+        }
+    } catch (error) {
+        console.error("重Roll失败:", error);
+        alert("重生成失败: " + error.message);
+        // 如果失败，尝试恢复界面
+        if (typeof renderTukeyRecordsList === "function") {
+            await renderTukeyRecordsList();
+        }
+    }
+};
+
+/**
+ * 【AI核心】触发记账群聊的AI回复
  * @param {Array} recordsToReply - 需要AI进行评论的账单记录数组
  */
 async function triggerAccountingAiResponse(recordsToReply) {
@@ -1591,36 +1732,37 @@ async function renderDailyDetailView(accountId) {
 
 
             transactionsHtml += `
-                <div class="report-record-item" style="display: flex; align-items: center; margin-bottom: 12px;">
-                    <!-- 气泡主体，设置 flex-grow: 1 让它占满剩余空间 -->
-                    <div class="tukey-record-bubble ${rec.type
-                }" style="flex-grow: 1; margin-right: 10px; margin-bottom: 0;"> 
-                        <div class="record-header">
+    <div class="report-record-item">
+        <!-- 气泡主体 -->
+        <div class="tukey-record-bubble ${rec.type}"> 
+            <div class="record-main-row">
+                <!-- 左侧：图标和分类 -->
+                <div class="record-icon-wrapper">
                             <img src="${categoryIcon}" class="record-category-icon" alt="${rec.category}">
-                            <span class="record-category-name">${rec.category}</span>
                         </div>
-                        <div class="record-body">
-                            <span class="record-remarks">${rec.remarks || '无备注'}</span>
-                            <span class="record-amount">${rec.type === 'expense' ? '-' : '+'} ¥${rec.amount.toFixed(
-                    2,
-                )}</span>
-                        </div>
-                        <div class="record-footer">
+                
+                <!-- 中间：分类名和备注 -->
+                <div class="record-info-col">
+                    <div class="record-category-name">${rec.category}</div>
+                    ${rec.remarks ? `<div class="record-remarks">${rec.remarks}</div>` : ""}
+                    <div class="record-meta">
                             <span>${rec.accountName}</span> · <span>${timeString}</span>
                         </div>
                     </div>
                     
-                    <!-- 美化后的删除按钮 -->
-                    <button class="delete-record-btn" data-id="${rec.id}" title="删除"
-                            style="flex-shrink: 0; width: 36px; height: 36px; border: none; 
-                                   background-color: rgba(255, 59, 48, 0.08); border-radius: 10px; 
-                                   display: flex; align-items: center; justify-content: center; 
-                                   color: #ff3b30; cursor: pointer; transition: all 0.2s;">
-                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <!-- 右侧：金额 -->
+                <div class="record-amount-col">
+                    <span class="record-amount">${rec.type === "expense" ? "-" : "+"}</span>
+                    <span class="record-amount-num">${rec.amount.toFixed(2)}</span>
+                </div>
+            </div>
+        </div>
+        
+        <!-- 删除按钮 (悬浮显示) -->
+        <button class="delete-record-btn" data-id="${rec.id}" title="删除">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                             <polyline points="3 6 5 6 21 6"></polyline>
                             <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                            <line x1="10" y1="11" x2="10" y2="17"></line>
-                            <line x1="14" y1="11" x2="14" y2="17"></line>
                         </svg>
                     </button>
                 </div>

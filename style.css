@@ -1,8 +1,4 @@
 :root {
-  --xhs-red: #ff2442;
-  --xhs-text-main: #333;
-  --xhs-text-sec: #999;
-  --xhs-border: #eee;
   --screen-width: 350px;
   --screen-height: 650px;
   --secondary-bg: #ffffff;
@@ -11176,7 +11172,7 @@ body {
   overflow-y: auto;
   padding: 0 20px; /* 保持和你原来一样的左右边距 */
   box-sizing: border-box;
-  position: relative; /* ★★★ 在这里添加这一行！ ★★★ */
+  position: relative !important;
 }
 
 /* 分页小圆点的容器 */
@@ -11202,6 +11198,223 @@ body {
 .pagination-dots .dot.active {
   background-color: rgba(255, 255, 255, 0.9); /* 选中时变得更亮 */
 }
+
+/* ▼▼▼ 第三页样式开始 ▼▼▼ */
+
+/* 第三页整体布局 */
+.third-page {
+  display: flex !important;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 60px !important;
+  gap: 25px;
+  background: linear-gradient(180deg, 
+    rgba(255, 255, 255, 0.05) 0%, 
+    rgba(255, 255, 255, 0.02) 100%);
+}
+
+/* 第三页顶部标题组件 */
+.third-page-header-widget {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 15px;
+  width: 100%;
+  padding: 10px 0;
+}
+
+.header-decoration-line {
+  height: 1px;
+  width: 60px;
+  background: linear-gradient(90deg, 
+    transparent, 
+    rgba(255, 255, 255, 0.5), 
+    transparent);
+}
+
+.header-title {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.8);
+  font-weight: 500;
+  letter-spacing: 2px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+}
+
+/* 第三页应用网格 */
+.third-page-app-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 25px 40px;
+  padding: 20px;
+  width: 100%;
+  max-width: 300px;
+  box-sizing: border-box;
+}
+
+/* APP图标优化样式 */
+.app-icon-styled {
+  width: 60px !important;
+  height: 60px !important;
+  border-radius: 16px !important;
+  overflow: hidden;
+  box-shadow: 
+    0 4px 15px rgba(0, 0, 0, 0.2),
+    0 2px 6px rgba(0, 0, 0, 0.1),
+    inset 0 1px 0 rgba(255, 255, 255, 0.2);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.app-icon-styled:active {
+  transform: scale(0.95);
+  box-shadow: 
+    0 2px 8px rgba(0, 0, 0, 0.15),
+    0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.app-icon-styled img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.third-page-app-grid .desktop-app-icon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.third-page-app-grid .label {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.9);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+  text-align: center;
+  max-width: 70px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 装饰性卡片组件 */
+.third-page-decoration-card {
+  width: calc(100% - 40px);
+  max-width: 280px;
+  padding: 20px;
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.15) 0%, 
+    rgba(255, 255, 255, 0.05) 100%);
+  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+}
+
+.decoration-card-inner {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.decoration-icon {
+  width: 50px;
+  height: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.2) 0%, 
+    rgba(255, 255, 255, 0.1) 100%);
+  border-radius: 14px;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.decoration-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.deco-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
+.deco-subtitle {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.7);
+}
+
+/* 底部装饰气泡 */
+.third-page-bottom-decoration {
+  position: absolute;
+  bottom: 120px;
+  left: 0;
+  right: 0;
+  height: 100px;
+  pointer-events: none;
+}
+
+.floating-bubble {
+  position: absolute;
+  border-radius: 50%;
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.15) 0%, 
+    rgba(255, 255, 255, 0.05) 100%);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  animation: float-bubble 6s ease-in-out infinite;
+}
+
+.bubble-1 {
+  width: 40px;
+  height: 40px;
+  left: 15%;
+  bottom: 20px;
+  animation-delay: 0s;
+}
+
+.bubble-2 {
+  width: 25px;
+  height: 25px;
+  left: 50%;
+  bottom: 40px;
+  animation-delay: -2s;
+}
+
+.bubble-3 {
+  width: 35px;
+  height: 35px;
+  right: 15%;
+  bottom: 10px;
+  animation-delay: -4s;
+}
+
+@keyframes float-bubble {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+    opacity: 0.6;
+  }
+  50% {
+    transform: translateY(-15px) scale(1.05);
+    opacity: 0.9;
+  }
+}
+
+/* 夜间模式适配 */
+#phone-screen.dark-mode .third-page-header-widget .header-title {
+  color: rgba(255, 255, 255, 0.75);
+}
+
+#phone-screen.dark-mode .third-page-decoration-card {
+  background: linear-gradient(135deg, 
+    rgba(255, 255, 255, 0.08) 0%, 
+    rgba(255, 255, 255, 0.02) 100%);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+/* ▲▲▲ 第三页样式结束 ▲▲▲ */
 
 /* ▲▲▲ 新增样式结束 ▲▲▲ */
 /* ▼▼▼ 把这段新样式粘贴到 <style> 标签的最末尾 ▼▼▼ */
@@ -26379,132 +26592,2751 @@ input:checked + .slider::after {
 }
 /* 1. 萌系弹窗样式 */
 #bug-report-modal .modal-content {
-    background-color: #fff0f6; /* 浅粉色背景 */
-    border: 3px solid #ffadd2; /* 深粉色边框 */
-    border-radius: 20px;
-    box-shadow: 0 10px 25px rgba(255, 107, 129, 0.2);
+  background-color: #fff0f6; /* 浅粉色背景 */
+  border: 3px solid #ffadd2; /* 深粉色边框 */
+  border-radius: 20px;
+  box-shadow: 0 10px 25px rgba(255, 107, 129, 0.2);
 }
 
 #bug-report-modal .modal-header {
-    background-color: #ffadd2;
-    color: white;
-    border-bottom: none;
-    border-radius: 16px 16px 0 0;
-    font-size: 18px;
-    font-weight: bold;
+  background-color: #ffadd2;
+  color: white;
+  border-bottom: none;
+  border-radius: 16px 16px 0 0;
+  font-size: 18px;
+  font-weight: bold;
 }
 
 /* 2. 日志显示区域：像一张处方单 */
 #error-log-viewer {
-    width: 100%;
-    height: 100%;
-    background-color: #ffffff;
-    color: #ff4d4f; /* 报错用红色字体 */
-    font-family: 'Consolas', 'Menlo', monospace;
-    font-size: 12px;
-    line-height: 1.6;
-    padding: 15px;
-    box-sizing: border-box;
-    border: 2px dashed #ffccc7; /* 虚线边框 */
-    border-radius: 12px;
-    resize: none;
-    outline: none;
-    white-space: pre-wrap;
+  width: 100%;
+  height: 100%;
+  background-color: #ffffff;
+  color: #ff4d4f; /* 报错用红色字体 */
+  font-family: "Consolas", "Menlo", monospace;
+  font-size: 12px;
+  line-height: 1.6;
+  padding: 15px;
+  box-sizing: border-box;
+  border: 2px dashed #ffccc7; /* 虚线边框 */
+  border-radius: 12px;
+  resize: none;
+  outline: none;
+  white-space: pre-wrap;
 }
 
 /* 3. 按钮美化 */
 .nurse-btn {
-    padding: 8px 16px;
-    border-radius: 20px;
-    border: none;
-    cursor: pointer;
-    font-weight: bold;
-    transition: transform 0.2s;
+  padding: 8px 16px;
+  border-radius: 20px;
+  border: none;
+  cursor: pointer;
+  font-weight: bold;
+  transition: transform 0.2s;
 }
-.nurse-btn:active { transform: scale(0.95); }
+.nurse-btn:active {
+  transform: scale(0.95);
+}
 
-.nurse-btn-copy { background: #5cdbd3; color: white; } /* 蓝绿色 */
-.nurse-btn-clear { background: #fff; color: #ff85c0; border: 1px solid #ff85c0; }
-.nurse-btn-close { background: #ff7875; color: white; }
+.nurse-btn-copy {
+  background: #5cdbd3;
+  color: white;
+} /* 蓝绿色 */
+.nurse-btn-clear {
+  background: #fff;
+  color: #ff85c0;
+  border: 1px solid #ff85c0;
+}
+.nurse-btn-close {
+  background: #ff7875;
+  color: white;
+}
 /* 系统弹窗容器样式 */
 #notification-bar {
-    position: fixed;
-    top: 20px; /* 距离顶部稍微留点空隙，类似iOS灵动岛下方 */
-    left: 50%;
-    transform: translateX(-50%) translateY(-200%); /* 默认隐藏在屏幕上方 */
-    width: 90%;
-    max-width: 360px;
-    background: rgba(255, 255, 255, 0.95); /* 轻微透明的白色背景 */
-    backdrop-filter: blur(10px); /* 毛玻璃特效 */
-    border-radius: 16px; /* 圆角卡片 */
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12), 0 2px 5px rgba(0,0,0,0.05); /* 柔和的阴影 */
-    z-index: 10000; /* 确保在最顶层 */
-    display: flex;
-    align-items: center;
-    padding: 12px 16px;
-    gap: 12px; /* 头像和文字的间距 */
-    transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); /* 弹性动画 */
-    cursor: pointer;
-    border: 1px solid rgba(0,0,0,0.05);
+  position: fixed;
+  top: 20px; /* 距离顶部稍微留点空隙，类似iOS灵动岛下方 */
+  left: 50%;
+  transform: translateX(-50%) translateY(-200%); /* 默认隐藏在屏幕上方 */
+  width: 90%;
+  max-width: 360px;
+  background: rgba(255, 255, 255, 0.95); /* 轻微透明的白色背景 */
+  backdrop-filter: blur(10px); /* 毛玻璃特效 */
+  border-radius: 16px; /* 圆角卡片 */
+  box-shadow:
+    0 8px 30px rgba(0, 0, 0, 0.12),
+    0 2px 5px rgba(0, 0, 0, 0.05); /* 柔和的阴影 */
+  z-index: 10000; /* 确保在最顶层 */
+  display: flex;
+  align-items: center;
+  padding: 12px 16px;
+  gap: 12px; /* 头像和文字的间距 */
+  transition: transform 0.5s cubic-bezier(0.34, 1.56, 0.64, 1); /* 弹性动画 */
+  cursor: pointer;
+  border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 /* 弹窗激活时的状态 */
 #notification-bar.visible {
-    transform: translateX(-50%) translateY(0); /* 滑入屏幕 */
+  transform: translateX(-50%) translateY(0); /* 滑入屏幕 */
 }
 
 /* 弹窗头像样式 */
 #notification-avatar {
-    width: 44px;
-    height: 44px;
-    border-radius: 50%; /* 圆形头像 */
-    object-fit: cover; /* 防止图片变形 */
-    border: 1px solid rgba(0,0,0,0.1);
-    flex-shrink: 0; /* 防止被挤压 */
-    background-color: #eee;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%; /* 圆形头像 */
+  object-fit: cover; /* 防止图片变形 */
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  flex-shrink: 0; /* 防止被挤压 */
+  background-color: #eee;
 }
 
 /* 弹窗内容区域 */
 #notification-content {
-    flex: 1; /* 占满剩余空间 */
-    display: flex;
-    flex-direction: column;
-    justify-content: center;
-    overflow: hidden; /* 防止文字溢出 */
+  flex: 1; /* 占满剩余空间 */
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden; /* 防止文字溢出 */
 }
 
 /* 名字样式 */
 #notification-content .name {
-    font-size: 14px;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 2px;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
+  font-size: 14px;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* 消息内容样式 */
 #notification-content .message {
-    font-size: 12px;
-    color: #666;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis; /* 文字太长显示省略号 */
+  font-size: 12px;
+  color: #666;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis; /* 文字太长显示省略号 */
 }
 
 /* --- 夜间模式适配 (如果有夜间模式的话) --- */
 .dark-mode #notification-bar {
-    background: rgba(30, 30, 30, 0.95);
-    border-color: rgba(255,255,255,0.1);
-    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+  background: rgba(30, 30, 30, 0.95);
+  border-color: rgba(255, 255, 255, 0.1);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
 }
 .dark-mode #notification-content .name {
-    color: #f0f0f0;
+  color: #f0f0f0;
 }
 .dark-mode #notification-content .message {
-    color: #aaa;
+  color: #aaa;
 }
+/* === 番茄钟音乐按钮 (萌系风格) === */
+#pomodoro-music-btn {
+  width: 48px;
+  height: 48px;
+  border-radius: 50%;
+  background: linear-gradient(
+    135deg,
+    #ff9a9e 0%,
+    #fecfef 100%
+  ); /* 樱花粉渐变 */
+  border: 2px solid #fff;
+  box-shadow: 0 4px 15px rgba(255, 154, 158, 0.4);
+  color: white;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* 弹性动画 */
+  cursor: pointer;
+  padding: 0;
+}
+
+#pomodoro-music-btn:hover {
+  transform: scale(1.1) rotate(15deg);
+  box-shadow: 0 6px 20px rgba(255, 154, 158, 0.6);
+}
+
+#pomodoro-music-btn:active {
+  transform: scale(0.95);
+}
+
+/* === 番茄钟音乐面板 (萌系唱片机风格) === */
+.moe-music-modal-content {
+  background-color: #fffafb; /* 极淡的粉白背景 */
+  border-radius: 24px !important;
+  border: 4px solid #fff;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.moe-music-header {
+  background: linear-gradient(
+    to right,
+    #a18cd1 0%,
+    #fbc2eb 100%
+  ); /* 紫粉渐变 */
+  color: white;
+  padding: 15px;
+  text-align: center;
+  font-weight: bold;
+  font-size: 16px;
+  letter-spacing: 1px;
+  border-bottom: none;
+}
+
+/* 播放器主体 */
+.pomo-player-container {
+  padding: 20px;
+  background: #fff;
+  border-bottom-left-radius: 30px;
+  border-bottom-right-radius: 30px;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.05);
+  text-align: center;
+  position: relative;
+  z-index: 2;
+}
+
+/* 旋转唱片封面 */
+.pomo-disc-wrapper {
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 15px;
+  position: relative;
+}
+
+.pomo-disc {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: #333; /* 黑胶底色 */
+  padding: 4px; /* 唱片边框厚度 */
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  animation: rotate-disc 10s linear infinite;
+  animation-play-state: paused;
+}
+
+.pomo-disc.playing {
+  animation-play-state: running;
+}
+
+.pomo-disc img {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid #fff;
+}
+
+@keyframes rotate-disc {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 歌曲信息 */
+.pomo-track-info h3 {
+  margin: 0;
+  font-size: 16px;
+  color: #333;
+}
+.pomo-track-info p {
+  margin: 5px 0 0;
+  font-size: 12px;
+  color: #888;
+}
+
+/* 播放控制按钮组 */
+.pomo-controls-row {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 25px;
+  margin-top: 15px;
+}
+
+.pomo-ctrl-btn {
+  background: none;
+  border: none;
+  color: #a18cd1;
+  font-size: 24px;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.pomo-play-btn {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%); /* 清新蓝绿 */
+  color: white;
+  font-size: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px rgba(132, 250, 176, 0.4);
+}
+
+.pomo-ctrl-btn:active,
+.pomo-play-btn:active {
+  transform: scale(0.9);
+}
+
+/* 播放列表 */
+.pomo-playlist {
+  flex: 1;
+  overflow-y: auto;
+  padding: 10px 15px;
+  background-color: #fffafb;
+}
+
+.pomo-playlist-item {
+  display: flex;
+  align-items: center;
+  padding: 10px;
+  border-radius: 12px;
+  margin-bottom: 8px;
+  background: white;
+  border: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.pomo-playlist-item:hover {
+  transform: translateX(5px);
+  border-color: #fbc2eb;
+}
+
+.pomo-playlist-item.active {
+  background: #fff0f5;
+  border-color: #ff9a9e;
+}
+
+.pomo-playlist-item.active .title {
+  color: #ff9a9e;
+  font-weight: bold;
+}
+
+.pomo-playlist-item .index {
+  font-size: 12px;
+  color: #ccc;
+  width: 25px;
+}
+
+.pomo-playlist-item .info {
+  flex: 1;
+  overflow: hidden;
+}
+
+.pomo-playlist-item .title {
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #555;
+}
+
+.pomo-playlist-item .artist {
+  font-size: 11px;
+  color: #999;
+}
+
+.playing-icon-gif {
+  width: 15px;
+  height: 15px;
+  display: none;
+}
+.pomo-playlist-item.active .playing-icon-gif {
+  display: block;
+}
+/* 确保网格布局正确 */
+#ls-album-list {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr); /* 一行3个，或者根据你的需求调整 */
+  gap: 10px;
+  padding: 15px;
+}
+
+/* 强制相册项有高度 */
+.ls-album-item {
+  aspect-ratio: 1 / 1; /* 保持正方形 */
+  position: relative;
+  border-radius: 8px;
+  overflow: hidden;
+  background-color: #f0f0f0; /* 给个灰色背景，防止加载失败时全白看不见 */
+}
+
+/* 删除按钮定位 */
+.ls-photo-delete-btn {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  width: 20px;
+  height: 20px;
+  background: rgba(0, 0, 0, 0.5);
+  color: white;
+  border: none;
+  border-radius: 50%;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 10; /* 确保在图片上面 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+/* === 情侣空间照片详情页 - 萌系美化 === */
+
+/* 1. 弹窗容器 */
+.ls-photo-modal-content {
+  background-color: #fff0f3 !important; /* 浅粉色背景 */
+  border-radius: 24px !important;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  max-height: 90%;
+  width: 90%;
+  max-width: 400px;
+  box-shadow: 0 10px 30px rgba(255, 143, 171, 0.3) !important;
+  border: 3px solid #fff;
+}
+
+/* 2. 头部 */
+.ls-photo-modal-header {
+  background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+  padding: 15px 20px;
+  color: white;
+  font-weight: bold;
+  font-size: 18px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #fff;
+}
+.ls-photo-modal-header .close-btn {
+  background: rgba(255, 255, 255, 0.3);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 20px;
+  transition: 0.2s;
+}
+.ls-photo-modal-header .close-btn:hover {
+  background: rgba(255, 255, 255, 0.6);
+  transform: rotate(90deg);
+}
+
+/* 3. 中间内容区 */
+.ls-photo-modal-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+  background-image: radial-gradient(
+    #ffdde1 10%,
+    transparent 10%
+  ); /* 波点背景 */
+  background-size: 20px 20px;
+}
+
+/* 4. 拍立得风格照片容器 */
+.ls-polaroid-container {
+  background: white;
+  padding: 12px 12px 20px 12px;
+  border-radius: 8px;
+  box-shadow:
+    0 4px 15px rgba(0, 0, 0, 0.05),
+    0 0 0 1px rgba(0, 0, 0, 0.02);
+  transform: rotate(-2deg); /* 微微倾斜，更俏皮 */
+  margin-bottom: 25px;
+  text-align: center;
+  transition: transform 0.3s;
+}
+.ls-polaroid-container:hover {
+  transform: rotate(0deg) scale(1.02);
+}
+
+.ls-photo-wrapper {
+  border-radius: 4px;
+  overflow: hidden;
+  border: 1px solid #eee;
+  background: #f8f8f8;
+}
+.ls-photo-wrapper img {
+  display: block;
+  width: 100%;
+  height: auto;
+  object-fit: cover;
+}
+
+.ls-photo-desc {
+  font-size: 15px;
+  color: #555;
+  margin-top: 15px;
+  font-family:
+    "Comic Sans MS", "Chalkboard SE", sans-serif; /* 尝试用可爱字体 */
+  line-height: 1.5;
+}
+
+.ls-photo-date {
+  font-size: 12px;
+  color: #bbb;
+  margin-top: 5px;
+}
+
+/* 5. 评论区 */
+.ls-comments-section-title {
+  font-size: 14px;
+  color: #ff8fa3;
+  font-weight: bold;
+  margin-bottom: 15px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.ls-comments-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* 单条评论项 */
+.ls-photo-comment-item {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+
+.ls-photo-comment-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+.ls-photo-comment-bubble {
+  background: white;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border-top-left-radius: 2px; /* 气泡尖角 */
+  position: relative;
+  box-shadow: 0 2px 8px rgba(255, 143, 171, 0.1);
+  font-size: 13px;
+  color: #444;
+  line-height: 1.4;
+  flex: 1;
+}
+.ls-photo-comment-item.is-me .ls-photo-comment-bubble {
+  background: #ffeff4;
+  border-top-left-radius: 12px;
+  border-top-right-radius: 2px;
+  color: #d63384;
+}
+.ls-photo-comment-item.is-me {
+  flex-direction: row-reverse; /* 我发的在右边 */
+}
+
+.ls-comment-author {
+  font-size: 11px;
+  color: #aaa;
+  margin-bottom: 2px;
+  display: block;
+}
+
+/* 6. 底部输入栏 */
+.ls-photo-modal-footer {
+  padding: 12px;
+  background: white;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.03);
+}
+
+#ls-photo-comment-input {
+  flex: 1;
+  background: #f0f2f5;
+  border: 2px solid transparent;
+  padding: 10px 15px;
+  border-radius: 20px;
+  font-size: 14px;
+  outline: none;
+  transition: 0.3s;
+}
+#ls-photo-comment-input:focus {
+  background: #fff;
+  border-color: #ffb7b2;
+  box-shadow: 0 0 0 3px rgba(255, 183, 178, 0.2);
+}
+
+#ls-photo-comment-send-btn {
+  background: linear-gradient(45deg, #ff9a9e, #fad0c4);
+  color: white;
+  border: none;
+  padding: 8px 18px;
+  border-radius: 20px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 10px rgba(255, 154, 158, 0.4);
+  transition: transform 0.1s;
+}
+#ls-photo-comment-send-btn:active {
+  transform: scale(0.95);
+}
+/* =========================================
+   🐰 兔k记账 - 全新高级萌系主题
+   ========================================= */
+
+/* 定义专属变量 */
+:root {
+  --tukey-primary: #ff9a9e; /* 樱花粉 */
+  --tukey-primary-light: #fecfef; /* 浅粉 */
+  --tukey-accent: #a18cd1; /* 梦幻紫 */
+  --tukey-success: #84fab0; /* 收入/资产绿 */
+  --tukey-bg: #fffafb; /* 极其浅的粉白背景 */
+  --tukey-text-main: #5d4037; /* 暖深棕字体 */
+  --tukey-text-light: #9e8a70; /* 浅棕字体 */
+  --tukey-card-shadow: 0 8px 24px rgba(255, 154, 158, 0.15); /* 柔和的粉色投影 */
+  --tukey-radius: 20px; /* 统一大圆角 */
+}
+
+/* 1. 全局容器背景 */
+#tukey-accounting-screen {
+  background-color: var(--tukey-bg) !important;
+  font-family: "PingFang SC", "Microsoft YaHei", sans-serif; /* 确保字体圆润 */
+}
+
+/* 2. 头部美化 */
+#tukey-accounting-screen .header {
+  background: rgba(255, 255, 255, 0.8) !important;
+  backdrop-filter: blur(10px);
+  border-bottom: none !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.02);
+}
+#tukey-accounting-screen .header span {
+  color: var(--tukey-text-main);
+  font-weight: 600;
+}
+
+/* 3. 钱包视图 - 资产卡片 (高级渐变 + 玻璃质感) */
+#wallet-summary-card {
+  background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%);
+  border-radius: var(--tukey-radius);
+  padding: 25px;
+  margin: 15px;
+  color: white;
+  box-shadow: 0 10px 30px rgba(255, 154, 158, 0.4);
+  position: relative;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+/* 增加一点可爱的装饰圆圈背景 */
+#wallet-summary-card::before {
+  content: "";
+  position: absolute;
+  top: -30px;
+  right: -30px;
+  width: 100px;
+  height: 100px;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+}
+
+.summary-item.net-assets .label {
+  font-size: 14px;
+  opacity: 0.9;
+  font-weight: normal;
+}
+.summary-item.net-assets .value {
+  font-size: 32px;
+  font-weight: 700;
+  margin-top: 5px;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.summary-details {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 20px;
+  background: rgba(255, 255, 255, 0.2);
+  padding: 12px 20px;
+  border-radius: 12px;
+}
+.summary-details .summary-item {
+  display: flex;
+  flex-direction: column;
+}
+.summary-details .label {
+  font-size: 12px;
+  opacity: 0.9;
+}
+.summary-details .value {
+  font-size: 16px;
+  font-weight: 600;
+  margin-top: 2px;
+}
+
+/* 4. 账户列表美化 */
+.tukey-account-category-card {
+  background: #fff;
+  border-radius: 16px;
+  margin: 15px;
+  padding: 5px 0;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
+  border: 1px solid rgba(0, 0, 0, 0.02);
+}
+
+.category-header {
+  padding: 12px 15px;
+  border-bottom: 1px dashed #f0f0f0;
+}
+.category-title {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--tukey-text-light);
+  font-weight: bold;
+}
+
+.tukey-account-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 15px;
+  transition: background 0.2s;
+  cursor: pointer;
+}
+.tukey-account-item:active {
+  background-color: #fff0f5;
+}
+
+.account-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.account-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px; /* 圆角矩形图标更现代 */
+  padding: 6px;
+  background-color: #f8f9fa; /* 浅灰底托底图片 */
+  box-sizing: border-box;
+  object-fit: contain;
+}
+.account-name {
+  font-size: 15px;
+  color: var(--tukey-text-main);
+  font-weight: 500;
+}
+.account-balance-and-type {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+}
+.account-balance {
+  font-size: 15px;
+  font-weight: bold;
+  color: var(--tukey-text-main);
+}
+.account-type-name {
+  font-size: 11px;
+  color: #ccc;
+  margin-top: 2px;
+}
+
+/* 5. 悬浮按钮 (FAB) - 萌系加成 */
+#add-new-account-fab,
+#tukey-add-record-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff9a9e, #fad0c4);
+  box-shadow: 0 4px 15px rgba(255, 154, 158, 0.5);
+  border: 2px solid white; /* 增加白边显得更精致 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: fixed;
+  bottom: 90px; /* 避开底部导航栏 */
+  right: 20px;
+  z-index: 100;
+  transition: transform 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); /* 弹性动画 */
+}
+#add-new-account-fab:active,
+#tukey-add-record-btn:active {
+  transform: scale(0.9) rotate(90deg);
+}
+#add-new-account-fab svg,
+#tukey-add-record-btn::before {
+  color: white;
+}
+/* 记一笔按钮的加号 */
+#tukey-add-record-btn {
+  color: white;
+  font-size: 30px;
+  font-weight: 300;
+  padding-bottom: 4px; /* 微调加号位置 */
+}
+
+/* 6. 记账群聊列表 (气泡美化) */
+#tukey-records-list {
+  background-color: var(--tukey-bg) !important;
+  padding: 15px;
+}
+
+/* 包装器，用于头像和气泡的布局 */
+.tukey-record-wrapper.user-record {
+  display: flex;
+  justify-content: flex-end; /* 用户消息靠右 */
+  align-items: flex-start;
+  margin-bottom: 20px;
+  gap: 10px;
+}
+
+/* 头像样式 */
+.record-user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  border: 2px solid white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+  order: 2; /* 头像在右边 */
+}
+
+/* 记账气泡样式 */
+.tukey-record-bubble {
+  background: #fff;
+  border-radius: 18px 4px 18px 18px; /* 右上角尖角 */
+  padding: 12px 16px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.03);
+  min-width: 180px;
+  max-width: 70%;
+  order: 1; /* 气泡在头像左边 */
+  position: relative;
+  border: 1px solid rgba(0, 0, 0, 0.03);
+}
+
+/* 收入/支出的颜色区分条 */
+.tukey-record-bubble.expense {
+  border-left: 4px solid #ff9a9e;
+}
+.tukey-record-bubble.income {
+  border-left: 4px solid #84fab0;
+}
+
+.record-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed #eee;
+}
+.record-category-icon {
+  width: 24px;
+  height: 24px;
+  margin-right: 8px;
+}
+.record-category-name {
+  font-size: 14px;
+  color: var(--tukey-text-main);
+  font-weight: bold;
+}
+
+.record-body {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.record-amount {
+  font-size: 18px;
+  font-weight: bold;
+  font-family: "DIN Alternate", sans-serif; /* 数字字体 */
+}
+.tukey-record-bubble.expense .record-amount {
+  color: var(--tukey-text-main);
+}
+.tukey-record-bubble.income .record-amount {
+  color: #4caf50;
+}
+
+.record-remarks {
+  font-size: 13px;
+  color: var(--tukey-text-light);
+  margin-right: 10px;
+}
+
+.record-footer {
+  font-size: 10px;
+  color: #ccc;
+  text-align: right;
+}
+
+/* 7. AI 回复气泡美化 */
+.tukey-replies-container {
+  background: transparent;
+  padding: 0;
+  margin-top: -10px; /* 紧贴上一条 */
+  margin-bottom: 20px;
+  margin-right: 50px; /* 给用户头像留空 */
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end; /* 靠右对齐 */
+}
+
+.tukey-reply-item {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: row-reverse; /* AI头像在右，气泡在左（看起来像群聊里的其他人回复我）*/
+  /* 但等等，群聊逻辑应该是：我是右边，其他人是左边。
+       这里修正：记账记录是我发的（右边），AI回复是AI发的（左边）。
+    */
+  flex-direction: row;
+  align-self: flex-start; /* AI回复整体靠左 */
+  margin-top: 10px;
+  max-width: 85%;
+}
+
+/* 修正后的 AI 回复样式 */
+.tukey-replies-container {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start; /* AI 回复靠左 */
+  margin-top: 5px;
+  padding-left: 10px;
+}
+
+.tukey-reply-item {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 10px;
+  animation: slideInLeft 0.3s ease;
+}
+
+.reply-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  margin-right: 10px;
+  border: 1px solid #fff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.reply-content {
+  display: flex;
+  flex-direction: column;
+}
+
+.reply-sender-name {
+  font-size: 11px;
+  color: var(--tukey-text-light);
+  margin-bottom: 2px;
+  margin-left: 4px;
+}
+
+.reply-bubble {
+  background: #fff;
+  padding: 10px 14px;
+  border-radius: 4px 18px 18px 18px; /* 左上角尖角 */
+  font-size: 14px;
+  color: var(--tukey-text-main);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
+  line-height: 1.5;
+}
+
+/* 8. 记账输入卡片 (Keyboard/Modal) */
+#tukey-record-input-card {
+  border-radius: 24px 24px 0 0;
+  box-shadow: 0 -5px 30px rgba(0, 0, 0, 0.1);
+}
+.type-selector {
+  background: #f5f5f5;
+  padding: 4px;
+  border-radius: 20px;
+}
+.type-selector .type-btn {
+  border-radius: 16px;
+  font-size: 14px;
+  color: #888;
+}
+.type-selector .type-btn.active {
+  background: #fff;
+  color: var(--tukey-primary);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+  font-weight: bold;
+}
+
+/* 金额输入区 */
+.input-fields {
+  border-bottom: 1px solid #f0f0f0;
+  padding-bottom: 15px;
+  margin-bottom: 15px;
+}
+.amount-input-wrapper {
+  display: flex;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+.currency-symbol {
+  font-size: 24px;
+  font-weight: bold;
+  color: var(--tukey-text-main);
+}
+#tukey-card-amount-input {
+  font-size: 36px;
+  font-family: "DIN Alternate", sans-serif;
+  font-weight: bold;
+  color: var(--tukey-text-main);
+  border: none;
+  background: transparent;
+  width: 100%;
+  margin-left: 10px;
+}
+#tukey-card-amount-input::placeholder {
+  color: #eee;
+}
+
+/* 分类网格 */
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 15px 10px;
+  padding: 10px 0;
+}
+.tukey-category-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  opacity: 0.6;
+  transition: all 0.2s;
+}
+.tukey-category-item.selected {
+  opacity: 1;
+  transform: scale(1.1);
+}
+.tukey-category-item img {
+  width: 40px;
+  height: 40px;
+  padding: 8px;
+  background: #f8f9fa;
+  border-radius: 14px;
+  box-sizing: border-box;
+}
+.tukey-category-item.selected img {
+  background: var(--tukey-primary-light);
+}
+.tukey-category-item span {
+  font-size: 11px;
+}
+
+/* 底部按钮 */
+#tukey-save-from-card-btn {
+  background: linear-gradient(135deg, #ff9a9e, #fecfef);
+  border: none;
+  border-radius: 20px;
+  color: #fff; /* 这里要用白色 */
+  font-weight: bold;
+  letter-spacing: 1px;
+  box-shadow: 0 4px 10px rgba(255, 154, 158, 0.4);
+}
+
+/* 9. 底部导航栏 */
+#tukey-bottom-nav {
+  border-top: none;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.03);
+  padding-bottom: env(safe-area-inset-bottom);
+}
+.tukey-nav-item span {
+  font-size: 10px;
+  margin-top: 2px;
+}
+.tukey-nav-item.active svg path {
+  fill: var(--tukey-primary);
+}
+.tukey-nav-item.active span {
+  color: var(--tukey-primary);
+  font-weight: bold;
+}
+
+/* 动画效果 */
+@keyframes slideInLeft {
+  from {
+    opacity: 0;
+    transform: translateX(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+/* 兔k记账重Roll按钮样式 */
+.tukey-reroll-btn {
+  font-size: 12px;
+  color: #888;
+  cursor: pointer;
+  margin-top: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background-color: rgba(255, 255, 255, 0.5);
+  border-radius: 12px;
+  transition: all 0.2s;
+  align-self: flex-start; /* 让按钮靠左对齐 */
+}
+
+.tukey-reroll-btn:hover {
+  background-color: #fff;
+  color: #007bff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.tukey-replies-container {
+  /* 确保容器是列布局，方便我们把按钮放在回复下面 */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+/* 兔k记账重Roll按钮样式 */
+.tukey-reroll-btn {
+  font-size: 12px;
+  color: #888;
+  cursor: pointer;
+  margin-top: 5px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background-color: rgba(255, 255, 255, 0.5);
+  border-radius: 12px;
+  transition: all 0.2s;
+  align-self: flex-start; /* 让按钮靠左对齐 */
+}
+
+.tukey-reroll-btn:hover {
+  background-color: #fff;
+  color: #007bff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+}
+
+.tukey-replies-container {
+  /* 确保容器是列布局，方便我们把按钮放在回复下面 */
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+#tukey-accounting-screen,
+#kk-house-view-screen,
+#date-a-live-screen,
+#taobao-screen,
+#lovers-space-screen,
+#wallpaper-screen {
+  height: 100vh;
+}
+/* --- 情侣空间分享列表 - 萌系改造样式 --- */
+
+/* 容器：去掉默认的边框和背景，改用 flex 布局 */
+.ls-list-item.ls-share-item {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  padding: 5px 0 !important;
+  margin-bottom: 15px !important;
+  cursor: default; /* 内部有点击事件，外层默认 */
+}
+
+/* 包装器：负责左右布局 */
+.ls-share-wrapper {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 0 10px;
+}
+
+/* 如果是"我"发的，反转布局 */
+.ls-share-wrapper.is-me {
+  flex-direction: row-reverse;
+}
+
+/* 头像样式 */
+.ls-share-avatar {
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  border: 2px solid #fff;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+  object-fit: cover;
+  flex-shrink: 0;
+}
+
+/* 气泡卡片主体 */
+.ls-share-bubble {
+  position: relative;
+  padding: 12px;
+  border-radius: 16px;
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.05);
+  max-width: 75%;
+  transition: transform 0.2s;
+  cursor: pointer;
+}
+
+.ls-share-bubble:active {
+  transform: scale(0.98);
+}
+
+/* 气泡小尾巴 (对方) */
+.ls-share-wrapper:not(.is-me) .ls-share-bubble::before {
+  content: "";
+  position: absolute;
+  top: 15px;
+  left: -6px;
+  width: 10px;
+  height: 10px;
+  background-color: inherit; /* 继承气泡背景色 */
+  border-left: inherit; /* 继承边框 */
+  border-bottom: inherit;
+  transform: rotate(45deg);
+}
+
+/* 气泡小尾巴 (我) */
+.ls-share-wrapper.is-me .ls-share-bubble::before {
+  content: "";
+  position: absolute;
+  top: 15px;
+  right: -6px;
+  width: 10px;
+  height: 10px;
+  background-color: inherit;
+  border-right: inherit;
+  border-top: inherit;
+  transform: rotate(45deg);
+}
+
+/* 头部：标签和时间 */
+.ls-share-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.ls-share-label {
+  font-size: 10px;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: bold;
+}
+
+.ls-share-time {
+  font-size: 10px;
+  color: #999;
+}
+
+/* 内容盒子 */
+.ls-share-content-box {
+  background: rgba(255, 255, 255, 0.6);
+  border-radius: 8px;
+  padding: 8px;
+  margin-bottom: 8px;
+}
+
+.share-card-title {
+  font-size: 15px;
+  font-weight: bold;
+  color: #333;
+  margin-bottom: 4px;
+}
+
+.share-card-meta {
+  font-size: 12px;
+  color: #666;
+}
+
+.share-card-desc {
+  font-size: 12px;
+  color: #666;
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+/* 感想部分（便利贴风格） */
+.share-card-thoughts {
+  font-size: 13px;
+  color: #555;
+  font-style: italic;
+  padding: 0 5px;
+  line-height: 1.4;
+}
+
+.quote-mark {
+  font-family: serif;
+  font-size: 16px;
+  color: rgba(0, 0, 0, 0.2);
+  margin: 0 2px;
+}
+
+/* 空状态占位符 */
+.ls-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 300px;
+  color: #999;
+  text-align: center;
+}
+/* === 情侣空间分享详情弹窗 Ver 2.0 === */
+
+/* 弹窗主体容器 */
+.ls-share-card-container {
+  padding: 0 !important;
+  width: 320px !important;
+  max-width: 90% !important;
+  background: #fff !important;
+  border-radius: 24px !important;
+  overflow: visible !important; /* 允许头像凸出去 */
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.15) !important;
+}
+
+/* 顶部彩色背景 */
+.ls-share-header-bg {
+  height: 80px;
+  background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); /* 默认粉色 */
+  border-radius: 24px 24px 0 0;
+}
+
+/* 头像包装器 (让头像悬浮在背景和内容之间) */
+.ls-share-avatar-wrapper {
+  position: relative;
+  margin-top: -50px; /* 向上偏移 */
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+}
+
+/* 角色大头像 */
+.ls-share-avatar-img {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  border: 4px solid #fff;
+  object-fit: cover;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  background: #fff;
+  z-index: 2;
+}
+
+/* 右下角的类型小徽章 */
+.ls-share-badge {
+  position: absolute;
+  bottom: 0;
+  right: 50%;
+  margin-right: -45px; /* 定位到头像右下角 */
+  background: #fff;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  z-index: 3;
+}
+
+/* 内容主体 */
+.ls-share-content-body {
+  padding: 10px 25px 20px 25px;
+  text-align: center;
+}
+
+/* 气泡风格推荐语 */
+.ls-share-speech-bubble {
+  background: #fff0f5; /* 浅粉色底 */
+  color: #555;
+  padding: 15px;
+  border-radius: 16px;
+  position: relative;
+  margin-top: 10px;
+  margin-bottom: 20px;
+  font-size: 14px;
+  line-height: 1.6;
+  font-style: italic;
+}
+
+/* 气泡的小三角 */
+.bubble-arrow {
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 8px solid #fff0f5;
+}
+
+/* 信息卡片 (简介部分) */
+.ls-share-info-box {
+  background: #f9f9f9;
+  border-radius: 16px;
+  padding: 15px;
+  border: 1px solid #f0f0f0;
+}
+
+.ls-share-info-box h3 {
+  margin: 0 0 8px 0;
+  font-size: 17px;
+  color: #333;
+  font-weight: 700;
+}
+
+.ls-share-pill {
+  display: inline-block;
+  font-size: 11px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  background: #e0e0e0;
+  color: #666;
+  margin-bottom: 10px;
+}
+
+.ls-share-divider {
+  height: 1px;
+  background: #eee;
+  width: 100%;
+  margin: 10px 0;
+}
+
+.ls-share-summary-text {
+  font-size: 13px;
+  color: #666;
+  text-align: left;
+  line-height: 1.6;
+  max-height: 120px;
+  overflow-y: auto;
+}
+
+/* 底部按钮区 */
+.ls-share-footer-action {
+  padding: 0 25px 25px 25px;
+}
+
+#ls-share-detail-close-btn {
+  width: 100%;
+  padding: 12px;
+  border: none;
+  border-radius: 30px;
+  background: linear-gradient(90deg, #ff9a9e 0%, #fecfef 100%);
+  color: #fff;
+  font-size: 15px;
+  font-weight: bold;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(255, 154, 158, 0.4);
+  transition: transform 0.1s;
+}
+#ls-share-detail-close-btn:active {
+  transform: scale(0.98);
+}
+
+/* === 动态配色方案 === */
+/* 电影 (蓝紫色调) */
+.modal-content.theme-movie .ls-share-header-bg {
+  background: linear-gradient(135deg, #a18cd1 0%, #fbc2eb 100%);
+}
+.modal-content.theme-movie .ls-share-pill {
+  background: #f3e5f5;
+  color: #9c27b0;
+}
+.modal-content.theme-movie .ls-share-speech-bubble {
+  background: #f3e5f5;
+  color: #7b1fa2;
+}
+.modal-content.theme-movie .bubble-arrow {
+  border-bottom-color: #f3e5f5;
+}
+.modal-content.theme-movie #ls-share-detail-close-btn {
+  background: linear-gradient(90deg, #a18cd1 0%, #fbc2eb 100%);
+  box-shadow: 0 4px 15px rgba(161, 140, 209, 0.4);
+}
+
+/* 书籍 (绿色调) */
+.modal-content.theme-book .ls-share-header-bg {
+  background: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
+}
+.modal-content.theme-book .ls-share-pill {
+  background: #e8f5e9;
+  color: #43a047;
+}
+.modal-content.theme-book .ls-share-speech-bubble {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+.modal-content.theme-book .bubble-arrow {
+  border-bottom-color: #e8f5e9;
+}
+.modal-content.theme-book #ls-share-detail-close-btn {
+  background: linear-gradient(90deg, #84fab0 0%, #8fd3f4 100%);
+  box-shadow: 0 4px 15px rgba(132, 250, 176, 0.4);
+}
+
+/* 游戏 (橙色调) */
+.modal-content.theme-game .ls-share-header-bg {
+  background: linear-gradient(120deg, #f6d365 0%, #fda085 100%);
+}
+.modal-content.theme-game .ls-share-pill {
+  background: #fff3e0;
+  color: #ef6c00;
+}
+.modal-content.theme-game .ls-share-speech-bubble {
+  background: #fff3e0;
+  color: #e65100;
+}
+.modal-content.theme-game .bubble-arrow {
+  border-bottom-color: #fff3e0;
+}
+.modal-content.theme-game #ls-share-detail-close-btn {
+  background: linear-gradient(90deg, #f6d365 0%, #fda085 100%);
+  box-shadow: 0 4px 15px rgba(246, 211, 101, 0.4);
+}
+/* =========================================
+   兔兔记账 - 报表与气泡美化 (高级萌版)
+   ========================================= */
+
+/* 1. 列表项容器：增加间距，去除默认背景，方便做悬浮效果 */
+.report-record-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  margin-bottom: 12px;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1); /* 弹性动画 */
+}
+
+.report-record-item:hover {
+  transform: scale(1.01) translateX(2px); /* 鼠标悬停时微微放大 */
+}
+
+/* 2. 气泡主体：核心美化区 */
+.tukey-record-bubble {
+  flex-grow: 1;
+  position: relative;
+  padding: 12px 16px;
+  border-radius: 18px; /* 大圆角 */
+  /* 默认背景 (兜底) */
+  background: #fff;
+  /* 玻璃拟态阴影 */
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.03),
+    0 1px 2px rgba(0, 0, 0, 0.02);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  overflow: hidden;
+}
+
+/* --- 支出气泡 (Expense) - 暖色调/奶油粉 --- */
+.tukey-record-bubble.expense {
+  /* 使用柔和的渐变，更有质感 */
+  background: linear-gradient(135deg, #fff0f0 0%, #ffecec 100%);
+  border-left: 4px solid #ff9a9e; /* 左侧强调条 */
+}
+
+/* --- 收入气泡 (Income) - 冷色调/清新绿 --- */
+.tukey-record-bubble.income {
+  background: linear-gradient(135deg, #f0fff4 0%, #e6fcf5 100%);
+  border-left: 4px solid #4caf50;
+}
+
+/* 3. 气泡内部布局 */
+.record-main-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* 图标容器：圆形背景 */
+.record-icon-wrapper {
+  width: 40px;
+  height: 40px;
+  background: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  flex-shrink: 0;
+}
+
+.record-category-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
+/* 中间文字区域 */
+.record-info-col {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.record-category-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  line-height: 1.2;
+}
+
+.record-remarks {
+  font-size: 12px;
+  color: #666;
+  margin-top: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.record-meta {
+  font-size: 11px;
+  color: #999;
+  margin-top: 4px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
+/* 右侧金额区域 */
+.record-amount-col {
+  text-align: right;
+  flex-shrink: 0;
+}
+
+/* 支出金额颜色 */
+.tukey-record-bubble.expense .record-amount,
+.tukey-record-bubble.expense .record-amount-num {
+  color: #ff5252;
+  font-weight: bold;
+  font-size: 16px;
+  font-family: "Din Alternate", "Roboto", sans-serif; /* 数字字体优化 */
+}
+
+/* 收入金额颜色 */
+.tukey-record-bubble.income .record-amount,
+.tukey-record-bubble.income .record-amount-num {
+  color: #2e7d32;
+  font-weight: bold;
+  font-size: 16px;
+  font-family: "Din Alternate", "Roboto", sans-serif;
+}
+
+/* 4. 删除按钮美化 */
+.delete-record-btn {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: #ffebee;
+  color: #ff5252;
+  border-radius: 50%;
+  margin-left: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+
+  /* 默认完全隐藏 */
+  opacity: 0;
+  transform: scale(0.8);
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  box-shadow: 0 2px 5px rgba(255, 82, 82, 0.2);
+}
+
+.delete-record-btn:hover {
+  background: #ff5252;
+  color: white;
+  transform: scale(1.1);
+}
+
+/* 鼠标悬停在整行上时，显示删除按钮 */
+.report-record-item:hover .delete-record-btn {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* 5. 报表日期分组头部美化 */
+.report-day-group .day-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 4px;
+  margin-top: 15px;
+  margin-bottom: 5px;
+  border-bottom: 1px dashed rgba(0, 0, 0, 0.05);
+}
+
+.report-day-group .day-header .date {
+  font-size: 13px;
+  font-weight: bold;
+  color: #888;
+  background: #f5f5f5;
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.report-day-group .day-header .day-summary {
+  font-size: 12px;
+  color: #aaa;
+}
+
+/* 适配深色模式 (自动反色) */
+.dark-mode .tukey-record-bubble {
+  background: #1c1c1e;
+  border-color: #333;
+  box-shadow: none;
+}
+.dark-mode .tukey-record-bubble.expense {
+  background: linear-gradient(135deg, #2c1a1a 0%, #251818 100%);
+  border-left-color: #ff5e67;
+}
+.dark-mode .tukey-record-bubble.income {
+  background: linear-gradient(135deg, #1a2a20 0%, #16241b 100%);
+  border-left-color: #66bb6a;
+}
+.dark-mode .record-category-name {
+  color: #eee;
+}
+.dark-mode .record-icon-wrapper {
+  background: #333;
+}
+.dark-mode .report-day-group .day-header .date {
+  background: #333;
+  color: #ccc;
+}
+/* === 桌面编辑模式核心样式 === */
+
+/* 1. 编辑模式开启时，图标抖动 */
+.editing-mode .desktop-app-icon,
+.editing-mode .custom-widget-container,
+.editing-mode #new-custom-widget,
+.editing-mode #profile-widget {
+  /* 甚至连个人资料卡片也可以拖 */
+  animation: app-jiggle 0.25s infinite alternate;
+  cursor: grab;
+  /* 关键：给个轮廓让用户知道它被选中了 */
+  outline: 2px dashed rgba(255, 255, 255, 0.6);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+  /* 关键：防止选中文字干扰拖拽 */
+  user-select: none;
+  -webkit-user-select: none;
+  z-index: 10;
+}
+
+/* 2. 正在被手指按住拖拽的那个元素 */
+.is-dragging-active {
+  opacity: 0.9;
+  z-index: 9999 !important; /* 让它浮在最上面 */
+  animation: none !important; /* 拖拽时暂停抖动，体验更好 */
+  transform: scale(1.15) !important; /* 稍微放大 */
+  box-shadow: 0 15px 30px rgba(0, 0, 0, 0.4) !important;
+  outline: 2px solid #007bff !important; /* 变成实线高亮 */
+}
+
+/* 3. 抖动动画 */
+@keyframes app-jiggle {
+  0% {
+    transform: rotate(-1.5deg);
+  }
+  100% {
+    transform: rotate(1.5deg);
+  }
+}
+
+/* 4. 完成按钮 */
+#desktop-edit-done-btn {
+  position: absolute;
+  top: 50px;
+  right: 20px;
+  padding: 8px 20px;
+  background-color: rgba(255, 255, 255, 0.9);
+  color: #007bff;
+  border-radius: 20px;
+  font-size: 15px;
+  font-weight: 800;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  z-index: 10000; /* 最高层级 */
+  display: none; /* 默认隐藏 */
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+}
+/* === 修复第二页组合组件的样式 === */
+#center-avatar-wrapper {
+  position: absolute;
+  /* 初始位置设定，脚本接管后会变成具体的 top/left */
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%); /* 初始居中 */
+
+  /* 关键：让它包裹住内容，但不要太大 */
+  width: 260px;
+  height: 260px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* 调试用，可以看到边界，上线可去掉 */
+  /* border: 1px solid rgba(0,0,0,0.1); */
+
+  pointer-events: auto !important; /* 确保能被点到 */
+}
+
+/* 拖拽时取消 transform 居中，防止坐标冲突 */
+#center-avatar-wrapper.is-dragging-active,
+#center-avatar-wrapper[style*="left"] {
+  transform: none !important;
+}
+
+/* 编辑模式下，让外层 Wrapper 抖动，而不是里面的图片抖动 */
+.editing-mode #center-avatar-wrapper {
+  animation: app-jiggle 0.25s infinite alternate;
+  outline: 2px dashed rgba(255, 255, 255, 0.6);
+  cursor: grab;
+  z-index: 100;
+}
+
+/* 禁止里面的子元素单独抖动/响应鼠标，它们只跟随父亲 */
+.editing-mode #center-avatar-wrapper * {
+  animation: none !important;
+  pointer-events: none; /* 编辑模式下禁止操作内部元素 */
+}
+/* 确保可拖拽元素默认样式正常，拖拽后 JS 会接管 */
+.home-page .desktop-app-icon,
+.home-page .custom-widget-container {
+  /* 如果有 transform 动画，确保它不会干扰 left/top */
+  transition:
+    transform 0.2s,
+    width 0.2s,
+    height 0.2s;
+}
+
+/* 编辑模式下的抖动动画 */
+.home-screen.editing-mode .desktop-app-icon,
+.home-screen.editing-mode .custom-widget-container,
+.home-screen.editing-mode #new-custom-widget,
+.home-screen.editing-mode #profile-widget,
+.home-screen.editing-mode #desktop-widget-column,
+.home-screen.editing-mode #center-avatar-wrapper {
+  animation: shake 0.3s infinite alternate;
+}
+
+@keyframes shake {
+  0% {
+    transform: rotate(-1deg);
+  }
+  100% {
+    transform: rotate(1deg);
+  }
+}
+/* --- 莫兰迪清透风娃娃机 --- */
+
+/* 字体 */
+@import url("https://fonts.googleapis.com/css2?family=Quicksand:wght@400;700&display=swap");
+
+/* 机器主体容器 */
+#claw-machine-body.morandi-style {
+  width: 340px;
+  height: 680px;
+  background: linear-gradient(
+    135deg,
+    #fdfbfb 0%,
+    #ebedee 100%
+  ); /* 极其淡雅的背景 */
+  border-radius: 40px;
+  position: relative;
+  font-family: "Quicksand", sans-serif;
+  /* 柔和的高级阴影 */
+  box-shadow:
+    0 20px 60px rgba(100, 100, 100, 0.15),
+    0 0 0 1px rgba(255, 255, 255, 0.8) inset;
+  display: flex;
+  flex-direction: column;
+  padding: 20px;
+  box-sizing: border-box;
+  color: #6d5e5e; /* 莫兰迪深褐 */
+}
+
+/* --- 1. 顶部面板 & 饼图 --- */
+.header-panel {
+  height: 110px;
+  margin-bottom: 15px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.header-title {
+  font-size: 14px;
+  letter-spacing: 3px;
+  color: #bfaea8;
+  font-weight: bold;
+  margin-bottom: 8px;
+}
+
+.prob-dashboard {
+  width: 100%;
+  height: 80px;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  padding: 0 15px;
+  box-sizing: border-box;
+  /* 轻微的玻璃感 */
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(5px);
+}
+
+.pie-chart-wrapper {
+  position: relative;
+  width: 50px;
+  height: 50px;
+  margin-right: 15px;
+  flex-shrink: 0;
+}
+
+.pie-chart {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  /* 这里的背景颜色将由 JS 动态生成 conic-gradient */
+  background: #ccc;
+  box-shadow: 0 4px 10px rgba(238, 214, 211, 0.5);
+}
+
+.pie-hole {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 30px;
+  height: 30px;
+  background: #fdfbfb; /* 与机器背景融合 */
+  border-radius: 50%;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.chart-legend {
+  flex: 1;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  font-size: 10px;
+  width: 48%; /* 两列排布 */
+  color: #8e8080;
+}
+
+.legend-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-right: 4px;
+  flex-shrink: 0;
+}
+
+/* --- 2. 玻璃窗 (核心区域) --- */
+.machine-window {
+  flex: 1;
+  background: rgba(230, 240, 255, 0.15); /* 极淡的蓝 */
+  border-radius: 25px;
+  border: 2px solid rgba(255, 255, 255, 0.8);
+  box-shadow:
+    inset 0 0 20px rgba(255, 255, 255, 0.5),
+    0 5px 15px rgba(0, 0, 0, 0.03);
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 20px;
+  backdrop-filter: blur(2px);
+}
+
+/* 玻璃高光条 */
+.reflection-light {
+  position: absolute;
+  top: -20%;
+  left: -20%;
+  width: 150%;
+  height: 50px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0),
+    rgba(255, 255, 255, 0.4),
+    rgba(255, 255, 255, 0)
+  );
+  transform: rotate(30deg);
+  pointer-events: none;
+  z-index: 20;
+}
+
+/* 爪子 (极简风格) */
+#machine-claw {
+  position: absolute;
+  top: 0;
+  left: 50%;
+  width: 60px;
+  height: 80px;
+  transform: translateX(-50%);
+  z-index: 15;
+  transition:
+    top 0.5s ease-in-out,
+    left 0.1s linear;
+}
+.claw-line {
+  width: 2px;
+  height: 100%;
+  background: #bfaea8;
+  margin: 0 auto;
+}
+.claw-hand {
+  width: 50px;
+  height: 30px;
+  position: absolute;
+  bottom: -20px;
+  left: 5px;
+  transition: transform 0.2s;
+}
+#machine-claw.grabbing .claw-hand {
+  transform: scale(0.85);
+}
+
+.claw-finger {
+  width: 4px;
+  height: 25px;
+  background: #bfaea8;
+  position: absolute;
+  bottom: 0;
+  border-radius: 2px;
+}
+.claw-finger.left {
+  left: 0;
+  transform: rotate(25deg);
+  transform-origin: top center;
+}
+.claw-finger.right {
+  right: 0;
+  transform: rotate(-25deg);
+  transform-origin: top center;
+}
+
+#machine-claw.grabbing .claw-finger.left {
+  transform: rotate(45deg);
+}
+#machine-claw.grabbing .claw-finger.right {
+  transform: rotate(-45deg);
+}
+
+/* 娃娃 (增加投影) */
+.game-doll {
+  position: absolute;
+  width: 55px;
+  height: 55px;
+  background-size: cover;
+  background-position: center;
+  filter: drop-shadow(0 5px 5px rgba(0, 0, 0, 0.1)); /* 柔和投影 */
+  transition: all 0.5s ease;
+  z-index: 10;
+}
+.game-doll.caught {
+  z-index: 16;
+  transition: none;
+}
+
+/* 落物口 */
+.machine-chute {
+  position: absolute;
+  bottom: 0;
+  left: 20px;
+  width: 70px;
+  height: 15px;
+  background: rgba(255, 255, 255, 0.3);
+  border-radius: 10px 10px 0 0;
+  border: 1px solid rgba(255, 255, 255, 0.5);
+  color: rgba(142, 128, 128, 0.5);
+  font-size: 9px;
+  text-align: center;
+  line-height: 12px;
+  z-index: 5;
+}
+
+/* --- 3. 底部控制台 --- */
+.machine-controls {
+  height: 140px;
+  background: rgba(255, 255, 255, 0.4);
+  border-radius: 30px;
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  box-shadow: 0 10px 20px rgba(238, 214, 211, 0.2);
+}
+
+/* 摇杆 */
+.joystick-base {
+  width: 70px;
+  height: 70px;
+  background: #eaddda; /* 灰粉色 */
+  border-radius: 50%;
+  position: relative;
+  box-shadow:
+    inset 2px 2px 5px rgba(255, 255, 255, 0.7),
+    inset -2px -2px 5px rgba(0, 0, 0, 0.05);
+}
+.joystick-stick {
+  width: 10px;
+  height: 35px;
+  background: #cbbaba;
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%) rotateX(0deg) rotateY(0deg);
+  transform-origin: bottom center;
+  transition: transform 0.1s;
+  cursor: grab;
+}
+.joystick-ball {
+  width: 32px;
+  height: 32px;
+  background: #e6b2ba; /* 莫兰迪粉球 */
+  border-radius: 50%;
+  position: absolute;
+  top: -16px;
+  left: -11px;
+  box-shadow:
+    inset -3px -3px 6px rgba(0, 0, 0, 0.1),
+    inset 3px 3px 6px rgba(255, 255, 255, 0.5);
+}
+
+/* 屏幕显示 */
+.display-screen {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.display-screen .label {
+  font-size: 9px;
+  color: #a69292;
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+}
+.display-screen .value {
+  background: #fff;
+  padding: 5px 12px;
+  border-radius: 12px;
+  color: #e5989b;
+  font-weight: bold;
+  font-size: 16px;
+  min-width: 60px;
+  text-align: center;
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.03);
+}
+
+/* 抓取按钮 - 像一颗珍珠 */
+.pearl-btn {
+  width: 65px;
+  height: 65px;
+  border-radius: 50%;
+  border: none;
+  /* 珍珠质感 */
+  background: radial-gradient(circle at 30% 30%, #fff, #f3e7e9);
+  box-shadow:
+    0 10px 20px rgba(200, 180, 180, 0.3),
+    inset -2px -2px 5px rgba(0, 0, 0, 0.05);
+  color: #bfaea8;
+  font-weight: bold;
+  font-size: 16px;
+  cursor: pointer;
+  transition: transform 0.1s;
+}
+.pearl-btn:active {
+  transform: scale(0.95);
+  box-shadow: 0 5px 10px rgba(200, 180, 180, 0.3);
+}
+
+/* 关闭按钮 (悬浮在右上角) */
+.close-float-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  width: 32px;
+  height: 32px;
+  background: rgba(255, 255, 255, 0.6);
+  border: none;
+  border-radius: 50%;
+  color: #8e8080;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.close-float-btn:hover {
+  background: #fff;
+}
+/* --- 娃娃机新样式 --- */
+
+/* 1. 顶部功能栏容器 */
+.machine-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 10px 15px 5px 15px; /* 上右下左 */
+  box-sizing: border-box;
+  position: relative;
+  z-index: 10;
+}
+
+/* 2. 中间的标题组 (标题+设置) */
+.machine-header-bar .title-group {
+  display: flex;
+  align-items: center;
+  gap: 5px; /* 标题和齿轮的间距 */
+  background: rgba(255, 255, 255, 0.4);
+  padding: 5px 12px;
+  border-radius: 20px;
+  box-shadow:
+    inset 0 1px 2px rgba(255, 255, 255, 0.8),
+    0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.header-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #8d7878; /* 莫兰迪褐 */
+  letter-spacing: 1px;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+/* 3. 通用圆形图标按钮 */
+.icon-btn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+  font-family: sans-serif; /* 确保图标居中 */
+  outline: none;
+}
+
+.icon-btn:active {
+  transform: scale(0.9);
+}
+
+/* 4. 设置按钮 (⚙️) */
+.settings-btn {
+  background: transparent;
+  font-size: 18px;
+  color: #a89090;
+  width: auto; /* 自适应 */
+  padding: 0 2px;
+}
+.settings-btn:hover {
+  color: #8d7878;
+  transform: rotate(90deg); /* 悬停旋转特效 */
+}
+
+/* 5. 刷新按钮 (↻) - 重新设计 */
+.refresh-btn {
+  background: #fff;
+  color: #8d7878;
+  font-size: 18px;
+  font-weight: bold;
+  box-shadow:
+    0 3px 6px rgba(0, 0, 0, 0.1),
+    inset 0 -2px 0 rgba(0, 0, 0, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+}
+.refresh-btn:hover {
+  background: #ffe4e1; /* 浅粉色高亮 */
+  color: #d63031;
+  transform: rotate(180deg);
+}
+
+/* 6. 左侧装饰点 */
+.decor-dots {
+  display: flex;
+  gap: 6px;
+}
+.decor-dots span {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #d4a5a5;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.1);
+}
+.decor-dots span:nth-child(2) {
+  background: #edd1d1;
+}
+
+/* 修改概率面板的位置，让它紧贴 header-bar 下方 */
+.prob-dashboard {
+  margin-top: 5px;
+  margin-bottom: 10px;
+  transform: scale(0.9); /* 稍微缩小一点，给下面留空间 */
+}
+/* --- 更新后的顶部栏样式 --- */
+
+.machine-header-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding: 10px 15px 5px 15px;
+  box-sizing: border-box;
+  position: relative;
+  z-index: 10;
+}
+
+/* 标题组保持居中 */
+.machine-header-bar .title-group {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  background: rgba(255, 255, 255, 0.4);
+  padding: 4px 10px;
+  border-radius: 20px;
+  /* 绝对定位确保标题永远在正中间，不受左右按钮宽度影响 */
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  z-index: 1; /* 图层在按钮之下，防止挡住点击 */
+}
+
+/* 左右按钮组 */
+.action-group {
+  position: relative;
+  z-index: 2; /* 确保按钮在最上层 */
+}
+
+/* 关闭按钮样式 (红色系) */
+.close-header-btn {
+  background: #ff7675; /* 柔和的红色 */
+  color: white;
+  font-size: 14px;
+  font-weight: bold;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 5px rgba(214, 48, 49, 0.3);
+}
+.close-header-btn:hover {
+  background: #d63031;
+  transform: scale(1.1);
+}
+
+/* 刷新按钮样式 (白色系) */
+.refresh-btn {
+  background: #fff;
+  color: #8d7878;
+  font-size: 16px;
+  font-weight: bold;
+  border: 2px solid rgba(255, 255, 255, 0.5);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+.refresh-btn:hover {
+  background: #ffeaa7;
+  transform: rotate(180deg);
+}
+
+/* 标题字体微调 */
+.header-title {
+  font-size: 16px;
+  font-weight: 800;
+  color: #8d7878;
+  white-space: nowrap;
+}
+
+/* 原来的悬浮关闭按钮样式可以删掉，或者用 display: none 隐藏，防止旧代码残留干扰 */
+.close-float-btn {
+  display: none !important;
+}
+/* === 新版响应式组件样式 === */
+
+/* 修改 CSS (style 标签或 style.css 中) */
+
+.middle-layout-container {
+  position: absolute;
+  top: 53%;
+
+  /* ▼▼▼ 修改这里 ▼▼▼ */
+  left: 53%; /* 原来是 50%，改成 53% 或 54% 就会整体往右移动一点点 */
+  /* ▲▲▲ 修改这里 ▲▲▲ */
+
+  transform: translate(-50%, -50%);
+  width: 92%;
+  max-width: 400px;
+  z-index: 4;
+}
+
+/* 2. 组件本体 */
+#glass-music-widget {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  /* 不需要背景色，保持通透 */
+}
+
+/* 3. 上半部分：封面 + 唱片 */
+.widget-main-row {
+  position: relative;
+  width: 100%;
+  height: 140px; /* 增加高度 */
+  display: flex;
+  align-items: center;
+}
+
+/* 左侧长方形封面 */
+.rect-cover-wrapper {
+  width: 65%; /* 占据宽度的 65% */
+  height: 100%;
+  border-radius: 20px;
+  overflow: hidden;
+  position: relative;
+  z-index: 2; /* 在唱片下方，或者上方，根据需求。这里设为2盖住唱片左边，这是常见设计 */
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  background: #eee;
+}
+
+.rect-cover-wrapper img.cover-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* 右侧透明唱片容器 */
+.glass-record-wrapper {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 45%; /* 唱片区域宽度 */
+  z-index: 3; /* 让唱片浮在长方形上面 */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  /* 向左偏移一点，压住长方形的边缘 */
+  transform: translateX(-10%);
+}
+
+/* 透明水晶唱片本体 */
+.glass-disc {
+  width: 130px; /* 唱片直径，调大 */
+  height: 130px;
+  border-radius: 50%;
+
+  /* 关键：透明水晶质感 */
+  background: rgba(255, 255, 255, 0.15); /* 淡淡的白色半透明 */
+  backdrop-filter: blur(4px); /* 毛玻璃模糊效果 */
+  -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.4); /* 亮白色细边框 */
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15); /* 柔和阴影 */
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  position: relative;
+  animation: smooth-spin 10s linear infinite;
+}
+
+/* 唱片中间的图片 */
+.disc-center-img {
+  width: 60%;
+  height: 60%;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 3px solid rgba(255, 255, 255, 0.2); /* 图片周围一圈淡光 */
+}
+
+/* 唱片上的高光反光 (装饰) */
+.disc-highlight {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.4) 0%,
+    transparent 40%,
+    transparent 60%,
+    rgba(255, 255, 255, 0.1) 100%
+  );
+  pointer-events: none;
+}
+
+/* 4. 下方：文字和音浪 */
+.widget-footer-row {
+  margin-top: 12px;
+  padding-left: 5px;
+  width: 65%; /* 对齐上面的长方形 */
+  display: flex;
+  flex-direction: column;
+}
+
+.music-title-text {
+  /* ▼ 字体改小，原来是18px ▼ */
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--home-icon-widget-text-color, #ffffff);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+  margin-bottom: 2px; /* 减小间距 */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  opacity: 0.9;
+}
+
+.music-wave-bars {
+  display: flex;
+  align-items: flex-end;
+  height: 16px;
+  gap: 4px;
+}
+
+.music-wave-bars i {
+  width: 4px;
+  background-color: var(--home-icon-widget-text-color, #ffffff);
+  border-radius: 4px;
+  animation: bar-dance 1s ease-in-out infinite;
+  opacity: 0.9;
+}
+
+/* 让音浪动感一点 */
+.music-wave-bars i:nth-child(1) {
+  height: 30%;
+  animation-delay: 0s;
+}
+.music-wave-bars i:nth-child(2) {
+  height: 60%;
+  animation-delay: 0.2s;
+}
+.music-wave-bars i:nth-child(3) {
+  height: 100%;
+  animation-delay: 0.4s;
+}
+.music-wave-bars i:nth-child(4) {
+  height: 50%;
+  animation-delay: 0.1s;
+}
+.music-wave-bars i:nth-child(5) {
+  height: 80%;
+  animation-delay: 0.3s;
+}
+.music-wave-bars i:nth-child(6) {
+  height: 40%;
+  animation-delay: 0.5s;
+}
+.music-wave-bars i:nth-child(7) {
+  height: 90%;
+  animation-delay: 0.2s;
+}
+
+/* 旋转动画 */
+@keyframes smooth-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes bar-dance {
+  0%,
+  100% {
+    transform: scaleY(1);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scaleY(1.5);
+    opacity: 1;
+  }
+}
+/* --- 修复音乐组件音浪变宽 --- */
+
+/* 1. 调整底部行布局，确保它足够宽 */
+#glass-music-widget .widget-footer-row {
+  /* 根据你的布局，这里可能需要调整宽度 */
+  width: 100%;
+  padding: 0 10px; /* 两侧稍微留点空隙 */
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  margin-top: 5px;
+}
+
+/* 2. 歌名文字样式微调 */
+#glass-music-widget .music-title-text {
+  width: 100%;
+  text-align: left; /* 或者 center */
+  margin-bottom: 4px;
+  font-size: 14px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 3. 音浪容器：设置宽度匹配上方圆角矩形 */
+#custom-wide-wave {
+  display: flex;
+  align-items: flex-end; /* 底部对齐 */
+  justify-content: space-between; /* 条纹均匀分布 */
+  width: 140px; /* ★ 这里设置宽度！改成和上方图片差不多的宽度 */
+  height: 20px; /* 音浪最大高度 */
+  margin-left: 0; /* 靠左对齐，如果想居中改为 auto */
+  opacity: 0.8;
+}
+
+/* 4. 单个音浪条的样式 */
+#custom-wide-wave i {
+  display: inline-block;
+  width: 3px; /* 条纹变细一点，看起来更像线 */
+  border-radius: 2px;
+  /* 使用 CSS 变量引用主屏幕字体颜色，如果没有则默认白色 */
+  background-color: var(--home-icon-widget-text-color, #fff);
+  animation: wideWaveAnim 1.2s infinite ease-in-out;
+}
+
+/* 5. 设置不同的动画延迟，制造波浪感 */
+#custom-wide-wave i:nth-child(1) {
+  animation-delay: 0s;
+  height: 30%;
+}
+#custom-wide-wave i:nth-child(2) {
+  animation-delay: 0.1s;
+  height: 40%;
+}
+#custom-wide-wave i:nth-child(3) {
+  animation-delay: 0.2s;
+  height: 50%;
+}
+#custom-wide-wave i:nth-child(4) {
+  animation-delay: 0.3s;
+  height: 40%;
+}
+#custom-wide-wave i:nth-child(5) {
+  animation-delay: 0.4s;
+  height: 30%;
+}
+#custom-wide-wave i:nth-child(6) {
+  animation-delay: 0.5s;
+  height: 40%;
+}
+#custom-wide-wave i:nth-child(7) {
+  animation-delay: 0.6s;
+  height: 60%;
+}
+#custom-wide-wave i:nth-child(8) {
+  animation-delay: 0.5s;
+  height: 80%;
+}
+#custom-wide-wave i:nth-child(9) {
+  animation-delay: 0.4s;
+  height: 60%;
+}
+#custom-wide-wave i:nth-child(10) {
+  animation-delay: 0.3s;
+  height: 40%;
+}
+#custom-wide-wave i:nth-child(11) {
+  animation-delay: 0.2s;
+  height: 30%;
+}
+#custom-wide-wave i:nth-child(12) {
+  animation-delay: 0.1s;
+  height: 50%;
+}
+#custom-wide-wave i:nth-child(13) {
+  animation-delay: 0s;
+  height: 70%;
+}
+#custom-wide-wave i:nth-child(14) {
+  animation-delay: 0.1s;
+  height: 50%;
+}
+#custom-wide-wave i:nth-child(15) {
+  animation-delay: 0.2s;
+  height: 30%;
+}
+#custom-wide-wave i:nth-child(16) {
+  animation-delay: 0.3s;
+  height: 40%;
+}
+#custom-wide-wave i:nth-child(17) {
+  animation-delay: 0.4s;
+  height: 50%;
+}
+#custom-wide-wave i:nth-child(18) {
+  animation-delay: 0.5s;
+  height: 40%;
+}
+#custom-wide-wave i:nth-child(19) {
+  animation-delay: 0.6s;
+  height: 30%;
+}
+#custom-wide-wave i:nth-child(20) {
+  animation-delay: 0.7s;
+  height: 20%;
+}
+
+/* 6. 定义动画关键帧 */
+@keyframes wideWaveAnim {
+  0%,
+  100% {
+    height: 20%;
+  }
+  50% {
+    height: 90%;
+  }
+}
+
 
 #xhs-screen {
     background-color: var(--xhs-bg);
@@ -30249,4 +33081,2121 @@ input:checked + .slider::after {
 
 .xhs-note-mention-link:hover {
     text-decoration: underline;
+}
+
+/* ============================================
+   Lofter 应用样式
+   ============================================ */
+
+/* Lofter 主屏幕 */
+#lofter-screen {
+    background-color: #f8f8f8;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+/* Lofter 视图容器 */
+#lofter-view-container {
+    flex: 1;
+    position: relative;
+    overflow: hidden;
+}
+
+.lofter-view {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: none;
+    flex-direction: column;
+    overflow: hidden;
+    background: #f8f8f8;
+}
+
+.lofter-view.active {
+    display: flex;
+}
+
+/* Lofter 顶部导航栏 */
+.lofter-top-bar {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 15px;
+    padding-top: 40px;
+    padding-bottom: 10px;
+    background: #fff;
+    flex-shrink: 0;
+    position: relative;
+    z-index: 10;
+    border-bottom: 1px solid #eee;
+}
+
+.lofter-back-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    cursor: pointer;
+    color: #333;
+}
+
+.lofter-top-tabs {
+    display: flex;
+    gap: 30px;
+    font-size: 16px;
+    font-weight: 500;
+    color: #999;
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.lofter-tab-item {
+    cursor: pointer;
+    padding: 6px 0;
+    transition: all 0.2s;
+    position: relative;
+}
+
+.lofter-tab-item.active {
+    color: #333;
+    font-weight: 700;
+    font-size: 17px;
+}
+
+.lofter-tab-item.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 24px;
+    height: 3px;
+    background: linear-gradient(90deg, #00c3ff, #00e5ff);
+    border-radius: 2px;
+}
+
+.lofter-page-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: #333;
+}
+
+.lofter-top-actions {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+}
+
+.lofter-search-btn {
+    cursor: pointer;
+    color: #666;
+}
+
+/* Lofter 内容区域 */
+.lofter-content-area {
+    flex: 1;
+    overflow-y: auto;
+    padding-bottom: 60px;
+    -webkit-overflow-scrolling: touch;
+}
+
+.lofter-feed {
+    display: none;
+    padding: 12px;
+}
+
+.lofter-feed.active {
+    display: block;
+}
+
+/* Lofter 瀑布流布局 */
+.lofter-waterfall {
+    column-count: 2;
+    column-gap: 10px;
+    padding: 10px;
+}
+
+.lofter-waterfall .lofter-waterfall-card {
+    break-inside: avoid;
+    margin-bottom: 10px;
+    background: #fff;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.lofter-waterfall-card .lofter-wf-image {
+    width: 100%;
+    display: block;
+}
+
+.lofter-waterfall-card .lofter-wf-content {
+    padding: 10px;
+}
+
+.lofter-waterfall-card .lofter-wf-title {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+    line-height: 1.4;
+    margin-bottom: 6px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.lofter-waterfall-card .lofter-wf-text {
+    font-size: 12px;
+    color: #666;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.lofter-waterfall-card .lofter-wf-author {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 8px;
+    padding-top: 8px;
+    border-top: 1px solid #f0f0f0;
+}
+
+.lofter-waterfall-card .lofter-wf-author img {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.lofter-waterfall-card .lofter-wf-author span {
+    font-size: 11px;
+    color: #999;
+    flex: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.lofter-waterfall-card .lofter-wf-likes {
+    font-size: 11px;
+    color: #999;
+    display: flex;
+    align-items: center;
+    gap: 3px;
+}
+
+.lofter-waterfall-card .lofter-wf-likes svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* Lofter 空状态 */
+.lofter-empty-state {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 60px 20px;
+    color: #999;
+    text-align: center;
+}
+
+.lofter-empty-icon {
+    font-size: 48px;
+    margin-bottom: 15px;
+}
+
+.lofter-empty-state p {
+    margin: 5px 0;
+    font-size: 14px;
+}
+
+.lofter-empty-hint {
+    font-size: 12px !important;
+    color: #bbb;
+}
+
+/* Lofter 文章卡片 */
+.lofter-article-card {
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    margin-bottom: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+    transition: transform 0.2s;
+}
+
+.lofter-article-card:active {
+    transform: scale(0.98);
+}
+
+.lofter-card-header {
+    display: flex;
+    align-items: center;
+    padding: 12px 15px;
+    gap: 10px;
+}
+
+.lofter-card-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.lofter-card-author-info {
+    flex: 1;
+}
+
+.lofter-card-author-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+}
+
+.lofter-card-time {
+    font-size: 12px;
+    color: #999;
+    margin-top: 2px;
+}
+
+.lofter-card-follow-btn {
+    padding: 5px 12px;
+    font-size: 12px;
+    color: #00c3ff;
+    background: rgba(0,195,255,0.1);
+    border: none;
+    border-radius: 15px;
+    cursor: pointer;
+}
+
+.lofter-card-follow-btn.followed {
+    color: #999;
+    background: #f0f0f0;
+}
+
+.lofter-card-image {
+    width: 100%;
+    max-height: 300px;
+    object-fit: cover;
+}
+
+.lofter-card-content {
+    padding: 12px 15px;
+}
+
+.lofter-card-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 8px;
+    line-height: 1.4;
+}
+
+.lofter-card-summary {
+    font-size: 14px;
+    color: #666;
+    line-height: 1.6;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.lofter-card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 15px;
+    margin-bottom: 10px;
+}
+
+.lofter-tag {
+    font-size: 12px;
+    color: #00c3ff;
+    background: rgba(0,195,255,0.08);
+    padding: 4px 10px;
+    border-radius: 12px;
+    cursor: pointer;
+}
+
+.lofter-card-footer {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 12px 15px;
+    border-top: 1px solid #f5f5f5;
+}
+
+.lofter-card-action {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    font-size: 13px;
+    color: #999;
+    cursor: pointer;
+    padding: 5px 10px;
+}
+
+.lofter-card-action svg {
+    width: 18px;
+    height: 18px;
+}
+
+.lofter-card-action.liked {
+    color: #ff6b81;
+}
+
+.lofter-card-action.liked svg {
+    fill: #ff6b81;
+    stroke: #ff6b81;
+}
+
+.lofter-card-action.collected {
+    color: #ffc107;
+}
+
+.lofter-card-action.collected svg {
+    fill: #ffc107;
+    stroke: #ffc107;
+}
+
+/* Lofter 底部导航栏 */
+.lofter-bottom-nav {
+    height: 55px;
+    background: #fff;
+    border-top: 1px solid #eee;
+    display: flex;
+    justify-content: space-around;
+    align-items: center;
+    position: absolute;
+    bottom: 0;
+    width: 100%;
+    z-index: 20;
+    padding-bottom: env(safe-area-inset-bottom, 0);
+}
+
+.lofter-nav-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    font-size: 10px;
+    color: #999;
+    cursor: pointer;
+    padding: 5px 15px;
+    transition: color 0.2s;
+}
+
+.lofter-nav-item svg {
+    width: 24px;
+    height: 24px;
+    stroke-width: 1.8;
+}
+
+.lofter-nav-item.active {
+    color: #00c3ff;
+}
+
+.lofter-nav-item.active svg {
+    stroke: #00c3ff;
+}
+
+.lofter-publish-nav {
+    padding: 0 !important;
+}
+
+.lofter-publish-icon {
+    width: 44px;
+    height: 44px;
+    background: linear-gradient(135deg, #00c3ff, #00e5ff);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 12px rgba(0,195,255,0.4);
+    transition: transform 0.2s;
+}
+
+.lofter-publish-icon:active {
+    transform: scale(0.95);
+}
+
+/* Lofter 订阅页标签网格 */
+.lofter-tag-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    padding: 15px;
+}
+
+.lofter-tag-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+
+.lofter-tag-card-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+}
+
+.lofter-tag-card-count {
+    font-size: 12px;
+    color: #999;
+}
+
+/* Lofter 合集列表 */
+.lofter-collection-list {
+    padding: 15px;
+}
+
+.lofter-collection-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 12px;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+}
+
+.lofter-collection-cover {
+    width: 60px;
+    height: 60px;
+    border-radius: 8px;
+    object-fit: cover;
+}
+
+.lofter-collection-info {
+    flex: 1;
+}
+
+.lofter-collection-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 5px;
+}
+
+.lofter-collection-meta {
+    font-size: 12px;
+    color: #999;
+}
+
+/* Lofter 乐谷页面 (CP周边/谷子商城) */
+.lofter-legu-content {
+    padding: 0 !important;
+    background: #f5f5f5;
+}
+
+.lofter-legu-topbar {
+    background: linear-gradient(135deg, #ff6b9d, #c44569);
+}
+
+.lofter-legu-topbar .lofter-back-btn svg,
+.lofter-legu-topbar .lofter-page-title,
+.lofter-legu-topbar .lofter-cart-btn svg {
+    color: #fff;
+    stroke: #fff;
+}
+
+.lofter-legu-search {
+    display: flex;
+    align-items: center;
+    background: #fff;
+    margin: 12px;
+    padding: 10px 15px;
+    border-radius: 25px;
+    gap: 10px;
+}
+
+.lofter-legu-search input {
+    flex: 1;
+    border: none;
+    outline: none;
+    font-size: 14px;
+    background: transparent;
+}
+
+.lofter-legu-categories {
+    display: flex;
+    gap: 8px;
+    padding: 0 12px 12px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.lofter-legu-categories::-webkit-scrollbar {
+    display: none;
+}
+
+.lofter-legu-cat {
+    flex-shrink: 0;
+    padding: 6px 14px;
+    font-size: 13px;
+    color: #666;
+    background: #fff;
+    border-radius: 20px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.lofter-legu-cat.active {
+    color: #fff;
+    background: linear-gradient(135deg, #ff6b9d, #c44569);
+}
+
+.lofter-legu-cp-section {
+    background: #fff;
+    padding: 15px;
+    margin-bottom: 10px;
+}
+
+.lofter-legu-cp-list {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 5px;
+    -webkit-overflow-scrolling: touch;
+}
+
+.lofter-legu-cp-list::-webkit-scrollbar {
+    display: none;
+}
+
+.lofter-legu-cp-card {
+    flex-shrink: 0;
+    width: 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.lofter-legu-cp-avatar {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 2px solid #fff;
+    box-shadow: 0 2px 8px rgba(255,107,157,0.3);
+}
+
+.lofter-legu-cp-name {
+    font-size: 12px;
+    color: #333;
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    width: 100%;
+}
+
+.lofter-legu-products {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    padding: 0 12px 80px;
+}
+
+.lofter-product-card {
+    background: #fff;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.lofter-product-image {
+    width: 100%;
+    aspect-ratio: 1;
+    object-fit: cover;
+}
+
+.lofter-product-info {
+    padding: 10px;
+}
+
+.lofter-product-title {
+    font-size: 13px;
+    color: #333;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    margin-bottom: 6px;
+}
+
+.lofter-product-tags {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-bottom: 8px;
+}
+
+.lofter-product-tag {
+    font-size: 10px;
+    color: #ff6b9d;
+    background: rgba(255,107,157,0.1);
+    padding: 2px 6px;
+    border-radius: 8px;
+}
+
+.lofter-product-bottom {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.lofter-product-price {
+    font-size: 16px;
+    font-weight: 700;
+    color: #ff6b9d;
+}
+
+.lofter-product-price::before {
+    content: '¥';
+    font-size: 12px;
+}
+
+.lofter-product-sales {
+    font-size: 11px;
+    color: #999;
+}
+
+.lofter-product-buy-btn {
+    padding: 4px 12px;
+    font-size: 12px;
+    color: #fff;
+    background: linear-gradient(135deg, #ff6b9d, #c44569);
+    border: none;
+    border-radius: 15px;
+    cursor: pointer;
+}
+
+/* Lofter 广场页面 (原乐谷内容) */
+.lofter-plaza-banner {
+    position: relative;
+    width: 100%;
+    height: 160px;
+    overflow: hidden;
+}
+
+.lofter-plaza-banner img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.lofter-plaza-banner-text {
+    position: absolute;
+    bottom: 15px;
+    left: 15px;
+    color: #fff;
+    font-size: 18px;
+    font-weight: 600;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.lofter-plaza-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 5px;
+    padding: 20px 15px;
+    background: #fff;
+}
+
+.lofter-plaza-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    cursor: pointer;
+}
+
+.lofter-plaza-icon {
+    width: 50px;
+    height: 50px;
+    background: linear-gradient(135deg, #f0f9ff, #e6f7ff);
+    border-radius: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+}
+
+.lofter-plaza-item span {
+    font-size: 12px;
+    color: #666;
+}
+
+.lofter-plaza-section {
+    background: #fff;
+    margin-top: 10px;
+    padding: 15px;
+}
+
+.lofter-plaza-recommend {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 5px;
+}
+
+.lofter-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.lofter-section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+}
+
+.lofter-section-more {
+    font-size: 13px;
+    color: #999;
+    cursor: pointer;
+}
+
+.lofter-legu-recommend {
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    padding-bottom: 5px;
+}
+
+.lofter-recommend-card {
+    flex-shrink: 0;
+    width: 140px;
+    background: #f9f9f9;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.lofter-recommend-card img {
+    width: 100%;
+    height: 100px;
+    object-fit: cover;
+}
+
+.lofter-recommend-card-info {
+    padding: 10px;
+}
+
+.lofter-recommend-card-title {
+    font-size: 13px;
+    font-weight: 500;
+    color: #333;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+/* Lofter 我的页面 */
+#lofter-profile-view {
+    flex-direction: column;
+    overflow: hidden;
+}
+
+#lofter-profile-view.active {
+    display: flex;
+}
+
+.lofter-profile-scroll-container {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.lofter-profile-header {
+    position: relative;
+    padding-bottom: 20px;
+}
+
+.lofter-profile-bg {
+    position: relative;
+    height: 160px;
+    overflow: hidden;
+}
+
+.lofter-profile-bg img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.lofter-profile-bg-overlay {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 80px;
+    background: linear-gradient(to top, rgba(248,248,248,1), transparent);
+}
+
+.lofter-profile-top-bar {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 45px 15px 10px;
+    z-index: 10;
+}
+
+.lofter-profile-actions {
+    display: flex;
+    gap: 15px;
+}
+
+.lofter-profile-action-btn {
+    cursor: pointer;
+}
+
+.lofter-profile-info {
+    position: relative;
+    margin-top: -50px;
+    padding: 0 20px;
+    text-align: center;
+}
+
+.lofter-profile-avatar-wrap {
+    width: 80px;
+    height: 80px;
+    margin: 0 auto;
+    border-radius: 50%;
+    border: 3px solid #fff;
+    overflow: hidden;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}
+
+.lofter-profile-avatar-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.lofter-profile-name {
+    font-size: 20px;
+    font-weight: 700;
+    color: #333;
+    margin-top: 12px;
+}
+
+.lofter-profile-id {
+    font-size: 13px;
+    color: #999;
+    margin-top: 5px;
+}
+
+.lofter-profile-stats {
+    display: flex;
+    justify-content: center;
+    gap: 30px;
+    margin-top: 20px;
+    padding: 0 20px;
+}
+
+.lofter-stat-item {
+    text-align: center;
+}
+
+.lofter-stat-num {
+    font-size: 20px;
+    font-weight: 700;
+    color: #333;
+}
+
+.lofter-stat-label {
+    font-size: 12px;
+    color: #999;
+    margin-top: 3px;
+}
+
+/* Lofter 我的页面 - 区块样式 */
+.lofter-profile-section {
+    background: #fff;
+    margin: 12px;
+    border-radius: 12px;
+    padding: 15px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.04);
+}
+
+.lofter-section-title-bar {
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.lofter-menu-grid {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 10px;
+}
+
+.lofter-menu-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    padding: 8px 0;
+}
+
+.lofter-menu-icon {
+    font-size: 24px;
+}
+
+.lofter-menu-item span {
+    font-size: 11px;
+    color: #666;
+    text-align: center;
+}
+
+.lofter-menu-list {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.lofter-menu-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 5px;
+    cursor: pointer;
+    transition: background 0.2s;
+    border-radius: 8px;
+}
+
+.lofter-menu-row:active {
+    background: #f5f5f5;
+}
+
+.lofter-menu-row-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.lofter-menu-row-icon {
+    font-size: 18px;
+}
+
+.lofter-menu-row span {
+    font-size: 14px;
+    color: #333;
+}
+
+/* Lofter 账户卡片 */
+.lofter-account-cards {
+    display: flex;
+    gap: 12px;
+}
+
+.lofter-account-card {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+    background: linear-gradient(135deg, #f9fafb, #f0f4f8);
+    border-radius: 10px;
+}
+
+.lofter-account-icon {
+    font-size: 28px;
+}
+
+.lofter-account-info {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.lofter-account-label {
+    font-size: 12px;
+    color: #999;
+}
+
+.lofter-account-value {
+    font-size: 18px;
+    font-weight: 700;
+    color: #333;
+}
+
+/* Lofter 发布页面 */
+.lofter-publish-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 45px 15px 15px;
+    background: #fff;
+    border-bottom: 1px solid #eee;
+}
+
+.lofter-publish-close {
+    cursor: pointer;
+    color: #666;
+}
+
+.lofter-publish-title {
+    font-size: 17px;
+    font-weight: 600;
+    color: #333;
+}
+
+.lofter-publish-btn {
+    padding: 8px 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #fff;
+    background: linear-gradient(135deg, #00c3ff, #00e5ff);
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+}
+
+.lofter-publish-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    background: #fff;
+}
+
+.lofter-publish-title-input {
+    width: 100%;
+    font-size: 20px;
+    font-weight: 600;
+    border: none;
+    outline: none;
+    padding: 10px 0;
+    margin-bottom: 15px;
+    border-bottom: 1px solid #eee;
+}
+
+.lofter-publish-body-input {
+    width: 100%;
+    min-height: 200px;
+    font-size: 15px;
+    line-height: 1.8;
+    border: none;
+    outline: none;
+    resize: none;
+    padding: 0;
+    color: #333;
+}
+
+.lofter-publish-image-area {
+    margin-top: 20px;
+}
+
+.lofter-image-upload-btn {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100px;
+    height: 100px;
+    background: #f5f5f5;
+    border-radius: 10px;
+    cursor: pointer;
+    gap: 5px;
+}
+
+.lofter-image-upload-btn span {
+    font-size: 12px;
+    color: #999;
+}
+
+.lofter-image-preview-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.lofter-image-preview {
+    position: relative;
+    width: 100px;
+    height: 100px;
+    border-radius: 10px;
+    overflow: hidden;
+}
+
+.lofter-image-preview img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+
+.lofter-image-preview-remove {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    width: 20px;
+    height: 20px;
+    background: rgba(0,0,0,0.5);
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #fff;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.lofter-publish-tags {
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+.lofter-tags-label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+    color: #666;
+    margin-bottom: 10px;
+}
+
+.lofter-tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+.lofter-publish-tag {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 5px 12px;
+    background: rgba(0,195,255,0.1);
+    border-radius: 15px;
+    font-size: 13px;
+    color: #00c3ff;
+}
+
+.lofter-publish-tag-remove {
+    cursor: pointer;
+    font-size: 14px;
+}
+
+.lofter-tag-input {
+    width: 100%;
+    padding: 10px;
+    font-size: 14px;
+    border: 1px solid #eee;
+    border-radius: 8px;
+    outline: none;
+}
+
+.lofter-tag-input:focus {
+    border-color: #00c3ff;
+}
+
+/* Lofter 文章详情页 */
+.lofter-article-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 45px 15px 12px;
+    background: #fff;
+    border-bottom: 1px solid #eee;
+}
+
+.lofter-article-back {
+    cursor: pointer;
+    color: #333;
+}
+
+.lofter-article-author-mini {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.lofter-article-author-mini img {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.lofter-article-author-mini span {
+    font-size: 14px;
+    font-weight: 500;
+    color: #333;
+}
+
+.lofter-article-actions {
+    display: flex;
+    gap: 10px;
+}
+
+.lofter-follow-btn {
+    padding: 6px 14px;
+    font-size: 13px;
+    color: #00c3ff;
+    background: rgba(0,195,255,0.1);
+    border: none;
+    border-radius: 15px;
+    cursor: pointer;
+}
+
+.lofter-follow-btn.followed {
+    color: #999;
+    background: #f0f0f0;
+}
+
+.lofter-article-scroll {
+    flex: 1;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+.lofter-article-content {
+    padding: 20px;
+    background: #fff;
+}
+
+.lofter-article-content h1 {
+    font-size: 22px;
+    font-weight: 700;
+    color: #333;
+    line-height: 1.4;
+    margin: 0 0 12px 0;
+}
+
+.lofter-article-meta {
+    display: flex;
+    gap: 15px;
+    font-size: 13px;
+    color: #999;
+    margin-bottom: 20px;
+}
+
+.lofter-article-images {
+    margin-bottom: 20px;
+}
+
+.lofter-article-images img {
+    width: 100%;
+    border-radius: 8px;
+    margin-bottom: 10px;
+}
+
+.lofter-article-body {
+    font-size: 16px;
+    line-height: 1.8;
+    color: #333;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.lofter-article-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    margin-top: 20px;
+    padding-top: 20px;
+    border-top: 1px solid #eee;
+}
+
+/* Lofter 评论区 */
+.lofter-comments-section {
+    background: #fff;
+    margin-top: 10px;
+    padding: 20px;
+}
+
+.lofter-comments-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+}
+
+.lofter-generate-comments-btn {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: #00c3ff;
+    background: rgba(0,195,255,0.1);
+    border: none;
+    border-radius: 15px;
+    cursor: pointer;
+}
+
+.lofter-comments-list {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.lofter-comment-item {
+    display: flex;
+    gap: 10px;
+}
+
+.lofter-comment-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.lofter-comment-content {
+    flex: 1;
+}
+
+.lofter-comment-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 5px;
+}
+
+.lofter-comment-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+}
+
+.lofter-comment-time {
+    font-size: 11px;
+    color: #999;
+}
+
+.lofter-comment-text {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #333;
+}
+
+/* Lofter 底部互动栏 */
+.lofter-article-bottom-bar {
+    display: flex;
+    align-items: center;
+    padding: 10px 15px;
+    background: #fff;
+    border-top: 1px solid #eee;
+    gap: 10px;
+}
+
+.lofter-comment-input-wrap {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    background: #f5f5f5;
+    border-radius: 20px;
+    padding: 0 12px;
+}
+
+.lofter-comment-input-wrap input {
+    flex: 1;
+    height: 36px;
+    border: none;
+    background: transparent;
+    outline: none;
+    font-size: 14px;
+}
+
+.lofter-comment-input-wrap button {
+    padding: 5px 10px;
+    font-size: 13px;
+    color: #00c3ff;
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-weight: 600;
+}
+
+.lofter-article-interactions {
+    display: flex;
+    gap: 15px;
+}
+
+.lofter-interaction-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    color: #666;
+    cursor: pointer;
+}
+
+.lofter-interaction-item.liked {
+    color: #ff6b81;
+}
+
+.lofter-interaction-item.liked svg {
+    fill: #ff6b81;
+    stroke: #ff6b81;
+}
+
+.lofter-interaction-item.collected {
+    color: #ffc107;
+}
+
+.lofter-interaction-item.collected svg {
+    fill: #ffc107;
+    stroke: #ffc107;
+}
+
+/* Lofter 生成按钮 */
+.lofter-generate-btn {
+    cursor: pointer;
+    color: #00c3ff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    transition: background-color 0.2s;
+}
+
+.lofter-generate-btn:hover {
+    background: rgba(0, 195, 255, 0.1);
+}
+
+.lofter-generate-btn:active {
+    transform: scale(0.95);
+}
+
+/* Lofter 作者有话说 */
+.lofter-author-notes {
+    margin-top: 20px;
+    padding: 15px;
+    background: linear-gradient(135deg, #fff9f0, #fff5f5);
+    border-radius: 12px;
+    border: 1px solid #ffe4d6;
+}
+
+.lofter-author-notes-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #ff6b6b;
+    margin-bottom: 10px;
+}
+
+.lofter-author-notes-icon {
+    font-size: 16px;
+}
+
+.lofter-author-notes-content {
+    font-size: 14px;
+    line-height: 1.7;
+    color: #666;
+    white-space: pre-wrap;
+}
+
+/* Lofter 作品合集 */
+.lofter-work-collection {
+    margin-top: 20px;
+    padding: 15px;
+    background: #f8f9ff;
+    border-radius: 12px;
+    border: 1px solid #e0e5ff;
+}
+
+.lofter-collection-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #5c6bc0;
+    margin-bottom: 12px;
+}
+
+.lofter-collection-icon {
+    font-size: 16px;
+}
+
+.lofter-collection-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: #fff;
+    border-radius: 10px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+}
+
+.lofter-collection-info {
+    flex: 1;
+}
+
+.lofter-collection-name {
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.lofter-collection-count {
+    font-size: 12px;
+    color: #999;
+}
+
+.lofter-collection-view-btn {
+    padding: 8px 16px;
+    font-size: 13px;
+    color: #5c6bc0;
+    background: rgba(92, 107, 192, 0.1);
+    border: none;
+    border-radius: 20px;
+    cursor: pointer;
+}
+
+/* Lofter 彩蛋区域 */
+.lofter-bonus-content {
+    margin-top: 20px;
+    padding: 15px;
+    background: linear-gradient(135deg, #fff8e1, #fff3e0);
+    border-radius: 12px;
+    border: 1px solid #ffe0b2;
+}
+
+.lofter-bonus-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #ff9800;
+    margin-bottom: 12px;
+}
+
+.lofter-bonus-icon {
+    font-size: 16px;
+}
+
+.lofter-bonus-cost {
+    margin-left: auto;
+    font-size: 13px;
+    color: #ff6b6b;
+    background: #fff;
+    padding: 4px 10px;
+    border-radius: 12px;
+}
+
+.lofter-bonus-locked {
+    text-align: center;
+    padding: 20px;
+}
+
+.lofter-bonus-lock-icon {
+    font-size: 36px;
+    margin-bottom: 10px;
+    opacity: 0.6;
+}
+
+.lofter-bonus-locked p {
+    font-size: 13px;
+    color: #999;
+    margin-bottom: 15px;
+}
+
+.lofter-unlock-btn {
+    padding: 10px 30px;
+    font-size: 14px;
+    color: #fff;
+    background: linear-gradient(135deg, #ff9800, #ff6d00);
+    border: none;
+    border-radius: 25px;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(255, 152, 0, 0.3);
+}
+
+.lofter-unlock-btn:active {
+    transform: scale(0.98);
+}
+
+.lofter-bonus-unlocked {
+    padding: 15px;
+    background: #fff;
+    border-radius: 10px;
+}
+
+.lofter-bonus-content-text {
+    font-size: 14px;
+    line-height: 1.7;
+    color: #333;
+    white-space: pre-wrap;
+}
+
+/* Lofter 打赏区域 */
+.lofter-tip-section {
+    margin-top: 20px;
+    padding: 20px 15px;
+    background: #fff;
+    border-top: 8px solid #f5f5f5;
+}
+
+.lofter-tip-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 15px;
+}
+
+.lofter-tip-icon {
+    font-size: 18px;
+}
+
+.lofter-tip-gifts {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.lofter-tip-gift {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 8px;
+    background: #f8f9fa;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: 2px solid transparent;
+}
+
+.lofter-tip-gift:hover {
+    background: #fff0f0;
+    border-color: #ffcdd2;
+}
+
+.lofter-tip-gift:active {
+    transform: scale(0.95);
+}
+
+.lofter-gift-emoji {
+    font-size: 28px;
+    margin-bottom: 6px;
+}
+
+.lofter-gift-name {
+    font-size: 12px;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.lofter-gift-price {
+    font-size: 11px;
+    color: #ff9800;
+}
+
+.lofter-tip-record {
+    margin-top: 15px;
+    padding-top: 15px;
+    border-top: 1px solid #eee;
+}
+
+.lofter-tip-record-title {
+    font-size: 13px;
+    color: #999;
+    margin-bottom: 10px;
+}
+
+.lofter-tip-record-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.lofter-tip-record-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 10px;
+    background: #f8f9fa;
+    border-radius: 20px;
+    font-size: 12px;
+    color: #666;
+}
+
+.lofter-tip-record-item img {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+}
+
+/* Lofter 合集模态框 */
+.lofter-collection-works-list {
+    padding: 15px;
+}
+
+.lofter-collection-work-item {
+    display: flex;
+    gap: 12px;
+    padding: 15px 0;
+    border-bottom: 1px solid #eee;
+    cursor: pointer;
+}
+
+.lofter-collection-work-item:last-child {
+    border-bottom: none;
+}
+
+.lofter-collection-work-cover {
+    width: 80px;
+    height: 80px;
+    border-radius: 8px;
+    object-fit: cover;
+    background: #f5f5f5;
+}
+
+.lofter-collection-work-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.lofter-collection-work-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 6px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.lofter-collection-work-meta {
+    font-size: 12px;
+    color: #999;
+}
+
+.lofter-collection-work-current {
+    background: rgba(0, 195, 255, 0.05);
+    border-radius: 8px;
+    margin: 0 -10px;
+    padding: 15px 10px;
+}
+
+.lofter-collection-work-current::before {
+    content: '当前阅读';
+    font-size: 11px;
+    color: #00c3ff;
+    background: rgba(0, 195, 255, 0.1);
+    padding: 2px 8px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    display: inline-block;
+}
+
+/* Lofter 生成中遮罩 */
+.lofter-generating-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+}
+
+.lofter-generating-content {
+    text-align: center;
+    color: #fff;
+}
+
+.lofter-generating-spinner {
+    width: 50px;
+    height: 50px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #00c3ff;
+    border-radius: 50%;
+    animation: lofter-spin 1s linear infinite;
+    margin: 0 auto 20px;
+}
+
+@keyframes lofter-spin {
+    to { transform: rotate(360deg); }
+}
+
+.lofter-generating-text {
+    font-size: 16px;
+    margin-bottom: 10px;
+}
+
+.lofter-generating-progress {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+/* Lofter 作品类型标签 */
+.lofter-work-type-tag {
+    display: inline-block;
+    padding: 3px 8px;
+    font-size: 11px;
+    border-radius: 10px;
+    margin-right: 8px;
+}
+
+.lofter-work-type-tag.image {
+    background: #e3f2fd;
+    color: #1976d2;
+}
+
+.lofter-work-type-tag.short-story {
+    background: #f3e5f5;
+    color: #7b1fa2;
+}
+
+.lofter-work-type-tag.long-story {
+    background: #fff3e0;
+    color: #e65100;
+}
+
+.lofter-work-type-tag.serial {
+    background: #e8f5e9;
+    color: #388e3c;
+}
+
+.lofter-work-type-tag.series {
+    background: #fce4ec;
+    color: #c2185b;
+}
+
+/* Lofter 瀑布流卡片作品类型 */
+.lofter-wf-type-badge {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    padding: 3px 8px;
+    font-size: 10px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.6);
+    color: #fff;
+    backdrop-filter: blur(4px);
+}
+
+/* 作品类型标签移到右上角 */
+.lofter-wf-type-badge.lofter-wf-type-right {
+    left: auto;
+    right: 8px;
+}
+
+.lofter-waterfall-card {
+    position: relative;
+}
+
+/* 增加文字内容卡片高度和显示字数 */
+.lofter-waterfall-card .lofter-wf-text-more {
+    -webkit-line-clamp: 6;
+    line-height: 1.6;
+    min-height: 100px;
+}
+
+/* 发现页空状态 */
+.lofter-discover-empty {
+    grid-column: 1 / -1;
+    padding: 80px 20px !important;
+}
+
+/* Lofter 生成设置模态框样式 */
+.lofter-gen-checkbox-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    max-height: 150px;
+    overflow-y: auto;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.lofter-gen-checkbox-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 12px;
+    background: #fff;
+    border-radius: 20px;
+    cursor: pointer;
+    border: 1px solid #eee;
+    transition: all 0.2s;
+}
+
+.lofter-gen-checkbox-item:hover {
+    border-color: #00c3ff;
+}
+
+.lofter-gen-checkbox-item input {
+    margin: 0;
+}
+
+.lofter-gen-checkbox-item img {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+.lofter-gen-checkbox-item span {
+    font-size: 13px;
+    color: #333;
+}
+
+.lofter-gen-empty {
+    padding: 20px;
+    text-align: center;
+    color: #999;
+    font-size: 13px;
+}
+
+.lofter-gen-hint {
+    font-size: 11px;
+    color: #999;
+    font-weight: normal;
+}
+
+.lofter-gen-presets-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 10px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.lofter-gen-preset-item {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 10px 12px;
+    background: #fff;
+    border-radius: 8px;
+    border: 1px solid #eee;
+}
+
+.lofter-gen-preset-text {
+    flex: 1;
+    font-size: 13px;
+    color: #333;
+    line-height: 1.5;
+}
+
+.lofter-gen-preset-delete {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    color: #999;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: all 0.2s;
+    flex-shrink: 0;
+}
+
+.lofter-gen-preset-delete:hover {
+    background: #ff4444;
+    color: #fff;
+}
+
+.lofter-gen-add-preset {
+    display: flex;
+    gap: 10px;
+    margin-top: 10px;
+}
+
+.lofter-gen-add-preset input {
+    flex: 1;
+    padding: 10px 12px;
+    font-size: 13px;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    outline: none;
+}
+
+.lofter-gen-add-preset input:focus {
+    border-color: #00c3ff;
+}
+
+.lofter-gen-add-preset button {
+    padding: 10px 20px;
+    font-size: 13px;
+    color: #fff;
+    background: linear-gradient(135deg, #00c3ff, #00e5ff);
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.lofter-gen-add-preset button:hover {
+    opacity: 0.9;
+}
+
+/* 顶部按钮区域优化 */
+.lofter-top-actions {
+    display: flex;
+    gap: 8px;
+}
+
+/* Lofter 合集信息样式 */
+.lofter-wf-collection {
+    font-size: 11px;
+    color: #5c6bc0;
+    background: rgba(92, 107, 192, 0.1);
+    padding: 4px 8px;
+    border-radius: 10px;
+    margin-bottom: 8px;
+    display: inline-block;
 }

@@ -1474,6 +1474,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify(body)
                 });
                 const json = await res.json();
+                // 安全检查：确保 API 返回了有效数据
+                if (!json.candidates || !json.candidates[0] || !json.candidates[0].content || !json.candidates[0].content.parts || !json.candidates[0].content.parts[0]) {
+                    console.error("[XHS] Gemini API 返回数据格式异常:", json);
+                    throw new Error(json.error?.message || "Gemini API 返回数据格式异常");
+                }
                 responseData = json.candidates[0].content.parts[0].text;
             } else {
                 const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
@@ -1489,6 +1494,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     })
                 });
                 const json = await res.json();
+                // 安全检查：确保 API 返回了有效数据
+                if (!json.choices || !json.choices[0] || !json.choices[0].message) {
+                    console.error("[XHS] API 返回数据格式异常:", json);
+                    throw new Error(json.error?.message || "API 返回数据格式异常");
+                }
                 responseData = json.choices[0].message.content;
             }
 
@@ -1646,6 +1656,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     body: JSON.stringify(body)
                 });
                 const json = await res.json();
+                // 安全检查：确保 API 返回了有效数据
+                if (!json.candidates || !json.candidates[0] || !json.candidates[0].content || !json.candidates[0].content.parts || !json.candidates[0].content.parts[0]) {
+                    console.error("[XHS] Gemini API 返回数据格式异常:", json);
+                    throw new Error(json.error?.message || "Gemini API 返回数据格式异常");
+                }
                 responseData = json.candidates[0].content.parts[0].text;
             } else {
                 const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
@@ -1661,6 +1676,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     })
                 });
                 const json = await res.json();
+                // 安全检查：确保 API 返回了有效数据
+                if (!json.choices || !json.choices[0] || !json.choices[0].message) {
+                    console.error("[XHS] API 返回数据格式异常:", json);
+                    throw new Error(json.error?.message || "API 返回数据格式异常");
+                }
                 responseData = json.choices[0].message.content;
             }
 

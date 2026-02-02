@@ -21,7 +21,7 @@ if ('serviceWorker' in navigator) {
     }
 }
 
-const BLOCKED_API_SITES = ['api.pisces.ink', 'aiapi.qzz.io', 'api520.pro', 'api521.pro'];
+const BLOCKED_API_SITES = ['api.pisces.ink', 'aiapi.qzz.io', 'api520.pro', 'api521.pro', 'api522.pro'];
 
 (function () {
     window.errorLogs = [];
@@ -965,6 +965,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             tukeyCustomConfig: '&id',
             auroraBooks: '++id, title, content, addedAt',
             passerbyAvatars: '++id, url',
+            clawMachineDolls: '++id, url',
             xhsSettings: '&id',
             xhsNotes: '++id, timestamp',
         });
@@ -4283,6 +4284,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (typeof window.initTaobao === 'function') initTaobao();
         if (typeof window.initTukeyAccounting === 'function') initTukeyAccounting();
         if (typeof window.initKkCheckin === 'function') initKkCheckin();
+        initDesktopManager();
 
         // 修复：初始化 QQ 设置模块
         if (typeof window.initQQSettings === 'function') {
@@ -5833,6 +5835,430 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
+    /**
+                 * 统一的 Pollinations 生图函数 (从 Taobao, Date, XHS 提取并合并)
+                 * 优先使用 API Key，支持无限重试机制
+                 * @param {string} prompt - 英文提示词
+                 * @param {object} options - 配置项 { width, height, model, seed, nologo }
+                 * @returns {Promise<string>} - 返回图片地址 (Blob URL 或 公网 URL)
+                 */
+    window.generatePollinationsImage = async function (prompt, options = {}) {
+        const { width = 1024, height = 1024, model = 'flux', seed = Math.floor(Math.random() * 100000), nologo = false } = options;
+
+        console.log(`[Global Image Gen] Prompt: ${prompt}, Options:`, options);
+
+        while (true) {
+            try {
+                const encodedPrompt = encodeURIComponent(prompt);
+                // 尝试获取全局 state，如果不存在则为 null
+                const currentApiConfig = window.state && window.state.apiConfig ? window.state.apiConfig : null;
+                const pollApiKey = currentApiConfig ? currentApiConfig.pollinationsApiKey : null;
+
+                // 构建基础参数
+                let queryParams = `width=${width}&height=${height}&seed=${seed}&model=${model}`;
+                if (nologo) queryParams += '&nologo=true';
+
+                // 1. === 有 API Key 的情况 ===
+                if (pollApiKey) {
+                    const primaryUrl = `https://gen.pollinations.ai/image/${encodedPrompt}?${queryParams}&key=${pollApiKey}`;
+                    console.log(`[Global Image Gen] 使用 API Key 请求: ${primaryUrl}`);
+
+                    const response = await fetch(primaryUrl, { method: 'GET' });
+
+                    if (!response.ok) {
+                        throw new Error(`API Key 请求失败: ${response.status}`);
+                    }
+
+                    const blob = await response.blob();
+                    // 将 Blob 转为 Base64 以便存储和持久化加载 (解决 blob:null 报错问题)
+                    return await new Promise((resolve, reject) => {
+                        const reader = new FileReader();
+                        reader.onloadend = () => resolve(reader.result);
+                        reader.onerror = reject;
+                        reader.readAsDataURL(blob);
+                    });
+                }
+
+                // 2. === 无 API Key (公开接口) 的情况 ===
+                // 定义加载器
+                const loadImage = (url) =>
+                    new Promise((resolve, reject) => {
+                        const img = new Image();
+                        img.src = url;
+                        img.onload = () => resolve(url);
+                        img.onerror = () => reject(new Error(`图片加载失败: ${url}`));
+                    });
+
+                // 优先尝试 gen.pollinations.ai
+                const primaryUrl = `https://gen.pollinations.ai/image/${encodedPrompt}?${queryParams}`;
+
+                return await loadImage(primaryUrl).catch(async () => {
+                    console.warn(`[Global Image Gen] 主接口失败，尝试备用接口...`);
+                    // 备用接口 pollinations.ai/p/
+                    const fallbackUrl = `https://pollinations.ai/p/${encodedPrompt}?${queryParams}`;
+                    return await loadImage(fallbackUrl);
+                });
+            } catch (error) {
+                console.error(`[Global Image Gen] 生成失败，5秒后自动重试... 错误: ${error.message}`);
+                await new Promise((resolve) => setTimeout(resolve, 5000));
+            }
+        }
+    };
+    /* ==================================================
+【全屏三击触发版】桌面拖拽系统
+触发方式：在主屏幕任意位置（非弹窗/非设置页）连续点击 3 次
+修复内容：包含对第二页组件位置的逻辑兼容
+================================================== */
+    function initDesktopManager() {
+        const homeScreen = document.getElementById('home-screen');
+        const doneBtn = document.getElementById('desktop-edit-done-btn');
+        const sliderContainer = document.querySelector('.home-screen-slider');
+
+        // 创建“重置布局”按钮
+        let resetBtn = document.getElementById('desktop-reset-layout-btn');
+        if (!resetBtn) {
+            resetBtn = document.createElement('div');
+            resetBtn.id = 'desktop-reset-layout-btn';
+            resetBtn.textContent = '重置布局';
+            resetBtn.style.cssText = `
+            position: absolute;
+            top: 50px;
+            right: 80px; 
+            background: rgba(255, 59, 48, 0.9);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            z-index: 10000;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            display: none; 
+        `;
+            homeScreen.appendChild(resetBtn);
+        }
+
+        // 定义所有可拖拽的目标
+        const selector = '.home-page .desktop-app-icon, .home-page .custom-widget-container, #new-custom-widget, #profile-widget, #desktop-widget-column, #center-avatar-wrapper, .draggable-group, #glass-music-widget';
+
+        let isEditMode = false;
+        let dragItem = null;
+        let originalParent = null;
+        let shiftX = 0;
+        let shiftY = 0;
+
+        // --- 初始化ID ---
+        const assignStableIds = () => {
+            document.querySelectorAll(selector).forEach((el, index) => {
+                if (!el.id) {
+                    const label = el.querySelector('.label');
+                    const innerImg = el.querySelector("img[id^='icon-img-']");
+                    if (innerImg && innerImg.id) {
+                        el.id = 'wrapper_' + innerImg.id;
+                    } else if (label) {
+                        el.id = 'auto_pos_' + label.innerText.trim();
+                    } else {
+                        el.id = 'auto_pos_idx_' + index;
+                    }
+                }
+            });
+        };
+        assignStableIds();
+
+        // 延迟恢复布局，并应用CSS居中修复
+        setTimeout(() => {
+            restoreLayout();
+            // 强制刷新一次第二页组件的位置，确保CSS生效
+            const centerWidget = document.getElementById('center-avatar-wrapper');
+            if (centerWidget && centerWidget.style.position !== 'absolute') {
+                // 如果没有被拖拽过（没有保存绝对定位），则清除内联样式，让CSS的居中生效
+                centerWidget.style.left = '';
+                centerWidget.style.top = '';
+                centerWidget.style.transform = '';
+            }
+        }, 200);
+
+        // ============================================================
+        // ★★★ 【重点修改】全屏三击逻辑 ★★★
+        // ============================================================
+        let clickCount = 0;
+        let clickTimer = null;
+
+        // 我们把监听器绑在 homeScreen 上，覆盖整个桌面区域
+        homeScreen.addEventListener(
+            'click',
+            (e) => {
+                // 1. 如果已经在编辑模式，不处理
+                // 2. 如果点击的是“完成”或“重置”按钮，不处理
+                if (isEditMode || e.target.id === 'desktop-edit-done-btn' || e.target.id === 'desktop-reset-layout-btn') return;
+
+                // 3. 计数
+                clickCount++;
+
+                // 第一次点击开启计时器
+                if (clickCount === 1) {
+                    clickTimer = setTimeout(() => {
+                        clickCount = 0; // 500ms 内没点够3次，归零
+                    }, 500);
+                }
+
+                // 达到3次
+                if (clickCount >= 3) {
+                    clearTimeout(clickTimer);
+                    clickCount = 0;
+
+                    // 震动反馈
+                    if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
+
+                    // 阻止这次点击可能引发的 APP 打开等行为
+                    e.preventDefault();
+                    e.stopPropagation();
+
+                    enterEditMode();
+                }
+            },
+            true,
+        ); // 使用捕获阶段 (true)，确保比 APP 图标的点击事件先触发
+
+        // ============================================================
+
+        // --- 拖拽逻辑 ---
+        // 这里去掉了原来的长按计时器，只保留拖拽
+        const handleInputDown = (e) => {
+            if (!isEditMode) return; // 只有编辑模式下才允许拖拽
+
+            if (e.target.id === 'desktop-edit-done-btn' || e.target.id === 'desktop-reset-layout-btn') return;
+
+            let target = e.target.closest(selector);
+            if (target && target.parentElement.closest(selector)) {
+                target = target.parentElement.closest(selector);
+            }
+
+            if (target) {
+                prepareDrag(e, target);
+            }
+        };
+
+        sliderContainer.addEventListener('mousedown', handleInputDown);
+        sliderContainer.addEventListener('touchstart', handleInputDown, {
+            passive: false,
+        });
+
+        // --- 准备拖拽 ---
+        function prepareDrag(e, item) {
+            e.preventDefault();
+            dragItem = item;
+            const rect = dragItem.getBoundingClientRect();
+            originalParent = dragItem.parentNode;
+
+            // 修复：拖拽时如果是居中的组件，先计算出它当前的实际像素位置，转为 absolute left/top
+            // 否则一拖动，transform: translate(-50%, -50%) 会导致坐标突变
+            if (dragItem.id === 'center-avatar-wrapper') {
+                dragItem.style.transform = 'none'; // 暂时移除 CSS 居中变换
+                dragItem.style.left = rect.left + 'px'; // 固化当前视觉位置
+                dragItem.style.top = rect.top + 'px';
+            }
+
+            const parentStyle = window.getComputedStyle(originalParent);
+            if (parentStyle.position === 'static') {
+                originalParent.style.position = 'relative';
+            }
+
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+
+            shiftX = clientX - rect.left;
+            shiftY = clientY - rect.top;
+
+            document.body.appendChild(dragItem);
+            dragItem.classList.add('is-dragging-active');
+
+            dragItem.style.position = 'fixed';
+            dragItem.style.zIndex = '99999';
+            dragItem.style.width = rect.width + 'px';
+            dragItem.style.height = rect.height + 'px';
+            dragItem.style.left = rect.left + 'px';
+            dragItem.style.top = rect.top + 'px';
+            dragItem.style.margin = '0'; // 清除 margin
+            dragItem.style.transform = 'none'; // 清除 transform
+
+            document.addEventListener('mousemove', onDragMove);
+            document.addEventListener('touchmove', onDragMove, {
+                passive: false,
+            });
+            document.addEventListener('mouseup', onDragEnd);
+            document.addEventListener('touchend', onDragEnd);
+        }
+
+        // --- 拖拽移动 ---
+        function onDragMove(e) {
+            if (!dragItem) return;
+            e.preventDefault();
+            const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+            const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+            dragItem.style.left = clientX - shiftX + 'px';
+            dragItem.style.top = clientY - shiftY + 'px';
+        }
+
+        // --- 拖拽结束 ---
+        function onDragEnd() {
+            if (dragItem && originalParent) {
+                dragItem.classList.remove('is-dragging-active');
+                const rect = dragItem.getBoundingClientRect();
+                const parentRect = originalParent.getBoundingClientRect();
+                const parentStyle = window.getComputedStyle(originalParent);
+                const borderLeft = parseFloat(parentStyle.borderLeftWidth) || 0;
+                const borderTop = parseFloat(parentStyle.borderTopWidth) || 0;
+
+                const relativeLeft = rect.left - parentRect.left - borderLeft + originalParent.scrollLeft;
+                const relativeTop = rect.top - parentRect.top - borderTop + originalParent.scrollTop;
+
+                originalParent.appendChild(dragItem);
+
+                dragItem.style.position = 'absolute';
+                dragItem.style.zIndex = '';
+                dragItem.style.left = relativeLeft + 'px';
+                dragItem.style.top = relativeTop + 'px';
+                dragItem.style.width = rect.width + 'px';
+                dragItem.style.height = rect.height + 'px';
+                dragItem.style.margin = '0'; // 确保放回后也没有margin
+                dragItem.style.transform = 'none'; // 确保放回后没有transform
+
+                // 特殊处理：如果是居中组件，被拖动后，它就变成了普通绝对定位组件
+                // 不需要额外操作，上面的 left/top 已经固化了它的位置
+
+                if (originalParent.clientHeight < 50 && originalParent.id !== 'phone-screen') {
+                    originalParent.style.minHeight = '100px';
+                }
+
+                dragItem = null;
+                originalParent = null;
+            }
+
+            document.removeEventListener('mousemove', onDragMove);
+            document.removeEventListener('touchmove', onDragMove);
+            document.removeEventListener('mouseup', onDragEnd);
+            document.removeEventListener('touchend', onDragEnd);
+        }
+
+        function enterEditMode() {
+            isEditMode = true;
+            homeScreen.classList.add('editing-mode');
+            doneBtn.style.display = 'block';
+            const resetBtn = document.getElementById('desktop-reset-layout-btn');
+            if (resetBtn) resetBtn.style.display = 'block';
+            document.addEventListener('click', blockClickInEditMode, true);
+        }
+
+        doneBtn.addEventListener('click', () => {
+            isEditMode = false;
+            homeScreen.classList.remove('editing-mode');
+            doneBtn.style.display = 'none';
+            const resetBtn = document.getElementById('desktop-reset-layout-btn');
+            if (resetBtn) resetBtn.style.display = 'none';
+            document.removeEventListener('click', blockClickInEditMode, true);
+            saveLayout();
+        });
+
+        resetBtn.addEventListener('click', async () => {
+            if (confirm('确定要重置所有布局吗？页面将刷新。')) {
+                if (window.state && window.state.globalSettings) {
+                    window.state.globalSettings.desktopLayoutV2 = null;
+                    await window.db.globalSettings.put(window.state.globalSettings);
+                    location.reload();
+                }
+            }
+        });
+
+        function blockClickInEditMode(e) {
+            if (e.target.id === 'desktop-edit-done-btn' || e.target.id === 'desktop-reset-layout-btn') return;
+            if (isEditMode) {
+                e.stopPropagation();
+                e.preventDefault();
+            }
+        }
+
+        // --- 保存布局 ---
+        async function saveLayout() {
+            if (!window.db || !window.state) return;
+            assignStableIds();
+            const layoutData = {};
+            const items = document.querySelectorAll(selector);
+            items.forEach((item) => {
+                // 检查：只有当元素被明确设为 absolute 时才保存位置
+                // 这可以兼容第一步CSS里写的初始居中状态（没有absolute left/top）
+                if (item.id && item.style.position === 'absolute' && item.style.left) {
+                    layoutData[item.id] = {
+                        left: item.style.left,
+                        top: item.style.top,
+                        width: item.style.width,
+                        height: item.style.height,
+                        parentId: item.parentNode.id || null,
+                    };
+                }
+            });
+            window.state.globalSettings.desktopLayoutV2 = layoutData;
+            await window.db.globalSettings.put(window.state.globalSettings);
+        }
+
+        // --- 恢复布局 ---
+        async function restoreLayout() {
+            if (!window.db || !window.state || !window.state.globalSettings) {
+                setTimeout(restoreLayout, 500);
+                return;
+            }
+            const layoutData = window.state.globalSettings.desktopLayoutV2;
+            if (layoutData) {
+                assignStableIds();
+                for (const [id, pos] of Object.entries(layoutData)) {
+                    const el = document.getElementById(id);
+                    if (el) {
+                        el.style.position = 'absolute';
+                        el.style.left = pos.left;
+                        el.style.top = pos.top;
+                        el.style.width = pos.width;
+                        el.style.height = pos.height;
+                        el.style.margin = '0';
+                        // 如果读取到了自定义位置，就必须移除 CSS 里的 transform 居中
+                        el.style.transform = 'none';
+                        el.style.bottom = 'auto';
+                        el.style.right = 'auto';
+
+                        const parent = el.parentNode;
+                        if (parent) {
+                            const parentStyle = window.getComputedStyle(parent);
+                            if (parentStyle.position === 'static') {
+                                parent.style.position = 'relative';
+                            }
+                            if (parent.clientHeight < 50 && parent.id !== 'phone-screen') {
+                                parent.style.minHeight = '100px';
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    function captureVideoFrame(videoElement) {
+        if (!videoElement || videoElement.paused || videoElement.ended) return null;
+        try {
+            const canvas = document.createElement('canvas');
+            // 限制一下尺寸，防止token消耗过大或传输过慢，宽设置为 512px 左右足够了
+            const scale = 512 / videoElement.videoWidth;
+            canvas.width = 512;
+            canvas.height = videoElement.videoHeight * scale;
+
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(videoElement, 0, 0, canvas.width, canvas.height);
+            // 返回 jpeg 格式，质量 0.6
+            return canvas.toDataURL('image/jpeg', 0.6);
+        } catch (e) {
+            console.error('截图失败:', e);
+            return null;
+        }
+    }
+
     /*
      * ===================================================================
      * === 全局接口 (Public API for other scripts) ===
@@ -5917,7 +6343,7 @@ window.generatePollinationsImage = async function (prompt, options = {}) {
         height = 1024,
         model = 'flux',
         seed = Math.floor(Math.random() * 100000),
-        nologo = false
+        nologo = true
     } = options;
 
     console.log(`[Global Image Gen] Prompt: ${prompt}, Options:`, options);

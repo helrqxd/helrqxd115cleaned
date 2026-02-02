@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 2. DOM 元素获取 (为提高性能，一次性获取)
     // ===================================================================
     const studioAppIcon = document.getElementById('studio-app-icon');
+    const studioAppIconPage3 = document.getElementById('studio-app-icon-page3'); // 第三页的按钮
     const addScriptBtn = document.getElementById('add-studio-script-btn');
     const backFromEditorBtn = document.getElementById('back-from-studio-editor');
     const saveScriptBtn = document.getElementById('save-studio-script-btn');
@@ -834,6 +835,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // ===================================================================
     if (studioAppIcon) {
         studioAppIcon.addEventListener('click', showStudioScreen);
+    }
+    // 第三页的小剧场按钮也绑定相同事件
+    if (studioAppIconPage3) {
+        studioAppIconPage3.addEventListener('click', showStudioScreen);
     }
 
     const studioHistoryBtn = document.getElementById('studio-history-btn');

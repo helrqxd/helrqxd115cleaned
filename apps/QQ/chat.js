@@ -1520,7 +1520,7 @@ function createMessageElement(msg, chat) {
     }
 
     // 旧的逻辑保持不变，作为兼容
-    else if (typeof msg.content === 'string' && STICKER_REGEX.test(msg.content)) {
+    else if (typeof msg.content === 'string' && STICKER_REGEX.test(msg.content.trim())) {
         bubble.classList.add('is-sticker');
         contentHtml = `<img src="${msg.content}" alt="${msg.meaning || 'Sticker'}" class="sticker-image">`;
     } else if (Array.isArray(msg.content) && msg.content[0]?.type === 'image_url') {
@@ -2261,7 +2261,17 @@ window.triggerAiResponse = async function triggerAiResponse() {
         await window.db.chats.put(chat);
         return triggerAiResponse(); // 再次调用自己，让Char进行回应
     }
-    // --- 塔罗牌解读逻辑结束 ---
+    let lsPhotosContext = '';
+    if (chat.loversSpaceData && chat.loversSpaceData.photos && chat.loversSpaceData.photos.length > 0) {
+        // 只取最近的 3 张照片给 AI 看
+        const recentPhotos = chat.loversSpaceData.photos.slice(-3);
+        lsPhotosContext = '\n\n# 情侣相册最近的照片 (你可以评论它们):\n';
+        recentPhotos.forEach((p) => {
+            const hasCommented = p.comments && p.comments.some((c) => c.author === chat.name);
+            const status = hasCommented ? '[你已评论]' : '[你未评论]';
+            lsPhotosContext += `- (时间戳/ID: ${p.timestamp}) 描述: "${p.description}" ${status}\n`;
+        });
+    }
 
     let weiboContextForActiveChat = '';
     try {
@@ -2438,7 +2448,47 @@ window.triggerAiResponse = async function triggerAiResponse() {
             return;
         }
 
-        const historySlice = chat.history.filter((msg) => !msg.isTemporary).slice(-chat.settings.maxMemory); // 1. 【修复】把这行加回来！
+        // 1. 获取最近的历史记录
+        let historySlice = chat.history.filter((msg) => !msg.isTemporary).slice(-chat.settings.maxMemory);
+
+        // ======================= [修复开始] =======================
+        // 防止情书死循环逻辑：
+        // 遍历历史记录，如果发现“催写情书”的指令，检查它后面是否已经跟了AI的情书回复。
+        // 如果已经回复过，就将该系统指令标记为“跳过”，不再发给AI。
+
+        // 用于存储需要过滤掉的消息的时间戳
+        const timestampsToSkip = new Set();
+
+        for (let i = 0; i < historySlice.length; i++) {
+            const msg = historySlice[i];
+
+            // 检查是否是那是条催写情书的系统消息
+            if (msg.role === 'system' && msg.content && msg.content.includes('ls_letter') && msg.content.includes('写一封回信')) {
+                // 找到了指令，现在往后找有没有AI的回复
+                let hasReplied = false;
+                for (let j = i + 1; j < historySlice.length; j++) {
+                    const nextMsg = historySlice[j];
+                    // 检查是否是AI发的，且内容包含 ls_letter 指令
+                    if (nextMsg.role === 'assistant') {
+                        // 简单判断文本内容或JSON结构
+                        const contentStr = typeof nextMsg.content === 'string' ? nextMsg.content : JSON.stringify(nextMsg.content);
+                        if (contentStr.includes('"type": "ls_letter"') || contentStr.includes('"type":"ls_letter"')) {
+                            hasReplied = true;
+                            break;
+                        }
+                    }
+                }
+
+                // 如果已经回复过了，就把这条系统指令加入跳过列表
+                if (hasReplied) {
+                    timestampsToSkip.add(msg.timestamp);
+                    console.log('检测到已完成的情书指令，已从上下文中移除，防止重复触发。');
+                }
+            }
+        }
+
+        // 过滤掉不再需要的指令
+        historySlice = historySlice.filter((msg) => !timestampsToSkip.has(msg.timestamp));
 
         // --- 红包状态实时播报模块 ---
         let redPacketContext = '';
@@ -3549,6 +3599,7 @@ ${contextSummaryForApproval}
 			- **发说说**: \`{"type": "ls_moment", "content": "我想对你说的话..."}\`
 			- **评论说说**: \`{"type": "ls_comment", "momentIndex": 0, "commentText": "你的评论..."}\` (momentIndex: 0代表最新一条)
 			- **发照片**: \`{"type": "ls_photo", "description": "对照片的文字描述..."}\`
+            - **评论照片**: \`{"type": "ls_photo_comment", "photoTimestamp": (照片的时间戳), "commentText": "你的评论..."}\`
 			- **提问**: \`{"type": "ls_ask_question", "questionText": "你想问的问题..."}\`
 			- **回答**: \`{"type": "ls_answer_question", "questionId": "q_123456789", "answerText": "你的回答..."}\`
 			- **写情书/回信**: \`{"type": "ls_letter", "content": "情书的正文内容..."}\` (收到情书后必须用此指令回信)
@@ -3582,6 +3633,7 @@ ${contextSummaryForApproval}
             ${auroraContext}
             ${weiboContext}
             ${postsContext}
+            ${lsPhotosContext}
 
             - **当前对话历史记录**
             ${recentContextSummary}
@@ -4850,6 +4902,51 @@ ${contextSummaryForApproval}
                         console.log(`AI 在情侣空间发布了照片(文字图): ${msgData.description}`);
                     }
                     continue; // 继续处理AI可能返回的其他指令
+                }
+
+                case 'ls_photo_comment': {
+                    const { photoTimestamp, commentText } = msgData;
+                    console.log('🔍 [调试] 收到AI评论照片指令:', msgData);
+
+                    if (chat.loversSpaceData && chat.loversSpaceData.photos) {
+                        // 1. 查找照片 (使用 == 而不是 === 以兼容字符串/数字格式的时间戳)
+                        const targetPhoto = chat.loversSpaceData.photos.find((p) => p.timestamp == photoTimestamp);
+
+                        if (targetPhoto) {
+                            // 2. 确保评论数组存在
+                            if (!targetPhoto.comments) targetPhoto.comments = [];
+
+                            // 3. 添加评论对象
+                            targetPhoto.comments.push({
+                                author: chat.name, // 使用当前角色名
+                                text: commentText,
+                                timestamp: Date.now(),
+                            });
+
+                            console.log(`✅ [成功] AI评论已写入内存: ${commentText}`);
+
+                            // 4. 【重要】保存到数据库 (这是关键，否则刷新就没了)
+                            await db.chats.put(chat);
+
+                            // 5. 【UI刷新】检查当前是否正好打开了这张照片的详情页
+                            const detailModal = document.getElementById('ls-photo-detail-modal');
+
+                            // 检查弹窗是否可见
+                            if (detailModal && detailModal.classList.contains('visible')) {
+                                // 获取当前弹窗正在查看的照片时间戳
+                                const currentViewingTimestamp = detailModal.dataset.currentTimestamp;
+
+                                // 如果正在看的就是这张照片，立即重绘评论列表
+                                if (currentViewingTimestamp == photoTimestamp) {
+                                    console.log('🔄 [UI刷新] 当前正查看该照片，立即刷新评论区');
+                                    renderLSPhotoComments(targetPhoto);
+                                }
+                            }
+                        } else {
+                            console.warn('❌ [失败] 未找到对应时间戳的照片:', photoTimestamp);
+                        }
+                    }
+                    continue; // 这是一个后台操作，跳过生成普通聊天气泡
                 }
 
                 case 'ls_letter': {

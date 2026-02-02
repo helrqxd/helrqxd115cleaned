@@ -57,7 +57,7 @@ window.setupFileUpload = function (inputId, callback) {
     });
 };
 
-const STICKER_REGEX = /^(https?:\/\/.+|data:image)/;
+const STICKER_REGEX = /^(data:image\/)|(https?:\/\/.*?\.(?:png|jpg|jpeg|gif|webp|svg|bmp|ico|tiff))|(https?:\/\/.*(?:catbox|postimg|imgbb|sinaimg|telegraph|wx[1-4])\..*)/i;
 
 window.BLOCKED_API_SITES = ['api.pisces.ink', 'aiapi.qzz.io'];
 
@@ -2377,6 +2377,9 @@ window.saveCurrentHomeScreenAsPreset = async function () {
         'new-widget-text-2': document.getElementById('new-widget-text-2').textContent,
         'new-widget-text-3': document.getElementById('new-widget-text-3').textContent,
         'widget-month-display': document.getElementById('widget-month-display').textContent,
+        'music-rect-img': document.getElementById('music-rect-img').src,
+        'music-record-img': document.getElementById('music-record-img').src,
+        'music-text-line': document.getElementById('music-text-line').textContent,
 
         // --- App图标和壁纸 ---
         appIcons: { ...state.globalSettings.appIcons },
@@ -2435,6 +2438,9 @@ window.updateSelectedHomeScreenPreset = async function () {
             'new-widget-text-2': document.getElementById('new-widget-text-2').textContent,
             'new-widget-text-3': document.getElementById('new-widget-text-3').textContent,
             'widget-month-display': document.getElementById('widget-month-display').textContent,
+            'music-rect-img': document.getElementById('music-rect-img').src,
+            'music-record-img': document.getElementById('music-record-img').src,
+            'music-text-line': document.getElementById('music-text-line').textContent,
             appIcons: { ...state.globalSettings.appIcons },
             appLabels: { ...state.globalSettings.appLabels },
             wallpaper: state.globalSettings.wallpaper,

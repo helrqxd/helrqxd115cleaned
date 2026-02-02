@@ -55,6 +55,7 @@
 		<script src="apps/date.js" defer></script>
 		<script src="apps/studio.js" defer></script>
 		<script src="apps/xhs.js" defer></script>
+		<script src="apps/lofter.js" defer></script>
 		<script src="https://cdn.jsdelivr.net/npm/darkreader@4.9.84/darkreader.min.js"></script>
 		<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 		<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
@@ -108,6 +109,7 @@
 			<div id="lock-screen-background-blur" style="display: none"></div>
 
 			<div id="home-screen" class="screen active">
+				<div id="desktop-edit-done-btn">完成</div>
 				<div class="home-screen-slider">
 					<!-- 第一页，把原来的内容都放进来 -->
 					<div class="home-page">
@@ -217,30 +219,40 @@
 								<span class="label">X社交</span>
 							</div>
 
-							<div id="center-avatar-wrapper">
-								<!-- 原来的头像，放在了新容器的中心 -->
-								<div id="second-page-center-avatar" class="custom-widget-container">
-									<div class="widget-circle-uploader">
-										<img id="widget-image-4" src="https://i.postimg.cc/qRqpK5kP/anime-avatar.jpg" class="editable-image" title="点击更换图片" />
-									</div>
-								</div>
-
-								<!-- 头像下方的可编辑文字框 -->
-								<div id="avatar-subtitle" class="editable-text">点击编辑文字</div>
-
-								<!-- 头像四个角的可编辑气泡 -->
-								<div class="corner-bubble editable-text" id="bubble-top-left">左上角</div>
-								<div class="corner-bubble editable-text" id="bubble-top-right">右上角</div>
-								<div class="corner-bubble editable-text" id="bubble-bottom-left">左下角</div>
-								<div class="corner-bubble editable-text" id="bubble-bottom-right">右下角</div>
-							</div>
-
 							<div style="position: absolute; top: 100px; right: 85px">
 								<div class="desktop-app-icon" onclick="showScreen('game-hall-screen')">
 									<div class="icon-bg-desktop">
 										<img id="icon-img-game-hall" src="https://i.postimg.cc/P5gL5z2g/game-controller-icon.png" alt="游戏大厅" />
 									</div>
 									<span class="label">游戏大厅</span>
+								</div>
+							</div>
+						</div>
+						<!-- === 新版响应式透明音乐组件 === -->
+						<div class="middle-layout-container">
+							<div id="glass-music-widget">
+								<div class="widget-main-row">
+									<!-- 左侧：长方形圆角图片 -->
+									<div class="rect-cover-wrapper">
+										<img id="music-rect-img" src="https://i.postimg.cc/k495F4W5/profile-banner.jpg" class="editable-image cover-img" title="点击更换封面" />
+									</div>
+
+									<!-- 右侧：透明水晶唱片 (重叠) -->
+									<div class="glass-record-wrapper">
+										<div class="glass-disc">
+											<!-- 唱片中间的图片 -->
+											<img id="music-record-img" src="https://i.postimg.cc/qRqpK5kP/anime-avatar.jpg" class="editable-image disc-center-img" title="点击更换唱片图片" />
+											<!-- 唱片的高光纹理 -->
+											<div class="disc-highlight"></div>
+										</div>
+									</div>
+								</div>
+
+								<!-- 下方：文字和音浪 -->
+								<div class="widget-footer-row">
+									<div id="music-text-line" class="music-title-text editable-text" contenteditable="true">点击编辑歌名</div>
+									<!-- 律动音浪 (已增加条数以变宽) -->
+									<div class="music-wave-bars" id="custom-wide-wave"><i></i><i></i><i></i><i></i><i></i> <i></i><i></i><i></i><i></i><i></i> <i></i><i></i><i></i><i></i><i></i> <i></i><i></i><i></i><i></i><i></i></div>
 								</div>
 							</div>
 						</div>
@@ -291,13 +303,72 @@
 								<span class="label" style="color: white; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5)">兔兔记账</span>
 							</div>
 						</div>
-						<div style="position: absolute; bottom: 15px; left: 205px">
-							<div class="desktop-app-icon" id="xhs-app-icon">
-								<div class="icon-bg-desktop">
-									<img id="icon-img-xhs" src="https://i.postimg.cc/k4fZKVXP/tu-tu.png" alt="小红书" />
+					</div>
+
+					<!-- 第三页 - 更多应用 -->
+					<div class="home-page third-page">
+						<!-- 装饰性顶部组件 -->
+						<div class="third-page-header-widget">
+							<div class="header-decoration-line"></div>
+							<span class="header-title">更多应用</span>
+							<div class="header-decoration-line"></div>
+						</div>
+
+						<!-- 应用网格区域 -->
+						<div class="third-page-app-grid">
+							<!-- lrq小剧场 -->
+							<div class="desktop-app-icon" id="studio-app-icon-page3">
+								<div class="icon-bg-desktop app-icon-styled">
+									<img id="icon-img-studio-page3" src="https://i.postimg.cc/W3sLz11s/clapperboard-icon.png" alt="小剧场" />
 								</div>
-								<span class="label" style="color: white; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.5)">小红书</span>
+								<span class="label">lrq小剧场</span>
 							</div>
+
+							<!-- 小红书 -->
+							<div class="desktop-app-icon" id="xhs-app-icon">
+								<div class="icon-bg-desktop app-icon-styled">
+									<img id="icon-img-xhs" src="https://i.postimg.cc/hPSYnJqq/xhs-icon.png" alt="小红书" />
+								</div>
+								<span class="label">小红书</span>
+							</div>
+
+							<!-- Lofter -->
+							<div class="desktop-app-icon" id="lofter-app-icon">
+								<div class="icon-bg-desktop app-icon-styled">
+									<img id="icon-img-lofter" src="https://i.postimg.cc/VkWvLn2P/lofter-icon.png" alt="Lofter" />
+								</div>
+								<span class="label">Lofter</span>
+							</div>
+
+							<!-- 高德地图 -->
+							<div class="desktop-app-icon" id="amap-app-icon">
+								<div class="icon-bg-desktop app-icon-styled">
+									<img id="icon-img-amap" src="https://i.postimg.cc/4dKgPcGx/amap-icon.png" alt="高德地图" />
+								</div>
+								<span class="label">高德地图</span>
+							</div>
+						</div>
+
+						<!-- 装饰性卡片组件 -->
+						<div class="third-page-decoration-card">
+							<div class="decoration-card-inner">
+								<div class="decoration-icon">
+									<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+									</svg>
+								</div>
+								<div class="decoration-text">
+									<span class="deco-title editable-text" contenteditable="true">探索更多</span>
+									<span class="deco-subtitle editable-text" contenteditable="true">发现精彩应用</span>
+								</div>
+							</div>
+						</div>
+
+						<!-- 底部装饰元素 -->
+						<div class="third-page-bottom-decoration">
+							<div class="floating-bubble bubble-1"></div>
+							<div class="floating-bubble bubble-2"></div>
+							<div class="floating-bubble bubble-3"></div>
 						</div>
 					</div>
 				</div>
@@ -309,15 +380,6 @@
 							<img id="icon-img-api-settings" src="https://i.postimg.cc/MK8rJ8t7/IMG-6438.jpg" alt="API设置" />
 						</div>
 						<span class="label">API设置</span>
-					</div>
-
-					<div class="desktop-app-icon" id="studio-app-icon">
-						<div class="icon-bg-desktop">
-							<!-- 这里的 id="icon-img-studio" 必须保留，用于JS识别更换图标 -->
-							<img id="icon-img-studio" src="https://i.postimg.cc/W3sLz11s/clapperboard-icon.png" alt="小剧场" />
-						</div>
-						<!-- lrq小剧场 -->
-						<span class="label">lrq小剧场</span>
 					</div>
 
 					<div class="desktop-app-icon" onclick="showScreen('font-settings-screen')">
@@ -337,6 +399,7 @@
 				<!-- 小圆点 -->
 				<div class="pagination-dots">
 					<span class="dot active"></span>
+					<span class="dot"></span>
 					<span class="dot"></span>
 				</div>
 			</div>
@@ -3317,6 +3380,15 @@
 							<div id="pomodoro-time">25:00</div>
 						</div>
 						<div class="pomodoro-controls" style="display: flex; gap: 15px; margin-top: 20px">
+							<!-- 新的萌系音乐按钮 -->
+							<button id="pomodoro-music-btn" title="音乐歌单">
+								<!-- 这里用一个SVG图标代替简单的音符字符，更精致 -->
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+									<path d="M9 18V5l12-2v13"></path>
+									<circle cx="6" cy="18" r="3"></circle>
+									<circle cx="18" cy="16" r="3"></circle>
+								</svg>
+							</button>
 							<button id="pomodoro-pause-btn" style="background-color: #ffca28; color: #fff">暂停 / 休息</button>
 							<button id="pomodoro-end-btn">结束专注</button>
 						</div>
@@ -5350,6 +5422,29 @@
 					<div class="form-group">
 						<label for="pomodoro-talk-interval-input">角色鼓励间隔 (分钟, 0为不自动鼓励)</label>
 						<input type="number" id="pomodoro-talk-interval-input" value="5" min="0" />
+					</div>
+
+					<div class="form-group">
+						<label>背景音乐 (BGM)</label>
+						<select id="pomodoro-bgm-source-select" style="width: 100%; padding: 8px; border-radius: 6px; border: 1px solid #ccc; margin-bottom: 10px">
+							<option value="none">🔕 静音 / 不播放</option>
+							<option value="global">🎵 一起听播放列表</option>
+							<option value="custom">📂 自定义番茄钟歌单</option>
+						</select>
+
+						<!-- 自定义歌单管理面板 (默认隐藏) -->
+						<div id="pomodoro-custom-playlist-panel" style="display: none; background: #f5f5f5; padding: 10px; border-radius: 8px">
+							<div id="pomodoro-custom-list" style="max-height: 100px; overflow-y: auto; margin-bottom: 8px; font-size: 13px">
+								<p style="color: #999; text-align: center; margin: 10px 0">暂无歌曲</p>
+							</div>
+							<div style="display: flex; gap: 5px">
+								<button id="pomo-add-bgm-local" class="form-button-secondary" style="margin: 0; padding: 5px 10px; font-size: 12px">+ 本地</button>
+								<button id="pomo-add-bgm-url" class="form-button-secondary" style="margin: 0; padding: 5px 10px; font-size: 12px">+ URL</button>
+								<button id="pomo-clear-bgm" class="form-button-secondary" style="margin: 0; padding: 5px 10px; font-size: 12px; color: #ff3b30; border-color: #ff3b30">清空</button>
+							</div>
+							<!-- 隐藏的文件输入框 -->
+							<input type="file" id="pomo-bgm-file-input" accept="audio/*" multiple style="display: none" />
+						</div>
 					</div>
 
 					<div class="form-group">
@@ -8836,6 +8931,892 @@
 					<button class="nurse-btn nurse-btn-close" onclick="window.closeBugStation()">关 闭</button>
 					<button class="nurse-btn nurse-btn-copy" onclick="window.copyBugReport()">📋 一键复制报错</button>
 				</div>
+			</div>
+		</div>
+
+		<!-- [新] 萌系番茄钟音乐控制面板 -->
+		<div id="pomodoro-music-modal" class="modal">
+			<div class="modal-content moe-music-modal-content" style="height: 65%; width: 320px; padding: 0">
+				<!-- 头部 -->
+				<div class="moe-music-header">
+					<span>✨ 专注旋律 ✨</span>
+				</div>
+
+				<div class="modal-body" style="padding: 0; display: flex; flex-direction: column; overflow: hidden">
+					<!-- 上半部分：唱片机播放器 -->
+					<div class="pomo-player-container">
+						<div class="pomo-disc-wrapper">
+							<div id="pomo-disc-anim" class="pomo-disc">
+								<!-- 封面图 -->
+								<img id="pomo-music-cover" src="https://i.postimg.cc/pT2xKzPz/album-cover-placeholder.png" />
+							</div>
+						</div>
+
+						<div class="pomo-track-info">
+							<h3 id="pomo-music-title">未播放</h3>
+							<p id="pomo-music-artist">点击播放开始专注</p>
+						</div>
+
+						<div class="pomo-controls-row">
+							<button class="pomo-ctrl-btn" id="pomo-music-prev" title="上一首">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<polygon points="19 20 9 12 19 4 19 20"></polygon>
+									<line x1="5" y1="19" x2="5" y2="5"></line>
+								</svg>
+							</button>
+
+							<button class="pomo-play-btn" id="pomo-music-play">
+								<!-- 播放图标 -->
+								<svg id="pomo-icon-play" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none">
+									<polygon points="5 3 19 12 5 21 5 3"></polygon>
+								</svg>
+								<!-- 暂停图标 (默认隐藏) -->
+								<svg id="pomo-icon-pause" width="24" height="24" viewBox="0 0 24 24" fill="currentColor" stroke="none" style="display: none">
+									<rect x="6" y="4" width="4" height="16"></rect>
+									<rect x="14" y="4" width="4" height="16"></rect>
+								</svg>
+							</button>
+
+							<button class="pomo-ctrl-btn" id="pomo-music-next" title="下一首">
+								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<polygon points="5 4 15 12 5 20 5 4"></polygon>
+									<line x1="19" y1="5" x2="19" y2="19"></line>
+								</svg>
+							</button>
+						</div>
+					</div>
+
+					<!-- 下半部分：播放列表 -->
+					<div id="pomo-music-list" class="pomo-playlist">
+						<!-- JS生成列表项 -->
+					</div>
+				</div>
+
+				<div class="modal-footer" style="border: none; padding: 10px 20px 20px">
+					<button class="save" id="close-pomo-music-modal" style="width: 100%; border-radius: 20px; background: #e0e0e0; color: #666; border: none">收起面板</button>
+				</div>
+			</div>
+		</div>
+		<!-- 在 body 结束标签前，其他 modal 的旁边添加 -->
+
+		<!-- 情侣空间-照片详情与评论弹窗 (萌系升级版) -->
+		<div id="ls-photo-detail-modal" class="modal">
+			<div class="modal-content ls-photo-modal-content">
+				<!-- 1. 顶部标题栏 -->
+				<div class="ls-photo-modal-header">
+					<span>✨ 甜蜜瞬间 ✨</span>
+					<span id="ls-photo-detail-close-btn" class="close-btn">×</span>
+				</div>
+
+				<!-- 2. 中间滚动区域 -->
+				<div class="ls-photo-modal-body">
+					<!-- 图片展示区 (类似拍立得风格) -->
+					<div class="ls-polaroid-container">
+						<div class="ls-photo-wrapper">
+							<img id="ls-photo-detail-img" src="" alt="照片" />
+						</div>
+						<div id="ls-photo-detail-desc" class="ls-photo-desc"></div>
+						<div id="ls-photo-detail-meta" class="ls-photo-date"></div>
+					</div>
+
+					<!-- 评论区标题 -->
+					<div class="ls-comments-section-title"><span class="icon">💬</span> 悄悄话</div>
+
+					<!-- 评论列表 -->
+					<div id="ls-photo-comments-list" class="ls-comments-list">
+						<!-- JS生成评论 -->
+					</div>
+				</div>
+
+				<!-- 3. 底部输入栏 -->
+				<div class="ls-photo-modal-footer">
+					<input type="text" id="ls-photo-comment-input" placeholder="写下你的想法( •̀ ω •́ )✧..." />
+					<button id="ls-photo-comment-send-btn">发送</button>
+				</div>
+			</div>
+		</div>
+		<!-- 情侣空间 - 分享详情专用弹窗 (Ver 2.0 萌系版) -->
+		<div id="ls-share-detail-modal" class="modal">
+			<div class="modal-content ls-share-card-container">
+				<!-- 1. 顶部装饰区 -->
+				<div class="ls-share-header-bg"></div>
+
+				<!-- 2. 头像与徽章 (核心视觉) -->
+				<div class="ls-share-avatar-wrapper">
+					<img id="ls-share-char-avatar" src="" class="ls-share-avatar-img" />
+					<!-- 类型徽章 -->
+					<div class="ls-share-badge" id="ls-share-badge-icon">🎬</div>
+				</div>
+
+				<!-- 3. 内容区域 -->
+				<div class="ls-share-content-body">
+					<!-- 推荐语气泡 (像是在说话) -->
+					<div class="ls-share-speech-bubble">
+						<div class="bubble-arrow"></div>
+						<p id="ls-share-thoughts">在这里显示 TA 的感想...</p>
+					</div>
+
+					<!-- 作品信息卡片 -->
+					<div class="ls-share-info-box">
+						<h3 id="ls-share-detail-title">作品标题</h3>
+						<span class="ls-share-pill" id="ls-share-type-text">电影</span>
+						<div class="ls-share-divider"></div>
+						<div class="ls-share-summary-text" id="ls-share-summary">这里是作品的简介内容...</div>
+					</div>
+				</div>
+
+				<!-- 4. 底部按钮 -->
+				<div class="ls-share-footer-action">
+					<button id="ls-share-detail-close-btn">收到安利 (o´ω`o)ﾉ</button>
+				</div>
+			</div>
+		</div>
+		<!-- 莫兰迪风娃娃机充值弹窗 -->
+		<div id="claw-machine-modal" class="modal">
+			<!-- 容器背景改为透明，去除默认阴影 -->
+			<div class="modal-content" style="background: transparent; box-shadow: none; border: none; padding: 0; width: 380px; height: 720px; overflow: visible; display: flex; justify-content: center">
+				<div id="claw-machine-body" class="morandi-style">
+					<!-- ★★★ 顶部功能栏：左关闭、中标题、右刷新 ★★★ -->
+					<div class="machine-header-bar">
+						<!-- 左侧：关闭按钮 (移到这里，远离刷新) -->
+						<div class="action-group left">
+							<button id="close-claw-machine" class="icon-btn close-header-btn" title="退出娃娃机">✕</button>
+						</div>
+
+						<!-- 中间：标题 + 设置按钮 -->
+						<div class="title-group">
+							<div class="header-title">✨ LUCK BOX ✨</div>
+							<button id="claw-manage-btn" class="icon-btn settings-btn" title="管理娃娃库">⚙️</button>
+						</div>
+
+						<!-- 右侧：刷新按钮 -->
+						<div class="action-group right">
+							<button id="claw-restart-btn" class="icon-btn refresh-btn" title="刷新/换一批">↻</button>
+						</div>
+					</div>
+
+					<!-- 概率仪表盘 -->
+					<div class="prob-dashboard">
+						<div class="pie-chart-wrapper">
+							<div id="prob-pie-chart" class="pie-chart"></div>
+							<div class="pie-hole"></div>
+						</div>
+						<div id="prob-legend" class="chart-legend"></div>
+					</div>
+
+					<!-- 玻璃仓 -->
+					<div class="machine-window glass-effect">
+						<div class="reflection-light"></div>
+						<div id="machine-claw">
+							<div class="claw-line"></div>
+							<div class="claw-hand">
+								<div class="claw-finger left"></div>
+								<div class="claw-finger right"></div>
+							</div>
+						</div>
+						<div id="doll-pool"></div>
+						<div class="machine-chute">PUT</div>
+					</div>
+
+					<!-- 控制台 -->
+					<div class="machine-controls glass-effect">
+						<div class="control-group">
+							<div class="joystick-base">
+								<div id="machine-joystick" class="joystick-stick">
+									<div class="joystick-ball"></div>
+								</div>
+							</div>
+						</div>
+						<div class="display-screen">
+							<span class="label">COINS</span>
+							<span id="claw-machine-balance" class="value">0.00</span>
+						</div>
+						<div class="btn-group">
+							<button id="claw-grab-btn" class="pearl-btn">GO</button>
+						</div>
+					</div>
+
+					<div class="machine-base"></div>
+
+					<!-- 注意：原来的底部悬浮关闭按钮代码已经删除了 -->
+				</div>
+			</div>
+		</div>
+		<div id="doll-manager-modal" class="modal">
+			<div class="modal-content" style="height: 70%">
+				<div class="modal-header">
+					<span>管理娃娃图鉴</span>
+					<div class="header-actions">
+						<button id="add-doll-btn" class="action-button">添加</button>
+						<button id="reset-dolls-btn" class="action-button" style="margin-right: 5px">重置默认</button>
+					</div>
+				</div>
+				<div class="modal-body" style="background: #f5f5f5; padding: 15px">
+					<div id="doll-manager-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); gap: 10px">
+						<!-- JS动态生成 -->
+					</div>
+				</div>
+				<div class="modal-footer">
+					<button class="save" id="close-doll-manager-btn" style="width: 100%">完成</button>
+				</div>
+			</div>
+		</div>
+		<!-- 隐藏的文件上传控件 -->
+		<input type="file" id="doll-upload-input" accept="image/*" multiple hidden />
+
+		<!-- ========== Lofter 应用界面 ========== -->
+		<div id="lofter-screen" class="screen">
+			<!-- 视图容器 -->
+			<div id="lofter-view-container">
+				<!-- 1. 首页视图 -->
+				<div id="lofter-home-view" class="lofter-view active">
+					<!-- 顶部导航 -->
+					<div class="lofter-top-bar">
+						<div class="lofter-back-btn" onclick="showScreen('home-screen')">
+							<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6" /></svg>
+						</div>
+						<div class="lofter-top-tabs">
+							<span class="lofter-tab-item" data-tab="follow">关注</span>
+							<span class="lofter-tab-item active" data-tab="discover">发现</span>
+							<span class="lofter-tab-item" data-tab="plaza">广场</span>
+						</div>
+						<div class="lofter-top-actions">
+							<div class="lofter-generate-btn" id="lofter-generate-works-btn" title="生成作品">
+								<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" />
+									<line x1="12" y1="8" x2="12" y2="16" />
+									<line x1="8" y1="12" x2="16" y2="12" />
+								</svg>
+							</div>
+							<div class="lofter-generate-btn" id="lofter-gen-settings-btn" title="生成设置">
+								<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<circle cx="12" cy="12" r="3" />
+									<path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" />
+								</svg>
+							</div>
+						</div>
+					</div>
+					<!-- 内容区域 -->
+					<div class="lofter-content-area">
+						<div id="lofter-follow-feed" class="lofter-feed">
+							<div class="lofter-empty-state">
+								<div class="lofter-empty-icon">📭</div>
+								<p>还没有关注任何人哦~</p>
+								<p class="lofter-empty-hint">去发现页看看吧</p>
+							</div>
+						</div>
+						<div id="lofter-discover-feed" class="lofter-feed lofter-waterfall active">
+							<!-- 文章列表由JS生成 -->
+						</div>
+						<div id="lofter-plaza-feed" class="lofter-feed">
+							<!-- 广场内容（原乐谷内容） -->
+							<!-- 广场轮播 Banner -->
+							<div class="lofter-plaza-banner">
+								<img src="https://i.postimg.cc/k495F4W5/profile-banner.jpg" alt="广场活动" />
+								<div class="lofter-plaza-banner-text">✨ 创作者激励计划</div>
+							</div>
+							<!-- 广场功能入口 -->
+							<div class="lofter-plaza-grid">
+								<div class="lofter-plaza-item">
+									<div class="lofter-plaza-icon">🎨</div>
+									<span>创作挑战</span>
+								</div>
+								<div class="lofter-plaza-item">
+									<div class="lofter-plaza-icon">🏆</div>
+									<span>热门榜单</span>
+								</div>
+								<div class="lofter-plaza-item">
+									<div class="lofter-plaza-icon">💎</div>
+									<span>付费专栏</span>
+								</div>
+								<div class="lofter-plaza-item">
+									<div class="lofter-plaza-icon">🎁</div>
+									<span>福利活动</span>
+								</div>
+							</div>
+							<!-- 精选推荐 -->
+							<div class="lofter-plaza-section">
+								<div class="lofter-section-header">
+									<span class="lofter-section-title">🔥 精选推荐</span>
+									<span class="lofter-section-more">更多 ></span>
+								</div>
+								<div class="lofter-plaza-recommend" id="lofter-plaza-recommend">
+									<!-- 推荐内容由JS生成 -->
+								</div>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- 2. 订阅视图 -->
+				<div id="lofter-subscribe-view" class="lofter-view">
+					<div class="lofter-top-bar">
+						<div class="lofter-back-btn" onclick="showScreen('home-screen')">
+							<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6" /></svg>
+						</div>
+						<div class="lofter-top-tabs">
+							<span class="lofter-tab-item active" data-tab="tags">标签</span>
+							<span class="lofter-tab-item" data-tab="collections">合集</span>
+						</div>
+						<div class="lofter-top-actions"></div>
+					</div>
+					<div class="lofter-content-area">
+						<div id="lofter-tags-feed" class="lofter-feed active">
+							<div class="lofter-tag-grid" id="lofter-subscribed-tags">
+								<!-- 订阅的标签由JS生成 -->
+							</div>
+							<div class="lofter-empty-state" id="lofter-tags-empty">
+								<div class="lofter-empty-icon">🏷️</div>
+								<p>还没有订阅任何标签</p>
+								<p class="lofter-empty-hint">发现感兴趣的内容后点击标签订阅吧</p>
+							</div>
+						</div>
+						<div id="lofter-collections-feed" class="lofter-feed">
+							<div class="lofter-collection-list" id="lofter-subscribed-collections">
+								<!-- 订阅的合集由JS生成 -->
+							</div>
+							<div class="lofter-empty-state" id="lofter-collections-empty">
+								<div class="lofter-empty-icon">📚</div>
+								<p>还没有订阅任何合集</p>
+								<p class="lofter-empty-hint">在文章详情页可以订阅作者的合集</p>
+							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- 3. 乐谷视图 (CP周边/谷子商城) -->
+				<div id="lofter-legu-view" class="lofter-view">
+					<div class="lofter-top-bar lofter-legu-topbar">
+						<div class="lofter-back-btn" onclick="showScreen('home-screen')">
+							<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6" /></svg>
+						</div>
+						<span class="lofter-page-title">🍡 乐谷</span>
+						<div class="lofter-top-actions">
+							<div class="lofter-cart-btn" id="lofter-cart-btn">
+								<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<circle cx="9" cy="21" r="1" />
+									<circle cx="20" cy="21" r="1" />
+									<path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
+								</svg>
+							</div>
+						</div>
+					</div>
+					<div class="lofter-content-area lofter-legu-content">
+						<!-- 乐谷搜索栏 -->
+						<div class="lofter-legu-search">
+							<input type="text" placeholder="搜索喜欢的谷子..." />
+							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2">
+								<circle cx="11" cy="11" r="8" />
+								<path d="M21 21l-4.35-4.35" />
+							</svg>
+						</div>
+						<!-- 分类导航 -->
+						<div class="lofter-legu-categories">
+							<div class="lofter-legu-cat active" data-cat="all">全部</div>
+							<div class="lofter-legu-cat" data-cat="figure">手办</div>
+							<div class="lofter-legu-cat" data-cat="badge">徽章</div>
+							<div class="lofter-legu-cat" data-cat="keychain">挂件</div>
+							<div class="lofter-legu-cat" data-cat="standee">立牌</div>
+							<div class="lofter-legu-cat" data-cat="plush">毛绒</div>
+							<div class="lofter-legu-cat" data-cat="poster">海报</div>
+							<div class="lofter-legu-cat" data-cat="other">其他</div>
+						</div>
+						<!-- 热门CP推荐 -->
+						<div class="lofter-legu-cp-section">
+							<div class="lofter-section-header">
+								<span class="lofter-section-title">💕 热门CP</span>
+								<span class="lofter-section-more">更多 ></span>
+							</div>
+							<div class="lofter-legu-cp-list" id="lofter-legu-cp-list">
+								<!-- CP列表由JS生成 -->
+							</div>
+						</div>
+						<!-- 商品瀑布流 -->
+						<div class="lofter-legu-products" id="lofter-legu-products">
+							<!-- 商品列表由JS生成 -->
+						</div>
+					</div>
+				</div>
+
+				<!-- 4. 我的视图 -->
+				<div id="lofter-profile-view" class="lofter-view">
+					<div class="lofter-profile-scroll-container">
+						<div class="lofter-profile-header">
+							<!-- 背景图 -->
+							<div class="lofter-profile-bg">
+								<img id="lofter-profile-bg-img" src="https://i.postimg.cc/k495F4W5/profile-banner.jpg" alt="背景" />
+								<div class="lofter-profile-bg-overlay"></div>
+							</div>
+							<!-- 顶部操作栏 -->
+							<div class="lofter-profile-top-bar">
+								<div class="lofter-back-btn" onclick="showScreen('home-screen')">
+									<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M15 18l-6-6 6-6" /></svg>
+								</div>
+								<div class="lofter-profile-actions">
+									<div class="lofter-profile-action-btn" id="lofter-settings-btn">
+										<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2">
+											<circle cx="12" cy="12" r="3" />
+											<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+										</svg>
+									</div>
+								</div>
+							</div>
+							<!-- 头像和基本信息 -->
+							<div class="lofter-profile-info">
+								<div class="lofter-profile-avatar-wrap">
+									<img id="lofter-profile-avatar" src="https://files.catbox.moe/q6z5fc.jpeg" alt="头像" />
+								</div>
+								<div class="lofter-profile-name" id="lofter-profile-name">你的昵称</div>
+								<div class="lofter-profile-id">LOFTER ID: <span id="lofter-profile-id">lofter_user</span></div>
+							</div>
+							<!-- 数据统计 -->
+							<div class="lofter-profile-stats">
+								<div class="lofter-stat-item">
+									<div class="lofter-stat-num" id="lofter-stat-posts">0</div>
+									<div class="lofter-stat-label">文章</div>
+								</div>
+								<div class="lofter-stat-item">
+									<div class="lofter-stat-num" id="lofter-stat-heat">0</div>
+									<div class="lofter-stat-label">热度</div>
+								</div>
+								<div class="lofter-stat-item">
+									<div class="lofter-stat-num" id="lofter-stat-fans">0</div>
+									<div class="lofter-stat-label">粉丝</div>
+								</div>
+								<div class="lofter-stat-item">
+									<div class="lofter-stat-num" id="lofter-stat-following">0</div>
+									<div class="lofter-stat-label">关注</div>
+								</div>
+							</div>
+						</div>
+
+						<!-- 我的消息区域 -->
+						<div class="lofter-profile-section">
+							<div class="lofter-section-title-bar">
+								<span>📬 我的消息</span>
+							</div>
+							<div class="lofter-menu-grid">
+								<div class="lofter-menu-item" data-action="my-likes">
+									<div class="lofter-menu-icon">❤️</div>
+									<span>我的喜欢/收藏</span>
+								</div>
+								<div class="lofter-menu-item" data-action="my-subscribe">
+									<div class="lofter-menu-icon">📚</div>
+									<span>我的订阅</span>
+								</div>
+								<div class="lofter-menu-item" data-action="received-likes">
+									<div class="lofter-menu-icon">💕</div>
+									<span>收到的喜欢</span>
+								</div>
+								<div class="lofter-menu-item" data-action="comments">
+									<div class="lofter-menu-icon">💬</div>
+									<span>评论</span>
+								</div>
+								<div class="lofter-menu-item" data-action="chat">
+									<div class="lofter-menu-icon">✉️</div>
+									<span>聊天</span>
+								</div>
+							</div>
+						</div>
+
+						<!-- 创作者中心区域 -->
+						<div class="lofter-profile-section">
+							<div class="lofter-section-title-bar">
+								<span>✍️ 创作者中心</span>
+							</div>
+							<div class="lofter-menu-list">
+								<div class="lofter-menu-row" data-action="creator-home">
+									<div class="lofter-menu-row-left">
+										<span class="lofter-menu-row-icon">🏠</span>
+										<span>创作首页</span>
+									</div>
+									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M9 18l6-6-6-6" /></svg>
+								</div>
+								<div class="lofter-menu-row" data-action="data-center">
+									<div class="lofter-menu-row-left">
+										<span class="lofter-menu-row-icon">📊</span>
+										<span>数据中心</span>
+									</div>
+									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M9 18l6-6-6-6" /></svg>
+								</div>
+								<div class="lofter-menu-row" data-action="works-manage">
+									<div class="lofter-menu-row-left">
+										<span class="lofter-menu-row-icon">📝</span>
+										<span>作品管理</span>
+									</div>
+									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M9 18l6-6-6-6" /></svg>
+								</div>
+								<div class="lofter-menu-row" data-action="creator-income">
+									<div class="lofter-menu-row-left">
+										<span class="lofter-menu-row-icon">💰</span>
+										<span>创作收益</span>
+									</div>
+									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="2"><path d="M9 18l6-6-6-6" /></svg>
+								</div>
+							</div>
+						</div>
+
+						<!-- 我的账户区域 -->
+						<div class="lofter-profile-section">
+							<div class="lofter-section-title-bar">
+								<span>💎 我的账户</span>
+							</div>
+							<div class="lofter-account-cards">
+								<div class="lofter-account-card">
+									<div class="lofter-account-icon">🪙</div>
+									<div class="lofter-account-info">
+										<span class="lofter-account-label">乐乎币</span>
+										<span class="lofter-account-value" id="lofter-coins">0</span>
+									</div>
+								</div>
+								<div class="lofter-account-card">
+									<div class="lofter-account-icon">🍬</div>
+									<div class="lofter-account-info">
+										<span class="lofter-account-label">糖果券</span>
+										<span class="lofter-account-value" id="lofter-candy">0</span>
+									</div>
+								</div>
+							</div>
+						</div>
+
+						<!-- 底部留白 -->
+						<div style="height: 100px"></div>
+					</div>
+					<!-- .lofter-profile-scroll-container end -->
+				</div>
+
+				<!-- 5. 发布视图 (中间的发布按钮点击后显示) -->
+				<div id="lofter-publish-view" class="lofter-view">
+					<div class="lofter-publish-header">
+						<div class="lofter-publish-close" id="lofter-publish-close">
+							<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 6L6 18M6 6l12 12" /></svg>
+						</div>
+						<span class="lofter-publish-title">发布文章</span>
+						<button class="lofter-publish-btn" id="lofter-publish-submit">发布</button>
+					</div>
+					<div class="lofter-publish-content">
+						<input type="text" id="lofter-publish-title-input" class="lofter-publish-title-input" placeholder="请输入标题..." maxlength="50" />
+						<textarea id="lofter-publish-body-input" class="lofter-publish-body-input" placeholder="写下你的故事..."></textarea>
+						<div class="lofter-publish-image-area">
+							<div class="lofter-image-upload-btn" id="lofter-image-upload-btn">
+								<svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#999" stroke-width="1.5">
+									<rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+									<circle cx="8.5" cy="8.5" r="1.5" />
+									<polyline points="21 15 16 10 5 21" />
+								</svg>
+								<span>添加图片</span>
+							</div>
+							<div class="lofter-image-preview-list" id="lofter-image-preview-list">
+								<!-- 图片预览由JS生成 -->
+							</div>
+						</div>
+						<div class="lofter-publish-tags">
+							<div class="lofter-tags-label">
+								<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#00c3ff" stroke-width="2">
+									<path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+									<line x1="7" y1="7" x2="7.01" y2="7" />
+								</svg>
+								<span>添加标签</span>
+							</div>
+							<div class="lofter-tags-container" id="lofter-tags-container"></div>
+							<input type="text" id="lofter-tag-input" class="lofter-tag-input" placeholder="输入标签，按回车添加" />
+						</div>
+					</div>
+				</div>
+
+				<!-- 6. 文章详情视图 -->
+				<div id="lofter-article-view" class="lofter-view">
+					<div class="lofter-article-header">
+						<div class="lofter-article-back" id="lofter-article-back">
+							<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6" /></svg>
+						</div>
+						<div class="lofter-article-author-mini">
+							<img id="lofter-article-author-avatar" src="" alt="作者头像" />
+							<span id="lofter-article-author-name">作者名</span>
+						</div>
+						<div class="lofter-article-actions">
+							<button class="lofter-follow-btn" id="lofter-article-follow-btn">+ 关注</button>
+						</div>
+					</div>
+					<div class="lofter-article-scroll">
+						<div class="lofter-article-content">
+							<h1 id="lofter-article-title">文章标题</h1>
+							<div class="lofter-article-meta">
+								<span id="lofter-article-date">2024-01-01</span>
+								<span id="lofter-article-views">阅读 0</span>
+							</div>
+							<div class="lofter-article-images" id="lofter-article-images">
+								<!-- 文章图片由JS生成 -->
+							</div>
+							<div class="lofter-article-body" id="lofter-article-body">文章内容...</div>
+							<div class="lofter-article-tags" id="lofter-article-tags">
+								<!-- 文章标签由JS生成 -->
+							</div>
+							<!-- 作者有话说 -->
+							<div class="lofter-author-notes" id="lofter-author-notes" style="display: none">
+								<div class="lofter-author-notes-header">
+									<span class="lofter-author-notes-icon">💬</span>
+									<span>作者有话说</span>
+								</div>
+								<div class="lofter-author-notes-content" id="lofter-author-notes-content"></div>
+							</div>
+							<!-- 作品合集 -->
+							<div class="lofter-work-collection" id="lofter-work-collection" style="display: none">
+								<div class="lofter-collection-header">
+									<span class="lofter-collection-icon">📚</span>
+									<span>收录于合集</span>
+								</div>
+								<div class="lofter-collection-card" id="lofter-collection-card">
+									<div class="lofter-collection-info">
+										<div class="lofter-collection-name" id="lofter-collection-name"></div>
+										<div class="lofter-collection-count" id="lofter-collection-count"></div>
+									</div>
+									<button class="lofter-collection-view-btn" id="lofter-view-collection-btn">查看全部</button>
+								</div>
+							</div>
+							<!-- 彩蛋区域 -->
+							<div class="lofter-bonus-content" id="lofter-bonus-section" style="display: none">
+								<div class="lofter-bonus-header">
+									<span class="lofter-bonus-icon">🎁</span>
+									<span>作者彩蛋</span>
+									<span class="lofter-bonus-cost" id="lofter-bonus-cost">🍬 10</span>
+								</div>
+								<div class="lofter-bonus-locked" id="lofter-bonus-locked">
+									<div class="lofter-bonus-lock-icon">🔒</div>
+									<p>花费糖果解锁作者精心准备的彩蛋内容</p>
+									<button class="lofter-unlock-btn" id="lofter-unlock-bonus-btn">解锁彩蛋</button>
+								</div>
+								<div class="lofter-bonus-unlocked" id="lofter-bonus-unlocked" style="display: none">
+									<div class="lofter-bonus-content-text" id="lofter-bonus-content-text"></div>
+								</div>
+							</div>
+							<!-- 打赏区域 -->
+							<div class="lofter-tip-section">
+								<div class="lofter-tip-header">
+									<span class="lofter-tip-icon">🎁</span>
+									<span>为作者打赏</span>
+								</div>
+								<div class="lofter-tip-gifts">
+									<div class="lofter-tip-gift" data-coins="1">
+										<span class="lofter-gift-emoji">🌸</span>
+										<span class="lofter-gift-name">小红花</span>
+										<span class="lofter-gift-price">🪙 1</span>
+									</div>
+									<div class="lofter-tip-gift" data-coins="5">
+										<span class="lofter-gift-emoji">☕</span>
+										<span class="lofter-gift-name">咖啡</span>
+										<span class="lofter-gift-price">🪙 5</span>
+									</div>
+									<div class="lofter-tip-gift" data-coins="10">
+										<span class="lofter-gift-emoji">🧋</span>
+										<span class="lofter-gift-name">奶茶</span>
+										<span class="lofter-gift-price">🪙 10</span>
+									</div>
+									<div class="lofter-tip-gift" data-coins="50">
+										<span class="lofter-gift-emoji">🍰</span>
+										<span class="lofter-gift-name">蛋糕</span>
+										<span class="lofter-gift-price">🪙 50</span>
+									</div>
+									<div class="lofter-tip-gift" data-coins="100">
+										<span class="lofter-gift-emoji">💎</span>
+										<span class="lofter-gift-name">钻石</span>
+										<span class="lofter-gift-price">🪙 100</span>
+									</div>
+									<div class="lofter-tip-gift" data-coins="520">
+										<span class="lofter-gift-emoji">💝</span>
+										<span class="lofter-gift-name">真爱</span>
+										<span class="lofter-gift-price">🪙 520</span>
+									</div>
+								</div>
+								<div class="lofter-tip-record" id="lofter-tip-record">
+									<!-- 打赏记录由JS生成 -->
+								</div>
+							</div>
+						</div>
+						<!-- 评论区 -->
+						<div class="lofter-comments-section">
+							<div class="lofter-comments-header">
+								<span>评论 (<span id="lofter-comment-count">0</span>)</span>
+								<button class="lofter-generate-comments-btn" id="lofter-generate-comments-btn">
+									<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></svg>
+									AI生成评论
+								</button>
+							</div>
+							<div class="lofter-comments-list" id="lofter-comments-list">
+								<!-- 评论由JS生成 -->
+							</div>
+						</div>
+						<div style="height: 80px"></div>
+					</div>
+					<!-- 底部互动栏 -->
+					<div class="lofter-article-bottom-bar">
+						<div class="lofter-comment-input-wrap">
+							<input type="text" id="lofter-comment-input" placeholder="说点什么..." />
+							<button id="lofter-comment-send-btn">发送</button>
+						</div>
+						<div class="lofter-article-interactions">
+							<div class="lofter-interaction-item" id="lofter-like-btn">
+								<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
+								<span id="lofter-like-count">0</span>
+							</div>
+							<div class="lofter-interaction-item" id="lofter-collect-btn">
+								<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+								<span id="lofter-collect-count">0</span>
+							</div>
+							<div class="lofter-interaction-item" id="lofter-share-btn">
+								<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+									<circle cx="18" cy="5" r="3" />
+									<circle cx="6" cy="12" r="3" />
+									<circle cx="18" cy="19" r="3" />
+									<line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+									<line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+								</svg>
+								<span>分享</span>
+							</div>
+						</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- 底部导航栏 -->
+			<div class="lofter-bottom-nav">
+				<div class="lofter-nav-item active" data-view="home">
+					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
+						<polyline points="9 22 9 12 15 12 15 22" />
+					</svg>
+					<span>首页</span>
+				</div>
+				<div class="lofter-nav-item" data-view="subscribe">
+					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" />
+						<path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z" />
+					</svg>
+					<span>订阅</span>
+				</div>
+				<div class="lofter-nav-item lofter-publish-nav" id="lofter-publish-nav-btn">
+					<div class="lofter-publish-icon">
+						<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5">
+							<line x1="12" y1="5" x2="12" y2="19" />
+							<line x1="5" y1="12" x2="19" y2="12" />
+						</svg>
+					</div>
+				</div>
+				<div class="lofter-nav-item" data-view="legu">
+					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<circle cx="12" cy="12" r="10" />
+						<polygon points="10 8 16 12 10 16 10 8" />
+					</svg>
+					<span>乐谷</span>
+				</div>
+				<div class="lofter-nav-item" data-view="profile">
+					<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+						<path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+						<circle cx="12" cy="7" r="4" />
+					</svg>
+					<span>我的</span>
+				</div>
+			</div>
+		</div>
+
+		<!-- Lofter 设置模态框 -->
+		<div id="lofter-settings-modal" class="modal">
+			<div class="modal-content" style="height: auto; max-height: 80%">
+				<div class="modal-header">
+					<span id="lofter-settings-close" style="cursor: pointer; font-size: 24px">×</span>
+					<span>个人设置</span>
+					<span id="lofter-settings-save" style="cursor: pointer; color: #00c3ff; font-weight: 600">保存</span>
+				</div>
+				<div class="modal-body" style="padding: 20px">
+					<div class="form-group">
+						<label>昵称</label>
+						<input type="text" id="lofter-settings-name" placeholder="输入昵称" />
+					</div>
+					<div class="form-group">
+						<label>LOFTER ID</label>
+						<input type="text" id="lofter-settings-id" placeholder="输入ID" />
+					</div>
+					<div class="form-group">
+						<label>头像URL</label>
+						<input type="text" id="lofter-settings-avatar" placeholder="输入头像图片地址" />
+					</div>
+					<div class="form-group">
+						<label>背景图URL</label>
+						<input type="text" id="lofter-settings-bg" placeholder="输入背景图片地址" />
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Lofter 隐藏的文件上传控件 -->
+		<input type="file" id="lofter-image-input" accept="image/*" multiple hidden />
+
+		<!-- Lofter 生成设置模态框 -->
+		<div id="lofter-gen-settings-modal" class="modal">
+			<div class="modal-content" style="height: auto; max-height: 85%">
+				<div class="modal-header">
+					<span id="lofter-gen-settings-close" style="cursor: pointer; font-size: 24px">×</span>
+					<span>生成设置</span>
+					<span id="lofter-gen-settings-save" style="cursor: pointer; color: #00c3ff; font-weight: 600">保存</span>
+				</div>
+				<div class="modal-body" style="padding: 20px; overflow-y: auto">
+					<!-- 生成数量 -->
+					<div class="form-group">
+						<label>每次生成作品数量</label>
+						<input type="number" id="lofter-gen-count" min="1" max="10" value="3" placeholder="1-10" />
+					</div>
+					<!-- 角色选择 -->
+					<div class="form-group">
+						<label>允许参与生成的角色</label>
+						<div id="lofter-gen-characters" class="lofter-gen-checkbox-list">
+							<!-- 角色列表由JS生成 -->
+						</div>
+					</div>
+					<!-- 世界书选择 -->
+					<div class="form-group">
+						<label>绑定的世界书</label>
+						<select id="lofter-gen-worldbook">
+							<option value="">不使用世界书</option>
+							<!-- 世界书选项由JS生成 -->
+						</select>
+					</div>
+					<!-- 文风预设 -->
+					<div class="form-group">
+						<label>文风预设 <span class="lofter-gen-hint">(生成时随机选用一条)</span></label>
+						<div id="lofter-gen-style-presets" class="lofter-gen-presets-list">
+							<!-- 预设列表由JS生成 -->
+						</div>
+						<div class="lofter-gen-add-preset">
+							<input type="text" id="lofter-gen-new-preset" placeholder="输入新的文风预设..." />
+							<button id="lofter-gen-add-preset-btn">添加</button>
+						</div>
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Lofter 合集详情模态框 -->
+		<div id="lofter-collection-modal" class="modal">
+			<div class="modal-content" style="height: 80%; max-height: 600px">
+				<div class="modal-header">
+					<span id="lofter-collection-modal-close" style="cursor: pointer; font-size: 24px">×</span>
+					<span id="lofter-collection-modal-title">合集名称</span>
+					<span></span>
+				</div>
+				<div class="modal-body" style="padding: 0; overflow-y: auto">
+					<div class="lofter-collection-works-list" id="lofter-collection-works-list">
+						<!-- 合集作品列表由JS生成 -->
+					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- Lofter 生成中加载提示 -->
+		<div id="lofter-generating-overlay" class="lofter-generating-overlay" style="display: none">
+			<div class="lofter-generating-content">
+				<div class="lofter-generating-spinner"></div>
+				<div class="lofter-generating-text">正在生成同人作品...</div>
+				<div class="lofter-generating-progress" id="lofter-generating-progress">0/0</div>
 			</div>
 		</div>
 

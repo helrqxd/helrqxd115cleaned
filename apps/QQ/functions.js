@@ -2674,11 +2674,49 @@ window.triggerAiInCallAction = async function (userInput = null) {
         `;
     }
 
+    // ================= [修改开始] =================
+    // 1. 尝试获取摄像头画面
+    let cameraFrame = null;
+    if (isVisualMode && chat.settings.useRealCamera) {
+        const userVideoSelector = videoCallState.isUserMain ? '#video-main-view video' : '#video-pip-view video';
+        const userVideoEl = document.querySelector(userVideoSelector);
+
+        if (userVideoEl) {
+            cameraFrame = captureVideoFrame(userVideoEl);
+        }
+    }
+
+    // 2. 构建发送给 API 的消息列表
     const messagesForApi = [...window.videoCallState.callHistory.map((h) => ({ role: h.role, content: h.content }))];
 
-    if (window.videoCallState.callHistory.length === 0) {
-        const firstLineTrigger = window.videoCallState.initiator === 'user' ? `*你按下了接听键...*` : `*对方按下了接听键...*`;
-        messagesForApi.push({ role: 'user', content: firstLineTrigger });
+    // 3. 如果成功截取到了画面，将其作为最新的一条 User 消息（或附加到最新消息）发送给 AI
+    if (cameraFrame) {
+        console.log('已截取摄像头画面，正在发送给AI...');
+
+        // 构造带图片的消息内容
+        const imageMessageContent = [
+            {
+                type: 'text',
+                text: userInput ? userInput : '（用户正在看着你，这是他当前的摄像头画面）',
+            },
+            {
+                type: 'image_url',
+                image_url: {
+                    url: cameraFrame,
+                },
+            },
+        ];
+
+        messagesForApi.push({
+            role: 'user',
+            content: imageMessageContent,
+        });
+    } else {
+        // 如果没截图（比如没开摄像头），如果历史记录为空，需要发一个触发词
+        if (videoCallState.callHistory.length === 0 && !userInput) {
+            const firstLineTrigger = window.videoCallState.initiator === 'user' ? `*你按下了接听键...*` : `*对方按下了接听键...*`;
+            messagesForApi.push({ role: 'user', content: firstLineTrigger });
+        }
     }
 
     try {
