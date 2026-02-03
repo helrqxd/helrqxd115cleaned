@@ -113,6 +113,20 @@ document.addEventListener('DOMContentLoaded', () => {
         return `${m}-${day}`;
     }
 
+    // 格式化楼中楼回复文本，高亮显示"回复 @xxx："前缀
+    function formatReplyText(text) {
+        if (!text) return '';
+        // 匹配"回复 @xxx："或"回复 @xxx:"格式
+        const replyMatch = text.match(/^(回复\s*@([^：:]+)[：:])\s*(.*)$/s);
+        if (replyMatch) {
+            const replyPrefix = replyMatch[1];
+            const replyToName = replyMatch[2];
+            const content = replyMatch[3];
+            return `<span class="lofter-reply-to">回复 <span class="lofter-reply-to-name">@${replyToName}</span>：</span>${content}`;
+        }
+        return text;
+    }
+
     // 完整日期格式
     function formatFullDate(ts) {
         if (!ts) return '';
@@ -174,16 +188,57 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('lofterUserSettings', JSON.stringify(settings));
     }
 
-    // 获取文章列表
-    function getLofterArticles() {
-        const articles = localStorage.getItem('lofterArticles');
-        return articles ? JSON.parse(articles) : [];
+    // 获取文章列表（从IndexedDB）
+    async function getLofterArticles() {
+        try {
+            const articles = await window.db.lofterArticles.toArray();
+            return articles || [];
+        } catch (error) {
+            console.error('获取Lofter文章失败:', error);
+            return [];
+        }
     }
 
-    // 保存文章列表
-    function saveLofterArticles(articles) {
-        localStorage.setItem('lofterArticles', JSON.stringify(articles));
+    // 保存文章列表（到IndexedDB）
+    async function saveLofterArticles(articles) {
+        try {
+            // 清空并重新保存所有文章
+            await window.db.lofterArticles.clear();
+            if (articles && articles.length > 0) {
+                await window.db.lofterArticles.bulkPut(articles);
+            }
+        } catch (error) {
+            console.error('保存Lofter文章失败:', error);
+            throw error;
+        }
     }
+
+    // 从localStorage迁移数据到IndexedDB（仅执行一次）
+    async function migrateFromLocalStorage() {
+        const migrationKey = 'lofterArticles_migrated_to_indexeddb';
+        if (localStorage.getItem(migrationKey)) {
+            return; // 已经迁移过
+        }
+
+        try {
+            const oldData = localStorage.getItem('lofterArticles');
+            if (oldData) {
+                const articles = JSON.parse(oldData);
+                if (articles && articles.length > 0) {
+                    await saveLofterArticles(articles);
+                    console.log(`[Lofter] 成功迁移 ${articles.length} 篇文章到IndexedDB`);
+                }
+                // 迁移成功后删除旧数据以释放localStorage空间
+                localStorage.removeItem('lofterArticles');
+            }
+            localStorage.setItem(migrationKey, 'true');
+        } catch (error) {
+            console.error('[Lofter] 数据迁移失败:', error);
+        }
+    }
+
+    // 执行迁移
+    migrateFromLocalStorage();
 
     // 获取订阅的标签
     function getSubscribedTags() {
@@ -313,12 +368,12 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 删除项目
-    function deleteItem(type, id) {
+    async function deleteItem(type, id) {
         switch (type) {
             case 'article':
-                let articles = getLofterArticles();
+                let articles = await getLofterArticles();
                 articles = articles.filter(a => a.id !== id);
-                saveLofterArticles(articles);
+                await saveLofterArticles(articles);
                 renderDiscoverFeed();
                 showLofterToast('文章已删除');
                 break;
@@ -396,9 +451,28 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 获取所有角色人设
+    // 获取所有角色人设（包括用户角色）
     function getAllCharacterProfiles(allowedCharacterIds = null) {
         const characters = [];
+
+        // 添加用户作为一个角色
+        const userName = window.state?.qzoneSettings?.weiboNickname || window.state?.qzoneSettings?.nickname || '';
+        const userPersona = window.state?.qzoneSettings?.weiboUserPersona || '';
+        const userAvatar = window.state?.qzoneSettings?.weiboAvatar || window.state?.qzoneSettings?.avatar || defaultAvatar;
+
+        if (userName && userPersona) {
+            // 用户角色ID固定为 'user'
+            const userAllowed = !allowedCharacterIds || allowedCharacterIds.length === 0 || allowedCharacterIds.includes('user');
+            if (userAllowed) {
+                characters.push({
+                    id: 'user',
+                    name: userName,
+                    avatar: userAvatar,
+                    persona: userPersona,
+                    isUser: true // 标记为用户角色
+                });
+            }
+        }
 
         // 从 state.chats 获取角色信息
         if (window.state && window.state.chats) {
@@ -425,75 +499,108 @@ document.addEventListener('DOMContentLoaded', () => {
         return characters;
     }
 
-    // 构建AI提示词（单个作品）
-    function buildLofterGenerationPrompt(characters, worldBookContent, stylePreset) {
+    // 构建AI提示词（单个作品）- 自由生成模式
+    // workType: 预先随机决定的作品类型
+    function buildLofterGenerationPrompt(characters, worldBookContent, stylePreset, workType) {
         // 构建完整的角色人设信息（不截断）
         const characterInfo = characters.map(c => {
             return `【角色名】${c.name}\n【角色人设】\n${c.persona}`;
         }).join('\n\n---\n\n');
 
-        const workTypes = [
-            { type: 'image', name: '同人图/漫画', desc: '一张或多张同人插画、漫画作品' },
-            { type: 'short_story', name: '短篇小说', desc: '单篇完结的短篇同人文，不属于任何合集' },
-            { type: 'short_series', name: '短篇系列', desc: '属于某个系列的短篇，需要系列名和在合集内的排序号' },
-            { type: 'long_complete', name: '长篇一篇完', desc: '较长的一篇完结文，不属于任何合集' },
-            { type: 'long_serial', name: '长篇连载', desc: '连载中的长篇小说章节，需要小说名和在合集内的排序号' }
-        ];
+        // 作品类型详细说明（暂时移除image类型）
+        const workTypeDetails = {
+            // 'image': { name: '同人图/漫画', desc: '详细描述一幅同人插画或漫画的画面内容，包括构图、人物神态、动作、场景氛围等' },
+            'short_story': { name: '短篇小说（单篇完结）', desc: '独立完整的短篇故事，有开头、发展、高潮、结尾，情节紧凑，主题明确' },
+            'short_series': { name: '短篇系列', desc: '属于某个主题系列的短篇，可以独立阅读但与系列其他作品有关联，需要系列名和章节号' },
+            'long_complete': { name: '长篇一发完', desc: '较长的完整故事，情节丰富，人物刻画深入，有完整的故事弧线' },
+            'long_serial': { name: '长篇连载章节', desc: '连载小说的一个章节，有承上启下的作用，结尾可以留有悬念，需要小说名和章节号' }
+        };
+
+        const typeInfo = workTypeDetails[workType] || workTypeDetails['short_story'];
 
         // 世界书设定
         let worldBookSection = '';
         if (worldBookContent) {
-            worldBookSection = `\n\n## 世界观设定（请参考以下世界书内容进行创作）：\n${worldBookContent}`;
+            worldBookSection = `\n\n## 📚 世界观设定背景：\n请严格遵循以下世界观设定进行创作，确保作品与设定相符：\n${worldBookContent}`;
         }
 
         // 文风要求
         let styleSection = '';
         if (stylePreset) {
-            styleSection = `\n\n## 文风要求：\n请按照以下风格进行创作：${stylePreset}`;
+            styleSection = `\n\n## ✍️ 文风与写作风格要求：\n请按照以下风格特点进行创作，贯穿全文：\n${stylePreset}\n\n具体要求：\n- 语言风格需保持一致\n- 叙事节奏符合文风特点\n- 对话和描写要体现风格特色`;
         }
 
-        return `你是一个同人创作平台的内容生成器。请基于以下角色人设，生成1个同人作品。
+        // 合集相关提示
+        let collectionHint = '';
+        if (workType === 'short_series' || workType === 'long_serial') {
+            collectionHint = `\n\n⚠️ 重要提示：由于作品类型是「${typeInfo.name}」，你必须在JSON中提供 collectionName（合集名/小说名）和 chapterNum（章节号，默认为1）。`;
+        }
 
-## 可用角色人设：
-${characterInfo || '（无特定角色，可自由创作）'}${worldBookSection}${styleSection}
+        return `你是一位资深的同人文创作者，擅长根据角色人设创作高质量的同人作品。请基于以下详细设定，创作一篇精彩的同人作品。
 
-## 作品类型说明：
-${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
+═══════════════════════════════════════
+📖 角色资料卡
+═══════════════════════════════════════
 
-## 要求：
-1. 生成1个作品，从以上可用角色中选择任意角色进行同人创作
-2. 为作品创建一个有创意的作者笔名
-3. 作品需要3-5个标签，包含：CP属性（如"XX×XX"）、主题/梗（如"校园AU"、"甜宠"、"虐心"、"原著向"等）
-4. 写一段"作者有话说"，表达创作意图、灵感来源、心路历程或碎碎念（50-150字）
-5. 可以选择为作品添加彩蛋内容（额外小剧场或花絮）
-6. 如果是图片类型，详细描述图片内容；如果是文字类型，写出完整的小说内容（至少800字）
-7. 如果选择 short_series 或 long_serial 类型，必须提供 collectionName（合集名）和 chapterNum（在合集内的排序号，从1开始）
-8. 同时生成2-4条网友评论，评论内容要符合同人圈氛围（如尖叫、催更、表达喜爱等）
+${characterInfo || '（无特定角色，可自由创作原创角色）'}${worldBookSection}${styleSection}
 
-## 输出JSON格式（严格按照此格式）：
+═══════════════════════════════════════
+📝 创作要求
+═══════════════════════════════════════
+
+【指定作品类型】${typeInfo.name}
+${typeInfo.desc}
+
+【字数要求】
+- 短篇类型：800-1500字
+- 长篇类型：3000-5000字
+- 内容充实，不要为凑字数而注水
+
+【内容质量要求】
+1. 开头要引人入胜，迅速抓住读者注意力
+2. 人物塑造要立体，对话要生动有个性
+3. 情节发展要合理，转折要有铺垫
+4. 情感描写要细腻，能引起读者共鸣
+5. 结尾要有余韵，让人回味
+
+【必须包含的元素】
+- 一个有创意的作者笔名（符合同人圈风格）
+- 一个吸引人的标题（可以是诗意的、有梗的或直接点题的）
+- 3-5个精准的标签：CP标签（如"XX×XX"）、主题标签（如"校园AU"、"原著向"）、情感标签（如"甜宠"、"虐心"）
+- 一段真诚的"作者有话说"（50-150字，可以聊聊创作灵感、心路历程、碎碎念等）
+- 2-4条精彩的读者评论（模拟同人圈读者的真实反应，可以是尖叫、催更、深度分析等）
+
+【可选元素】
+- 彩蛋内容：番外小剧场、角色花絮、if线等（如果添加，需设置5-30的糖果券解锁价格）${collectionHint}
+
+═══════════════════════════════════════
+📤 输出格式（严格JSON）
+═══════════════════════════════════════
+
 {
-  "type": "short_story 或 short_series 或 long_complete 或 long_serial 或 image",
+  "type": "${workType}",
   "authorName": "作者笔名",
   "title": "作品标题",
   "content": "作品正文内容",
   "tags": ["CP标签", "主题标签", "情感标签", "其他标签"],
   "authorNotes": "作者有话说的内容",
   "hasBonus": true或false,
-  "bonusContent": "彩蛋内容（如果hasBonus为true则必填）",
+  "bonusContent": "彩蛋内容（如果hasBonus为true）",
   "bonusCost": 5到30之间的数字,
-  "collectionName": "合集名（short_series和long_serial类型必填）",
+  "collectionName": "合集名（short_series和long_serial必填）",
   "chapterNum": 1,
   "comments": [
-    {"name": "评论者昵称", "text": "评论内容"},
+    {"name": "评论者昵称", "text": "评论内容（要符合同人圈氛围）"},
     {"name": "评论者昵称2", "text": "评论内容2"}
   ]
 }
 
-直接输出JSON，不要添加任何其他说明文字。`;
+⚠️ 注意：直接输出JSON，不要添加任何markdown代码块标记或其他说明文字。`;
     }
 
     // 调用AI生成单个作品
-    async function generateSingleWork(characters, worldBookContent, stylePreset) {
+    // workType: 预先随机决定的作品类型
+    async function generateSingleWork(characters, worldBookContent, stylePreset, workType) {
         const apiConfig = window.state?.apiConfig;
         const { proxyUrl, apiKey, model, temperature } = apiConfig;
         const isGemini = proxyUrl.includes('googleapis');
@@ -501,7 +608,7 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
         // 使用设置中的 temperature，如果没有设置则使用默认值
         const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.8;
 
-        const prompt = buildLofterGenerationPrompt(characters, worldBookContent, stylePreset);
+        const prompt = buildLofterGenerationPrompt(characters, worldBookContent, stylePreset, workType);
         let responseData;
 
         if (isGemini) {
@@ -590,21 +697,32 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
         overlay.style.display = 'flex';
         progressEl.textContent = `准备生成 ${workCount} 个作品...`;
 
-        const articles = getLofterArticles();
+        const articles = await getLofterArticles();
         const now = Date.now();
         let successCount = 0;
+
+        // 可用的作品类型列表（暂时移除image类型）
+        const availableWorkTypes = [
+            // 'image', // 图片作品功能暂时移除，后续继续开发
+            'short_story',
+            'short_series',
+            'long_complete',
+            'long_serial'
+        ];
 
         try {
             // 分别生成每个作品
             for (let i = 0; i < workCount; i++) {
-                progressEl.textContent = `正在生成第 ${i + 1}/${workCount} 个作品...`;
+                // 每个作品随机决定类型
+                const randomWorkType = availableWorkTypes[Math.floor(Math.random() * availableWorkTypes.length)];
+                progressEl.textContent = `正在生成第 ${i + 1}/${workCount} 个作品（${getWorkTypeName(randomWorkType)}）...`;
 
                 // 随机选择一个文风预设
                 const randomStylePreset = stylePresets[Math.floor(Math.random() * stylePresets.length)];
 
                 try {
-                    // 调用AI生成单个作品
-                    const work = await generateSingleWork(characters, worldBookContent, randomStylePreset);
+                    // 调用AI生成单个作品，传入预先决定的作品类型
+                    const work = await generateSingleWork(characters, worldBookContent, randomStylePreset, randomWorkType);
 
                     // 创建作者ID
                     const authorId = 'author_' + generateId();
@@ -621,8 +739,9 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
                         collectionId = collection.id;
                     }
 
-                    // 生成配图（如果是图片类型或有图片提示词）
+                    // 生成配图（图片类型功能暂时移除，后续继续开发）
                     let images = [];
+                    /* 暂时移除图片生成功能
                     if (work.type === 'image' || work.imagePrompt) {
                         try {
                             progressEl.textContent = `正在生成第 ${i + 1}/${workCount} 个作品的配图...`;
@@ -632,6 +751,7 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
                             console.error('配图生成失败:', imgErr);
                         }
                     }
+                    */
 
                     // 处理AI生成的评论
                     let generatedComments = [];
@@ -691,7 +811,7 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
                     successCount++;
 
                     // 保存当前进度，防止中途失败丢失已生成的内容
-                    saveLofterArticles(articles);
+                    await saveLofterArticles(articles);
 
                 } catch (singleError) {
                     console.error(`生成第 ${i + 1} 个作品失败:`, singleError);
@@ -849,11 +969,11 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
         4. 发现页渲染 (瀑布流)
        ========================================= */
 
-    function renderDiscoverFeed() {
+    async function renderDiscoverFeed() {
         const feed = document.getElementById('lofter-discover-feed');
         if (!feed) return;
 
-        let articles = getLofterArticles();
+        let articles = await getLofterArticles();
 
         feed.innerHTML = '';
 
@@ -1107,30 +1227,30 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
     }
 
     // 点赞切换
-    function toggleLike(articleId, element) {
-        let articles = getLofterArticles();
+    async function toggleLike(articleId, element) {
+        let articles = await getLofterArticles();
         const article = articles.find(a => a.id === articleId);
         if (!article) return;
 
         article.isLiked = !article.isLiked;
         article.likes += article.isLiked ? 1 : -1;
 
-        saveLofterArticles(articles);
+        await saveLofterArticles(articles);
 
         element.classList.toggle('liked');
         element.querySelector('span').textContent = article.likes;
     }
 
     // 收藏切换
-    function toggleCollect(articleId, element) {
-        let articles = getLofterArticles();
+    async function toggleCollect(articleId, element) {
+        let articles = await getLofterArticles();
         const article = articles.find(a => a.id === articleId);
         if (!article) return;
 
         article.isCollected = !article.isCollected;
         article.collects += article.isCollected ? 1 : -1;
 
-        saveLofterArticles(articles);
+        await saveLofterArticles(articles);
 
         element.classList.toggle('collected');
         element.querySelector('span').textContent = article.collects;
@@ -1154,8 +1274,8 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
         5. 文章详情页
        ========================================= */
 
-    function openArticleDetail(articleId) {
-        const articles = getLofterArticles();
+    async function openArticleDetail(articleId) {
+        const articles = await getLofterArticles();
         const article = articles.find(a => a.id === articleId);
         if (!article) return;
 
@@ -1163,7 +1283,7 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
 
         // 增加阅读量
         article.views = (article.views || 0) + 1;
-        saveLofterArticles(articles);
+        await saveLofterArticles(articles);
 
         // 填充数据
         document.getElementById('lofter-article-author-avatar').src = article.authorAvatar || defaultAvatar;
@@ -1171,7 +1291,9 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
         document.getElementById('lofter-article-title').textContent = article.title;
         document.getElementById('lofter-article-date').textContent = formatFullDateTime(article.timestamp);
         document.getElementById('lofter-article-views').textContent = `阅读 ${article.views}`;
-        document.getElementById('lofter-article-body').textContent = article.content;
+
+        // 渲染带段评标记的正文
+        renderArticleBodyWithParagraphComments(article);
 
         // 图片
         const imagesContainer = document.getElementById('lofter-article-images');
@@ -1284,7 +1406,7 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
     }
 
     // 打开合集模态框
-    function openCollectionModal(collectionId) {
+    async function openCollectionModal(collectionId) {
         const collections = getLofterCollections();
         const collection = collections.find(c => c.id === collectionId);
         if (!collection) return;
@@ -1296,7 +1418,7 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
         titleEl.textContent = collection.name;
         listEl.innerHTML = '';
 
-        const articles = getLofterArticles();
+        const articles = await getLofterArticles();
         collection.articleIds.forEach((aid, index) => {
             const article = articles.find(a => a.id === aid);
             if (!article) return;
@@ -1336,7 +1458,7 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
     }
 
     // 解锁彩蛋
-    function unlockBonus(articleId, cost) {
+    async function unlockBonus(articleId, cost) {
         const userSettings = getLofterUserSettings();
         const currentCandy = userSettings.candy || 0;
 
@@ -1350,11 +1472,11 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
         saveLofterUserSettings(userSettings);
 
         // 更新文章状态
-        let articles = getLofterArticles();
+        let articles = await getLofterArticles();
         const article = articles.find(a => a.id === articleId);
         if (article) {
             article.bonusUnlocked = true;
-            saveLofterArticles(articles);
+            await saveLofterArticles(articles);
 
             // 更新UI
             document.getElementById('lofter-bonus-locked').style.display = 'none';
@@ -1403,7 +1525,7 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
     }
 
     // 发送打赏
-    function sendTip(articleId, coins, giftEmoji, giftName) {
+    async function sendTip(articleId, coins, giftEmoji, giftName) {
         const userSettings = getLofterUserSettings();
         const currentCoins = userSettings.coins || 0;
 
@@ -1417,7 +1539,7 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
         saveLofterUserSettings(userSettings);
 
         // 添加打赏记录
-        let articles = getLofterArticles();
+        let articles = await getLofterArticles();
         const article = articles.find(a => a.id === articleId);
         if (article) {
             if (!article.tips) article.tips = [];
@@ -1429,13 +1551,637 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
                 coins: coins,
                 timestamp: Date.now()
             });
-            saveLofterArticles(articles);
+            await saveLofterArticles(articles);
 
             // 更新打赏记录显示
             renderTipRecord(article);
         }
 
         showLofterToast(`成功送出 ${giftEmoji} ${giftName}！`);
+    }
+
+    /* =========================================
+        5.5 段评功能
+       ========================================= */
+
+    // 渲染带段评标记的文章正文
+    function renderArticleBodyWithParagraphComments(article) {
+        const bodyContainer = document.getElementById('lofter-article-body');
+        bodyContainer.innerHTML = '';
+
+        // 按换行分割段落
+        const paragraphs = article.content.split(/\n+/).filter(p => p.trim());
+
+        // 初始化段评数据结构（如果不存在）
+        if (!article.paragraphComments) {
+            article.paragraphComments = {};
+        }
+
+        paragraphs.forEach((para, index) => {
+            const paraWrapper = document.createElement('p');
+            paraWrapper.className = 'lofter-paragraph-with-comment';
+
+            // 段评标记（Lofter风格的对话框气泡）
+            const paragraphComments = article.paragraphComments[index] || [];
+            const commentCount = paragraphComments.length;
+
+            // 创建段评标记元素
+            const paraMark = document.createElement('span');
+            paraMark.className = 'lofter-para-comment-bubble';
+            paraMark.dataset.paragraphIndex = index;
+
+            // 显示数字（有评论显示数量，无评论显示省略号）
+            paraMark.innerHTML = `<span class="lofter-bubble-count">${commentCount > 0 ? commentCount : '…'}</span><span class="lofter-bubble-arrow"></span>`;
+            if (commentCount > 0) {
+                paraMark.classList.add('has-comments');
+            }
+
+            // 点击打开段评页面
+            paraMark.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openParagraphCommentModal(article.id, index, para);
+            });
+
+            // 段落文本 + 内联的段评标记
+            paraWrapper.appendChild(document.createTextNode(para));
+            paraWrapper.appendChild(paraMark);
+            bodyContainer.appendChild(paraWrapper);
+        });
+    }
+
+    // 打开段评模态框（支持楼中楼）
+    async function openParagraphCommentModal(articleId, paragraphIndex, paragraphText) {
+        // 移除已有的模态框
+        const existingModal = document.querySelector('.lofter-para-comment-modal');
+        if (existingModal) {
+            existingModal.remove();
+        }
+
+        const articles = await getLofterArticles();
+        const article = articles.find(a => a.id === articleId);
+        if (!article) return;
+
+        if (!article.paragraphComments) {
+            article.paragraphComments = {};
+        }
+
+        const paragraphComments = article.paragraphComments[paragraphIndex] || [];
+
+        // 渲染段评列表HTML（支持楼中楼）
+        function renderParaCommentListHtml(comments) {
+            if (comments.length === 0) {
+                return '<div class="lofter-para-comment-empty">还没有段评，快来抢沙发吧~</div>';
+            }
+            return comments.map(c => {
+                // 渲染楼中楼回复
+                let repliesHtml = '';
+                if (c.replies && c.replies.length > 0) {
+                    repliesHtml = `
+                        <div class="lofter-para-replies">
+                            ${c.replies.map(r => `
+                                <div class="lofter-para-reply-item" data-reply-id="${r.id}" data-parent-id="${c.id}" data-reply-name="${r.name}">
+                                    <img src="${r.avatar || defaultAvatar}" class="lofter-para-reply-avatar" alt="头像">
+                                    <div class="lofter-para-reply-content">
+                                        <span class="lofter-para-reply-name">${r.name}</span>
+                                        <span class="lofter-para-reply-text">${formatReplyText(r.text)}</span>
+                                        <div class="lofter-para-reply-meta">
+                                            <span class="lofter-para-reply-time">${formatLofterDate(r.timestamp)}</span>
+                                            <span class="lofter-para-reply-action" data-parent-id="${c.id}" data-reply-name="${r.name}">回复</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    `;
+                }
+                return `
+                    <div class="lofter-para-comment-item" data-comment-id="${c.id}">
+                        <img src="${c.avatar || defaultAvatar}" class="lofter-para-comment-avatar" alt="头像">
+                        <div class="lofter-para-comment-content">
+                            <div class="lofter-para-comment-name">${c.name}</div>
+                            <div class="lofter-para-comment-text">${c.text}</div>
+                            <div class="lofter-para-comment-meta">
+                                <span class="lofter-para-comment-time">${formatLofterDate(c.timestamp)}</span>
+                                <span class="lofter-para-comment-reply-btn" data-comment-id="${c.id}" data-comment-name="${c.name}">回复</span>
+                            </div>
+                            ${repliesHtml}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // 创建模态框
+        const modal = document.createElement('div');
+        modal.className = 'lofter-para-comment-modal';
+        modal.innerHTML = `
+            <div class="lofter-para-comment-container">
+                <div class="lofter-para-comment-header">
+                    <span class="lofter-para-comment-title">段落评论</span>
+                    <span class="lofter-para-comment-close">×</span>
+                </div>
+                <div class="lofter-para-comment-quote">
+                    <div class="lofter-para-quote-mark">"</div>
+                    <div class="lofter-para-quote-text">${paragraphText.length > 100 ? paragraphText.substring(0, 100) + '...' : paragraphText}</div>
+                </div>
+                <div class="lofter-para-comment-list" id="lofter-para-comment-list">
+                    ${renderParaCommentListHtml(paragraphComments)}
+                </div>
+                <div class="lofter-para-comment-input-area">
+                    <div class="lofter-para-reply-hint" style="display:none;"></div>
+                    <input type="text" class="lofter-para-comment-input" placeholder="写下你对这段的感想..." />
+                    <button class="lofter-para-comment-send">发送</button>
+                    <button class="lofter-para-comment-ai-btn">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></svg>
+                        AI生成
+                    </button>
+                </div>
+            </div>
+        `;
+
+        document.getElementById('lofter-article-view').appendChild(modal);
+
+        // 当前回复状态
+        let replyingToCommentId = null;
+        let replyingToName = null;
+        let isReplyingToReply = false;
+
+        const input = modal.querySelector('.lofter-para-comment-input');
+        const replyHint = modal.querySelector('.lofter-para-reply-hint');
+
+        // 重新渲染段评列表并绑定事件
+        async function refreshParaCommentList() {
+            const updatedArticles = await getLofterArticles();
+            const updatedArticle = updatedArticles.find(a => a.id === articleId);
+            if (!updatedArticle) return;
+            const updatedComments = updatedArticle.paragraphComments?.[paragraphIndex] || [];
+            const listEl = modal.querySelector('#lofter-para-comment-list');
+            listEl.innerHTML = renderParaCommentListHtml(updatedComments);
+            bindParaCommentEvents();
+        }
+
+        // 绑定段评列表事件
+        function bindParaCommentEvents() {
+            // 主评论回复按钮
+            modal.querySelectorAll('.lofter-para-comment-reply-btn').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    replyingToCommentId = btn.dataset.commentId;
+                    replyingToName = btn.dataset.commentName;
+                    isReplyingToReply = false;
+                    replyHint.textContent = `回复 @${replyingToName}`;
+                    replyHint.style.display = 'block';
+                    input.placeholder = '写下你的回复...';
+                    input.focus();
+                });
+            });
+
+            // 楼中楼回复按钮
+            modal.querySelectorAll('.lofter-para-reply-action').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    replyingToCommentId = btn.dataset.parentId;
+                    replyingToName = btn.dataset.replyName;
+                    isReplyingToReply = true;
+                    replyHint.textContent = `回复 @${replyingToName}`;
+                    replyHint.style.display = 'block';
+                    input.placeholder = '写下你的回复...';
+                    input.focus();
+                });
+            });
+
+            // 长按删除主评论
+            modal.querySelectorAll('.lofter-para-comment-item').forEach(item => {
+                setupLongPress(item, async () => {
+                    const commentId = item.dataset.commentId;
+                    if (confirm('确定要删除这条段评吗？')) {
+                        await deleteParagraphComment(articleId, paragraphIndex, commentId);
+                        await refreshParaCommentList();
+                        const updatedArticle = (await getLofterArticles()).find(a => a.id === articleId);
+                        if (updatedArticle) renderArticleBodyWithParagraphComments(updatedArticle);
+                    }
+                });
+            });
+
+            // 长按删除楼中楼回复
+            modal.querySelectorAll('.lofter-para-reply-item').forEach(item => {
+                setupLongPress(item, async () => {
+                    const replyId = item.dataset.replyId;
+                    const parentId = item.dataset.parentId;
+                    if (confirm('确定要删除这条回复吗？')) {
+                        await deleteParagraphReply(articleId, paragraphIndex, parentId, replyId);
+                        await refreshParaCommentList();
+                    }
+                });
+            });
+        }
+
+        bindParaCommentEvents();
+
+        // 关闭按钮
+        modal.querySelector('.lofter-para-comment-close').addEventListener('click', () => {
+            modal.remove();
+        });
+
+        // 点击遮罩关闭
+        modal.addEventListener('click', (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        });
+
+        // 发送段评
+        const sendBtn = modal.querySelector('.lofter-para-comment-send');
+
+        sendBtn.addEventListener('click', async () => {
+            let text = input.value.trim();
+            if (!text) {
+                showLofterToast('请输入评论内容');
+                return;
+            }
+
+            if (replyingToCommentId) {
+                // 回复模式
+                if (isReplyingToReply) {
+                    text = `回复 @${replyingToName}：${text}`;
+                }
+                await addParagraphReply(articleId, paragraphIndex, replyingToCommentId, text);
+            } else {
+                // 新评论模式
+                await addParagraphComment(articleId, paragraphIndex, text);
+            }
+
+            // 重置状态
+            input.value = '';
+            replyingToCommentId = null;
+            replyingToName = null;
+            isReplyingToReply = false;
+            replyHint.style.display = 'none';
+            input.placeholder = '写下你对这段的感想...';
+
+            await refreshParaCommentList();
+            const updatedArticle = (await getLofterArticles()).find(a => a.id === articleId);
+            if (updatedArticle) renderArticleBodyWithParagraphComments(updatedArticle);
+        });
+
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendBtn.click();
+            }
+        });
+
+        // 点击输入框区域取消回复状态
+        replyHint.addEventListener('click', () => {
+            replyingToCommentId = null;
+            replyingToName = null;
+            isReplyingToReply = false;
+            replyHint.style.display = 'none';
+            input.placeholder = '写下你对这段的感想...';
+        });
+
+        // AI生成段评
+        const aiBtn = modal.querySelector('.lofter-para-comment-ai-btn');
+        aiBtn.addEventListener('click', async () => {
+            // 添加loading状态
+            aiBtn.classList.add('loading');
+            aiBtn.innerHTML = `<svg class="lofter-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg> 生成中...`;
+
+            await generateAIParagraphComment(articleId, paragraphIndex, paragraphText, article);
+
+            // 移除loading状态
+            aiBtn.classList.remove('loading');
+            aiBtn.innerHTML = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z" /></svg> AI生成`;
+
+            await refreshParaCommentList();
+            const updatedArticle = (await getLofterArticles()).find(a => a.id === articleId);
+            if (updatedArticle) renderArticleBodyWithParagraphComments(updatedArticle);
+        });
+
+        // 自动聚焦输入框
+        setTimeout(() => input.focus(), 100);
+    }
+
+    // 添加段评
+    async function addParagraphComment(articleId, paragraphIndex, text) {
+        let articles = await getLofterArticles();
+        const article = articles.find(a => a.id === articleId);
+        if (!article) return;
+
+        if (!article.paragraphComments) {
+            article.paragraphComments = {};
+        }
+
+        if (!article.paragraphComments[paragraphIndex]) {
+            article.paragraphComments[paragraphIndex] = [];
+        }
+
+        const userSettings = getLofterUserSettings();
+        const newComment = {
+            id: generateId(),
+            name: userSettings.name,
+            avatar: userSettings.avatar,
+            text: text,
+            timestamp: Date.now(),
+            isUser: true,
+            replies: [] // 支持楼中楼
+        };
+
+        article.paragraphComments[paragraphIndex].push(newComment);
+        await saveLofterArticles(articles);
+        showLofterToast('段评发送成功');
+    }
+
+    // 添加段评楼中楼回复
+    async function addParagraphReply(articleId, paragraphIndex, parentCommentId, text) {
+        let articles = await getLofterArticles();
+        const article = articles.find(a => a.id === articleId);
+        if (!article || !article.paragraphComments || !article.paragraphComments[paragraphIndex]) return;
+
+        const parentComment = article.paragraphComments[paragraphIndex].find(c => c.id === parentCommentId);
+        if (!parentComment) return;
+
+        if (!parentComment.replies) parentComment.replies = [];
+
+        const userSettings = getLofterUserSettings();
+        const newReply = {
+            id: generateId(),
+            name: userSettings.name,
+            avatar: userSettings.avatar,
+            text: text,
+            timestamp: Date.now(),
+            isUser: true
+        };
+
+        parentComment.replies.push(newReply);
+        await saveLofterArticles(articles);
+        showLofterToast('回复成功');
+    }
+
+    // 删除段评
+    async function deleteParagraphComment(articleId, paragraphIndex, commentId) {
+        let articles = await getLofterArticles();
+        const article = articles.find(a => a.id === articleId);
+        if (!article || !article.paragraphComments || !article.paragraphComments[paragraphIndex]) return;
+
+        article.paragraphComments[paragraphIndex] = article.paragraphComments[paragraphIndex].filter(c => c.id !== commentId);
+        await saveLofterArticles(articles);
+        showLofterToast('段评已删除');
+    }
+
+    // 删除段评楼中楼回复
+    async function deleteParagraphReply(articleId, paragraphIndex, parentCommentId, replyId) {
+        let articles = await getLofterArticles();
+        const article = articles.find(a => a.id === articleId);
+        if (!article || !article.paragraphComments || !article.paragraphComments[paragraphIndex]) return;
+
+        const parentComment = article.paragraphComments[paragraphIndex].find(c => c.id === parentCommentId);
+        if (!parentComment || !parentComment.replies) return;
+
+        parentComment.replies = parentComment.replies.filter(r => r.id !== replyId);
+        await saveLofterArticles(articles);
+        showLofterToast('回复已删除');
+    }
+
+    // AI生成段评
+    async function generateAIParagraphComment(articleId, paragraphIndex, paragraphText, article) {
+        const apiConfig = window.state?.apiConfig;
+        if (!apiConfig || !apiConfig.proxyUrl || !apiConfig.apiKey) {
+            showLofterToast('请先在设置中配置API');
+            return;
+        }
+
+        showLofterToast('正在生成段评...');
+
+        const { proxyUrl, apiKey, model, temperature } = apiConfig;
+        const isGemini = proxyUrl.includes('googleapis');
+        const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.8;
+
+        // 获取当前段落已有的段评
+        const existingComments = article.paragraphComments?.[paragraphIndex] || [];
+
+        // 检查未被回复的用户评论（包括主评论和楼中楼）
+        const userSettings = getLofterUserSettings();
+        const unrepliedUserComments = [];
+        existingComments.forEach(c => {
+            const isUserComment = c.name === userSettings.name || c.isUser;
+            const hasReply = c.replies && c.replies.length > 0;
+            if (isUserComment && !hasReply) {
+                unrepliedUserComments.push({ type: 'main', id: c.id, name: c.name, text: c.text });
+            }
+            // 检查楼中楼中的用户评论
+            if (c.replies && c.replies.length > 0) {
+                c.replies.forEach((r, rIdx) => {
+                    const isUserReply = r.name === userSettings.name || r.isUser;
+                    // 检查该回复后面是否有其他回复
+                    const hasFollowingReply = c.replies.slice(rIdx + 1).some(fr => !(fr.name === userSettings.name || fr.isUser));
+                    if (isUserReply && !hasFollowingReply) {
+                        unrepliedUserComments.push({ type: 'reply', parentId: c.id, parentName: c.name, id: r.id, name: r.name, text: r.text });
+                    }
+                });
+            }
+        });
+
+        // 构建已有评论列表（包含楼中楼结构）
+        let existingCommentsSection = '';
+        if (existingComments.length > 0) {
+            const commentsList = existingComments.map(c => {
+                let text = `- [ID:${c.id}] ${c.name}: "${c.text}"`;
+                if (c.replies && c.replies.length > 0) {
+                    text += '\n' + c.replies.map(r => `    └ [ID:${r.id}] ${r.name}: "${r.text}"`).join('\n');
+                }
+                return text;
+            }).join('\n');
+            existingCommentsSection = `\n\n【该段落已有的段评】\n${commentsList}`;
+        }
+
+        // 构建未回复评论列表
+        let unrepliedSection = '';
+        if (unrepliedUserComments.length > 0) {
+            unrepliedSection = `\n\n【必须回复的用户评论 - 最高优先级】\n以下是用户发表但尚未被回复的评论，必须为每条生成至少1条回复：\n${unrepliedUserComments.map(c => {
+                if (c.type === 'main') {
+                    return `- 主评论 [ID:${c.id}] ${c.name}: "${c.text}"`;
+                } else {
+                    return `- 楼中楼回复 [父评论id:${c.parentId}] [ID:${c.id}] ${c.name}: "${c.text}"`;
+                }
+            }).join('\n')}`;
+        }
+
+        const prompt = `你是一位资深的同人文读者，正在阅读一篇同人文作品。请为指定段落生成精彩的段评。
+
+【作品信息】
+标题：${article.title}
+作者：${article.authorName}
+标签：${article.tags ? article.tags.join('、') : '无'}
+
+【作品全文】
+${article.content}
+
+【需要评论的段落】（第${paragraphIndex + 1}段）
+"${paragraphText}"${existingCommentsSection}${unrepliedSection}
+
+【段评生成要求】
+
+${unrepliedUserComments.length > 0 ? `★★★ 最高优先级：必须为上述${unrepliedUserComments.length}条未回复的用户评论生成回复！这些回复必须放在replies数组中。 ★★★\n\n` : ''}${existingComments.length > 0 ? `★★ 重要：已有${existingComments.length}条段评，生成的内容中必须包含1-2条对已有段评的楼中楼回复（放在replies数组）。 ★★\n\n` : ''}请生成2-4条段评，要求如下：
+
+1. 评论角度多样化（必须从不同角度评论，不要雷同）：
+   - 文笔赏析：评价该段的叙述手法、词句运用、意象选择
+   - 情节反应：对故事发展的惊喜/震惊/感叹
+   - 角色分析：分析角色心理、动机、性格
+   - 情感共鸣：表达被触动的地方
+   - 细节发现：挖掘伏笔、照应、隐藏的意涵
+   - 幽默吐槽：轻松的玩笑、调侃
+   - 引用并评：引用段落中的具体句子并发表看法
+   - 联想发散：由该段联想到的其他内容
+
+2. 评论语气/风格多样化（每条评论语气都要不同）：
+   - 尖叫吐血型："awsl!!!"、"我死了"、"我哭死"
+   - 深度分析型：理性、客观的分析评论
+   - 温情感慨型：温柔、带感情的感想
+   - 幽默调侃型：轻松的玩笑吐槽
+   - 质疑讨论型："这里是不是...?"、"突然想到..."
+   - 简短拍案型："绝了!"、"神来之笔!"、"开始暴风哭泣"
+
+3. 文字表达多样化：
+   - 可以使用颜文字、网络用语、粉圈语
+   - 可以用"“”"引用原文句子
+   - 并非所有评论都必须用额外表情符号，正常表达也可
+   - 长度有差异：一句话的拍案/10-30字感想/30-60字分析
+
+4. 态度多样化：
+   - 正面（60%）：喜爱、感动、赞叹
+   - 中性（30%）：讨论、分析、疑问
+   - 微负（10%）：小小的遮憾感、心疼、"我不接受"
+
+【重要】每条评论必须有明显区别，不要千篇一律！反应和文风要有差异。
+
+输出格式（严格JSON）：
+{
+  "comments": [
+    {"name": "昵称", "text": "段评内容"}
+  ]${(unrepliedUserComments.length > 0 || existingComments.length > 0) ? `,
+  "replies": [
+    {"targetCommentId": "被回复的评论id", "name": "回复者昵称", "text": "回复 @角色昵称：内容"}
+  ]` : ''}
+}
+
+直接输出JSON，不要添加markdown代码块标记。`;
+
+        try {
+            let responseData;
+            if (isGemini) {
+                const url = `${proxyUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { temperature: requestTemp }
+                    })
+                });
+                const json = await res.json();
+                if (!json.candidates?.[0]?.content?.parts?.[0]) {
+                    throw new Error(json.error?.message || 'API返回格式异常');
+                }
+                responseData = json.candidates[0].content.parts[0].text;
+            } else {
+                const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: model || 'gpt-3.5-turbo',
+                        messages: [{ role: 'user', content: prompt }],
+                        temperature: requestTemp
+                    })
+                });
+                const json = await res.json();
+                if (!json.choices?.[0]?.message) {
+                    throw new Error(json.error?.message || 'API返回格式异常');
+                }
+                responseData = json.choices[0].message.content;
+            }
+
+            console.log('AI段评生成结果:', responseData);
+
+            // 解析JSON
+            let cleanJson = responseData;
+            const jsonMatch = responseData.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                cleanJson = jsonMatch[0];
+            }
+
+            const result = JSON.parse(cleanJson);
+
+            // 添加生成的段评
+            let articles = await getLofterArticles();
+            const articleToUpdate = articles.find(a => a.id === articleId);
+            if (!articleToUpdate) return;
+
+            if (!articleToUpdate.paragraphComments) {
+                articleToUpdate.paragraphComments = {};
+            }
+            if (!articleToUpdate.paragraphComments[paragraphIndex]) {
+                articleToUpdate.paragraphComments[paragraphIndex] = [];
+            }
+
+            const now = Date.now();
+            if (result.comments && Array.isArray(result.comments)) {
+                result.comments.forEach((c, idx) => {
+                    articleToUpdate.paragraphComments[paragraphIndex].push({
+                        id: generateId(),
+                        name: c.name || `读者${idx + 1}`,
+                        avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=para${idx}${now}`,
+                        text: c.text,
+                        timestamp: now - Math.floor(Math.random() * 3600000),
+                        isUser: false,
+                        replies: [] // 支持楼中楼
+                    });
+                });
+            }
+
+            // 处理楼中楼回复
+            if (result.replies && Array.isArray(result.replies)) {
+                result.replies.forEach((r, idx) => {
+                    const allComments = articleToUpdate.paragraphComments[paragraphIndex];
+                    // 先在主评论中查找
+                    let targetComment = allComments.find(c => c.id === r.targetCommentId);
+                    let parentComment = targetComment; // 回复将添加到的父评论
+
+                    // 如果没找到，在楼中楼回复中查找
+                    if (!targetComment) {
+                        for (const c of allComments) {
+                            if (c.replies && c.replies.length > 0) {
+                                const foundReply = c.replies.find(reply => reply.id === r.targetCommentId);
+                                if (foundReply) {
+                                    targetComment = foundReply;
+                                    parentComment = c; // 回复添加到该主评论的replies中
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (parentComment) {
+                        if (!parentComment.replies) parentComment.replies = [];
+                        parentComment.replies.push({
+                            id: generateId(),
+                            name: r.name || '热心读者',
+                            avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=parareplier${idx}${now}`,
+                            text: r.text,
+                            timestamp: now - Math.floor(Math.random() * 1800000),
+                            isUser: false
+                        });
+                    }
+                });
+            }
+
+            await saveLofterArticles(articles);
+        } catch (error) {
+            console.error('生成段评失败:', error);
+            showLofterToast('生成段评失败: ' + error.message);
+        }
     }
 
     // 渲染评论
@@ -1449,20 +2195,223 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
         }
 
         article.comments.forEach(comment => {
-            const commentEl = document.createElement('div');
-            commentEl.className = 'lofter-comment-item';
-            commentEl.innerHTML = `
-                <img src="${comment.avatar || defaultAvatar}" class="lofter-comment-avatar" alt="头像">
-                <div class="lofter-comment-content">
-                    <div class="lofter-comment-header">
-                        <span class="lofter-comment-name">${comment.name}</span>
-                        <span class="lofter-comment-time">${formatLofterDate(comment.timestamp)}</span>
-                    </div>
-                    <div class="lofter-comment-text">${comment.text}</div>
-                </div>
-            `;
+            const commentEl = createCommentElement(comment, article.id, false);
             commentsList.appendChild(commentEl);
         });
+    }
+
+    // 创建单条评论元素（支持楼中楼）
+    function createCommentElement(comment, articleId, isReply = false, parentCommentId = null) {
+        const commentEl = document.createElement('div');
+        commentEl.className = isReply ? 'lofter-comment-reply' : 'lofter-comment-item';
+        commentEl.dataset.commentId = comment.id;
+
+        // 楼中楼回复HTML
+        let repliesHtml = '';
+        if (!isReply && comment.replies && comment.replies.length > 0) {
+            repliesHtml = `
+                <div class="lofter-comment-replies">
+                    ${comment.replies.map(reply => `
+                        <div class="lofter-comment-reply" data-comment-id="${reply.id}" data-parent-id="${comment.id}" data-reply-name="${reply.name}">
+                            <img src="${reply.avatar || defaultAvatar}" class="lofter-reply-avatar" alt="头像">
+                            <div class="lofter-reply-content">
+                                <span class="lofter-reply-name">${reply.name}</span>
+                                <span class="lofter-reply-text">${formatReplyText(reply.text)}</span>
+                                <div class="lofter-reply-meta">
+                                    <span class="lofter-reply-time">${formatLofterDate(reply.timestamp)}</span>
+                                    <span class="lofter-reply-action" data-parent-id="${comment.id}" data-reply-name="${reply.name}">回复</span>
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+
+        commentEl.innerHTML = `
+            <img src="${comment.avatar || defaultAvatar}" class="lofter-comment-avatar" alt="头像">
+            <div class="lofter-comment-content">
+                <div class="lofter-comment-header">
+                    <span class="lofter-comment-name">${comment.name}</span>
+                    <span class="lofter-comment-time">${formatLofterDate(comment.timestamp)}</span>
+                </div>
+                <div class="lofter-comment-text">${comment.text}</div>
+                <div class="lofter-comment-actions">
+                    <span class="lofter-comment-reply-btn" data-comment-id="${comment.id}">回复</span>
+                </div>
+                ${repliesHtml}
+            </div>
+        `;
+
+        // 点击回复按钮（回复主评论）
+        const replyBtn = commentEl.querySelector('.lofter-comment-reply-btn');
+        if (replyBtn) {
+            replyBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                openReplyInput(comment.id, comment.name, articleId);
+            });
+        }
+
+        // 长按删除主评论
+        setupLongPress(commentEl, () => {
+            if (confirm(`确定要删除这条评论吗？`)) {
+                deleteComment(articleId, comment.id);
+            }
+        });
+
+        // 为楼中楼回复绑定事件
+        if (!isReply) {
+            const replyElements = commentEl.querySelectorAll('.lofter-comment-reply');
+            replyElements.forEach(replyEl => {
+                const replyId = replyEl.dataset.commentId;
+                const parentId = replyEl.dataset.parentId;
+                const replyName = replyEl.dataset.replyName;
+
+                // 长按删除
+                setupLongPress(replyEl, () => {
+                    if (confirm(`确定要删除这条回复吗？`)) {
+                        deleteReply(articleId, parentId, replyId);
+                    }
+                });
+            });
+
+            // 为楼中楼的回复按钮绑定点击事件
+            const replyActionBtns = commentEl.querySelectorAll('.lofter-reply-action');
+            replyActionBtns.forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const parentId = btn.dataset.parentId;
+                    const replyToName = btn.dataset.replyName;
+                    openReplyInput(parentId, replyToName, articleId, true);
+                });
+            });
+        }
+
+        return commentEl;
+    }
+
+    // 打开回复输入框
+    // isReplyToReply: 是否是回复楼中楼的回复（需要添加@前缀）
+    function openReplyInput(commentId, commentName, articleId, isReplyToReply = false) {
+        // 移除已有的回复输入框
+        const existingInput = document.querySelector('.lofter-reply-input-box');
+        if (existingInput) {
+            existingInput.remove();
+        }
+
+        // 创建回复输入框
+        const replyBox = document.createElement('div');
+        replyBox.className = 'lofter-reply-input-box';
+        replyBox.innerHTML = `
+            <div class="lofter-reply-input-header">
+                <span>回复 @${commentName}</span>
+                <span class="lofter-reply-input-close">×</span>
+            </div>
+            <div class="lofter-reply-input-wrap">
+                <input type="text" class="lofter-reply-input" placeholder="写下你的回复..." />
+                <button class="lofter-reply-send-btn">发送</button>
+            </div>
+        `;
+
+        document.getElementById('lofter-article-view').appendChild(replyBox);
+
+        // 自动聚焦输入框
+        const input = replyBox.querySelector('.lofter-reply-input');
+        setTimeout(() => input.focus(), 100);
+
+        // 关闭按钮
+        replyBox.querySelector('.lofter-reply-input-close').addEventListener('click', () => {
+            replyBox.remove();
+        });
+
+        // 发送回复
+        replyBox.querySelector('.lofter-reply-send-btn').addEventListener('click', () => {
+            let text = input.value.trim();
+            if (!text) {
+                showLofterToast('请输入回复内容');
+                return;
+            }
+
+            // 如果是回复楼中楼的回复，添加@前缀
+            if (isReplyToReply) {
+                text = `回复 @${commentName}：${text}`;
+            }
+
+            addReplyToComment(articleId, commentId, text);
+            replyBox.remove();
+        });
+
+        // 回车发送
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                let text = input.value.trim();
+                if (text) {
+                    // 如果是回复楼中楼的回复，添加@前缀
+                    if (isReplyToReply) {
+                        text = `回复 @${commentName}：${text}`;
+                    }
+                    addReplyToComment(articleId, commentId, text);
+                    replyBox.remove();
+                }
+            }
+        });
+    }
+
+    // 添加楼中楼回复
+    async function addReplyToComment(articleId, commentId, text) {
+        let articles = await getLofterArticles();
+        const article = articles.find(a => a.id === articleId);
+        if (!article || !article.comments) return;
+
+        const comment = article.comments.find(c => c.id === commentId);
+        if (!comment) return;
+
+        const userSettings = getLofterUserSettings();
+        const newReply = {
+            id: generateId(),
+            name: userSettings.name,
+            avatar: userSettings.avatar,
+            text: text,
+            timestamp: Date.now(),
+            isUser: true
+        };
+
+        if (!comment.replies) comment.replies = [];
+        comment.replies.push(newReply);
+
+        await saveLofterArticles(articles);
+        renderComments(article);
+        showLofterToast('回复成功');
+    }
+
+    // 删除主评论
+    async function deleteComment(articleId, commentId) {
+        let articles = await getLofterArticles();
+        const article = articles.find(a => a.id === articleId);
+        if (!article || !article.comments) return;
+
+        article.comments = article.comments.filter(c => c.id !== commentId);
+        await saveLofterArticles(articles);
+
+        document.getElementById('lofter-comment-count').textContent = article.comments.length;
+        renderComments(article);
+        showLofterToast('评论已删除');
+    }
+
+    // 删除楼中楼回复
+    async function deleteReply(articleId, parentCommentId, replyId) {
+        let articles = await getLofterArticles();
+        const article = articles.find(a => a.id === articleId);
+        if (!article || !article.comments) return;
+
+        const parentComment = article.comments.find(c => c.id === parentCommentId);
+        if (!parentComment || !parentComment.replies) return;
+
+        parentComment.replies = parentComment.replies.filter(r => r.id !== replyId);
+        await saveLofterArticles(articles);
+
+        renderComments(article);
+        showLofterToast('回复已删除');
     }
 
     // 详情页返回
@@ -1474,15 +2423,15 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
 
     // 详情页点赞
     if (likeBtn) {
-        likeBtn.addEventListener('click', () => {
+        likeBtn.addEventListener('click', async () => {
             if (!currentArticleId) return;
-            let articles = getLofterArticles();
+            let articles = await getLofterArticles();
             const article = articles.find(a => a.id === currentArticleId);
             if (!article) return;
 
             article.isLiked = !article.isLiked;
             article.likes += article.isLiked ? 1 : -1;
-            saveLofterArticles(articles);
+            await saveLofterArticles(articles);
 
             likeBtn.classList.toggle('liked');
             document.getElementById('lofter-like-count').textContent = article.likes;
@@ -1491,15 +2440,15 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
 
     // 详情页收藏
     if (collectBtn) {
-        collectBtn.addEventListener('click', () => {
+        collectBtn.addEventListener('click', async () => {
             if (!currentArticleId) return;
-            let articles = getLofterArticles();
+            let articles = await getLofterArticles();
             const article = articles.find(a => a.id === currentArticleId);
             if (!article) return;
 
             article.isCollected = !article.isCollected;
             article.collects += article.isCollected ? 1 : -1;
-            saveLofterArticles(articles);
+            await saveLofterArticles(articles);
 
             collectBtn.classList.toggle('collected');
             document.getElementById('lofter-collect-count').textContent = article.collects;
@@ -1509,11 +2458,11 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
 
     // 发送评论
     if (commentSendBtn) {
-        commentSendBtn.addEventListener('click', () => {
+        commentSendBtn.addEventListener('click', async () => {
             const text = commentInput.value.trim();
             if (!text || !currentArticleId) return;
 
-            let articles = getLofterArticles();
+            let articles = await getLofterArticles();
             const article = articles.find(a => a.id === currentArticleId);
             if (!article) return;
 
@@ -1523,12 +2472,14 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
                 name: userSettings.name,
                 avatar: userSettings.avatar,
                 text: text,
-                timestamp: Date.now()
+                timestamp: Date.now(),
+                isUser: true,
+                replies: []
             };
 
             if (!article.comments) article.comments = [];
             article.comments.unshift(newComment);
-            saveLofterArticles(articles);
+            await saveLofterArticles(articles);
 
             commentInput.value = '';
             document.getElementById('lofter-comment-count').textContent = article.comments.length;
@@ -1542,41 +2493,282 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
         generateCommentsBtn.addEventListener('click', async () => {
             if (!currentArticleId) return;
 
-            let articles = getLofterArticles();
+            let articles = await getLofterArticles();
             const article = articles.find(a => a.id === currentArticleId);
             if (!article) return;
 
-            showLofterToast('正在生成评论...');
+            // 检查API配置
+            const apiConfig = window.state?.apiConfig;
+            if (!apiConfig || !apiConfig.proxyUrl || !apiConfig.apiKey) {
+                showLofterToast('请先在设置中配置API');
+                return;
+            }
 
-            // 模拟AI生成评论
-            const sampleComments = [
-                { name: '路人甲', text: '写得真好，很有感触！', avatar: 'https://i.postimg.cc/qRqpK5kP/anime-avatar.jpg' },
-                { name: '文艺青年', text: '这篇文章让我想起了很多往事...', avatar: 'https://files.catbox.moe/7n8nqq.jpg' },
-                { name: '小确幸', text: '太喜欢这种风格了，已关注！', avatar: 'https://files.catbox.moe/q6z5fc.jpeg' },
-                { name: '读书人', text: '文笔很细腻，期待更多作品～', avatar: defaultAvatar }
-            ];
+            // 添加loading动效（参考小红书）
+            const originalContent = generateCommentsBtn.innerHTML;
+            generateCommentsBtn.classList.add('loading');
+            generateCommentsBtn.innerHTML = `<svg class="lofter-spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4m0 12v4M4.93 4.93l2.83 2.83m8.48 8.48l2.83 2.83M2 12h4m12 0h4M4.93 19.07l2.83-2.83m8.48-8.48l2.83-2.83"/></svg> 生成中...`;
+            generateCommentsBtn.disabled = true;
 
-            // 随机选择1-3条评论
-            const numComments = Math.floor(Math.random() * 3) + 1;
-            const selectedComments = sampleComments.sort(() => 0.5 - Math.random()).slice(0, numComments);
+            try {
+                const newComments = await generateAIComments(article);
 
-            if (!article.comments) article.comments = [];
+                if (!article.comments) article.comments = [];
+                article.comments.push(...newComments);
 
-            selectedComments.forEach(c => {
-                article.comments.push({
+                await saveLofterArticles(articles);
+                document.getElementById('lofter-comment-count').textContent = article.comments.length;
+                renderComments(article);
+                showLofterToast(`已生成 ${newComments.length} 条评论`);
+            } catch (error) {
+                console.error('生成评论失败:', error);
+                showLofterToast('生成评论失败: ' + error.message);
+            } finally {
+                // 移除loading动效
+                generateCommentsBtn.classList.remove('loading');
+                generateCommentsBtn.innerHTML = originalContent;
+                generateCommentsBtn.disabled = false;
+            }
+        });
+    }
+
+    // AI生成评论函数
+    async function generateAIComments(article) {
+        const apiConfig = window.state?.apiConfig;
+        const { proxyUrl, apiKey, model, temperature } = apiConfig;
+        const isGemini = proxyUrl.includes('googleapis');
+        const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.8;
+
+        // 检查是否有未被回复的用户评论
+        const unrepliedUserComments = [];
+        const userSettings = getLofterUserSettings();
+        if (article.comments) {
+            article.comments.forEach(comment => {
+                // 检查是否是用户的评论（通过名字匹配或isUser标记）
+                const isUserComment = comment.name === userSettings.name || comment.isUser;
+                // 检查该评论是否有回复
+                const hasReply = comment.replies && comment.replies.length > 0;
+                if (isUserComment && !hasReply) {
+                    unrepliedUserComments.push(comment);
+                }
+            });
+        }
+
+        // 构建生成评论的提示词
+        const prompt = buildCommentGenerationPrompt(article, unrepliedUserComments);
+
+        let responseData;
+        if (isGemini) {
+            const url = `${proxyUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { temperature: requestTemp }
+                })
+            });
+            const json = await res.json();
+            if (!json.candidates?.[0]?.content?.parts?.[0]) {
+                throw new Error(json.error?.message || 'API返回格式异常');
+            }
+            responseData = json.candidates[0].content.parts[0].text;
+        } else {
+            const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${apiKey}`
+                },
+                body: JSON.stringify({
+                    model: model || 'gpt-3.5-turbo',
+                    messages: [{ role: 'user', content: prompt }],
+                    temperature: requestTemp
+                })
+            });
+            const json = await res.json();
+            if (!json.choices?.[0]?.message) {
+                throw new Error(json.error?.message || 'API返回格式异常');
+            }
+            responseData = json.choices[0].message.content;
+        }
+
+        // 解析返回的JSON
+        let cleanJson = responseData;
+        const jsonMatch = responseData.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            cleanJson = jsonMatch[0];
+        }
+
+        const result = JSON.parse(cleanJson);
+        const now = Date.now();
+        const commentAvatars = [
+            'https://api.dicebear.com/7.x/notionists/svg?seed=reader1',
+            'https://api.dicebear.com/7.x/notionists/svg?seed=reader2',
+            'https://api.dicebear.com/7.x/notionists/svg?seed=reader3',
+            'https://api.dicebear.com/7.x/notionists/svg?seed=reader4',
+            'https://api.dicebear.com/7.x/notionists/svg?seed=reader5'
+        ];
+
+        const newComments = [];
+
+        // 处理新评论
+        if (result.comments && Array.isArray(result.comments)) {
+            result.comments.forEach((c, idx) => {
+                newComments.push({
                     id: generateId(),
-                    name: c.name,
-                    avatar: c.avatar,
+                    name: c.name || `读者${idx + 1}`,
+                    avatar: commentAvatars[idx % commentAvatars.length],
                     text: c.text,
-                    timestamp: Date.now() - Math.floor(Math.random() * 3600000)
+                    timestamp: now - Math.floor(Math.random() * 3600000),
+                    replies: [],
+                    isUser: false
                 });
             });
+        }
 
-            saveLofterArticles(articles);
-            document.getElementById('lofter-comment-count').textContent = article.comments.length;
-            renderComments(article);
-            showLofterToast(`已生成 ${numComments} 条评论`);
-        });
+        // 处理对用户评论的回复（包括对楼中楼的回复）
+        if (result.replies && Array.isArray(result.replies)) {
+            result.replies.forEach((r, idx) => {
+                // 先在主评论中查找
+                let targetComment = article.comments.find(c => c.id === r.targetCommentId);
+                let parentComment = targetComment; // 回复将添加到的父评论
+
+                // 如果没找到，在楼中楼回复中查找
+                if (!targetComment) {
+                    for (const c of article.comments) {
+                        if (c.replies && c.replies.length > 0) {
+                            const foundReply = c.replies.find(reply => reply.id === r.targetCommentId);
+                            if (foundReply) {
+                                targetComment = foundReply;
+                                parentComment = c; // 回复添加到该主评论的replies中
+                                break;
+                            }
+                        }
+                    }
+                }
+
+                if (parentComment) {
+                    if (!parentComment.replies) parentComment.replies = [];
+                    parentComment.replies.push({
+                        id: generateId(),
+                        name: r.name || '热心读者',
+                        avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=replier${idx}`,
+                        text: r.text,
+                        timestamp: now - Math.floor(Math.random() * 1800000),
+                        isUser: false
+                    });
+                }
+            });
+        }
+
+        return newComments;
+    }
+
+    // 构建评论生成提示词
+    function buildCommentGenerationPrompt(article, unrepliedUserComments) {
+        // 构建已有评论列表（包含楼中楼结构，用于生成回复）
+        let existingCommentsSection = '';
+        if (article.comments && article.comments.length > 0) {
+            const commentsList = article.comments.slice(0, 10).map(c => {
+                let text = `- [ID:${c.id}] ${c.name}: "${c.text}"`;
+                if (c.replies && c.replies.length > 0) {
+                    text += '\n' + c.replies.map(r => `    └ [ID:${r.id}] ${r.name}: "${r.text}"`).join('\n');
+                }
+                return text;
+            }).join('\n');
+            existingCommentsSection = `\n\n【已有评论】\n${commentsList}`;
+        }
+
+        // 构建未回复评论列表（包括主评论和楼中楼）
+        let unrepliedSection = '';
+        if (unrepliedUserComments.length > 0) {
+            unrepliedSection = `\n\n【必须回复的用户评论 - 最高优先级】\n以下是用户发表但尚未被回复的评论，必须为每条生成至少1条回复：\n${unrepliedUserComments.map(c => `- 评论ID: ${c.id}\n  评论者: ${c.name}\n  内容: "${c.text}"`).join('\n\n')}`;
+        }
+
+        // 检查楼中楼中未被回复的用户评论
+        const userSettings = getLofterUserSettings();
+        const unrepliedUserReplies = [];
+        if (article.comments) {
+            article.comments.forEach(c => {
+                if (c.replies && c.replies.length > 0) {
+                    c.replies.forEach((r, rIdx) => {
+                        const isUserReply = r.name === userSettings.name || r.isUser;
+                        const hasFollowingReply = c.replies.slice(rIdx + 1).some(fr => !(fr.name === userSettings.name || fr.isUser));
+                        if (isUserReply && !hasFollowingReply) {
+                            unrepliedUserReplies.push({ parentId: c.id, parentName: c.name, id: r.id, name: r.name, text: r.text });
+                        }
+                    });
+                }
+            });
+        }
+
+        let unrepliedRepliesSection = '';
+        if (unrepliedUserReplies.length > 0) {
+            unrepliedRepliesSection = `\n\n【必须回复的用户楼中楼评论 - 最高优先级】\n${unrepliedUserReplies.map(r => `- 父评论id: ${r.parentId}（${r.parentName}）\n  用户回复ID: ${r.id}\n  回复内容: "${r.text}"`).join('\n\n')}`;
+        }
+
+        const hasExistingComments = article.comments && article.comments.length > 0;
+        const hasUnreplied = unrepliedUserComments.length > 0 || unrepliedUserReplies.length > 0;
+
+        return `你是一位资深的同人文读者，需要为以下作品生成真实、多样化的读者评论。
+
+【作品信息】
+标题：${article.title}
+作者：${article.authorName}
+标签：${article.tags ? article.tags.join('、') : '无'}
+类型：${getWorkTypeName(article.workType) || '文章'}
+
+【作品全文】
+${article.content}
+
+【作者有话说】
+${article.authorNotes || '无'}${existingCommentsSection}${unrepliedSection}${unrepliedRepliesSection}
+
+【评论生成要求】
+
+${hasUnreplied ? `★★★ 最高优先级：必须为上述未回复的用户评论生成回复！这些回复必须放在replies数组中。 ★★★\n\n` : ''}${hasExistingComments ? `★★ 重要：已有${article.comments.length}条评论，生成的内容中必须包含1-2条对已有评论的楼中楼回复（放在replies数组）。 ★★\n\n` : ''}请生成3-5条读者评论，评论可以从以下多个角度：
+
+1. 评论角度多样化（必须从不同角度评论，不要雷同）：
+   - 剧情向：讨论故事情节、人物发展、伏笔回收等
+   - 文笔向：评价写作技巧、语言风格、氛围营造等
+   - CP向：关于角色关系、感情线、糖或刀的感受
+   - 情感向：分享阅读后的感受、共鸣、被触动的点
+   - 催更向：表达对后续的期待、催更、询问更新
+   - 吐槽向：轻松幽默的吐槽、玩梗、调侃
+
+2. 评论语气/风格多样化（每条评论语气都要不同）：
+   - 尖叫吐血型："awsl!!!"、"我死了"、"我哭死"
+   - 深度分析型：理性、客观的分析评论
+   - 温情感慨型：温柔、带感情的感想
+   - 幽默调侃型：轻松的玩笑吐槽
+   - 质疑讨论型："这里是不是...?"、"突然想到..."
+   - 简短拍案型："绝了!"、"神来之笔!"、"开始暴风哭泣"
+
+3. 文字表达多样化：
+   - 可以使用网络用语、颜文字、表情
+   - 长度不一：有简短的尖叫型也有长篇分析型
+   - 每条评论要有不同的昵称
+
+4. 态度多样化：
+   - 正面评论（60%）：喜爱、感动、激动、共鸣
+   - 中性评论（30%）：讨论、分析、疑问、建议
+   - 负面评论（10%）：轻微的不满、遗憾（要委婉礼貌）
+
+【重要】每条评论必须有明显区别，不要千篇一律！
+
+【输出格式（严格JSON）】
+{
+  "comments": [
+    {"name": "昵称1", "text": "评论内容1"},
+    {"name": "昵称2", "text": "评论内容2"}
+  ]${(hasUnreplied || hasExistingComments) ? `,
+  "replies": [
+    {"targetCommentId": "被回复的评论id", "name": "回复者昵称", "text": "回复 @角色昵称：回复内容"}
+  ]` : ''}
+}
+
+⚠️ 注意：直接输出JSON，不要添加任何markdown代码块标记。`;
     }
 
     /* =========================================
@@ -1691,7 +2883,7 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
 
     // 提交发布
     if (publishSubmitBtn) {
-        publishSubmitBtn.addEventListener('click', () => {
+        publishSubmitBtn.addEventListener('click', async () => {
             const title = publishTitleInput ? publishTitleInput.value.trim() : '';
             const content = publishBodyInput ? publishBodyInput.value.trim() : '';
 
@@ -1723,9 +2915,9 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
                 isCollected: false
             };
 
-            let articles = getLofterArticles();
+            let articles = await getLofterArticles();
             articles.unshift(newArticle);
-            saveLofterArticles(articles);
+            await saveLofterArticles(articles);
 
             // 更新用户发布数
             userSettings.posts = (userSettings.posts || 0) + 1;
@@ -2432,7 +3624,7 @@ ${workTypes.map(t => `- ${t.type}: ${t.name} - ${t.desc}`).join('\n')}
                 desc: '属于某个主题系列的短篇，可以独立阅读但与系列其他作品有关联，需要系列名和章节号'
             },
             'long_complete': {
-                name: '长篇一篇完',
+                name: '长篇一发完',
                 desc: '较长的完整故事，情节丰富，人物刻画深入，有完整的故事弧线，不允许分章节'
             },
             'long_serial': {
@@ -2725,9 +3917,9 @@ ${typeInfo.desc}
                 isCustomGenerated: true // 标记为自定义生成
             };
 
-            let articles = getLofterArticles();
+            let articles = await getLofterArticles();
             articles.unshift(newArticle);
-            saveLofterArticles(articles);
+            await saveLofterArticles(articles);
 
             // 添加到合集
             if (collectionId) {

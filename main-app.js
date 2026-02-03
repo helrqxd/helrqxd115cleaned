@@ -904,8 +904,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     function initDatabase(userId) {
         // 数据库名带上用户ID，实现每个人数据隔离
         db = new Dexie('GeminiChatDB');
-        db.version(60).stores({
-            // 版本号从 51 升级到 52
+        db.version(61).stores({
+            // 版本号升级到 61，添加 lofterArticles 表
             chats: '&id, isGroup, groupId, ownerId, isPinned, characterPhoneData, latestInnerVoice, innerVoiceHistory, loversSpaceData.emotionDiaries, settings.summary, settings.weiboNickname, settings.innerVoiceHideHeaderBorder, settings.innerVoiceAdopterLabelFormat, interactionStats, unlockedSymbols, settings.selectedIntimacyBadge',
             apiConfig: '&id',
             globalSettings: '&id, activeThemeId',
@@ -968,6 +968,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             clawMachineDolls: '++id, url',
             xhsSettings: '&id',
             xhsNotes: '++id, timestamp',
+            lofterArticles: '&id, timestamp, authorId',
         });
         window.db = db;
         console.log(`[System] 已加载用户 ${userId} 的数据库`);

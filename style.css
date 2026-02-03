@@ -29344,6 +29344,7 @@ input:checked + .slider::after {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    padding-bottom: 50px; /* 为固定底部导航留出空间 */
 }
 
 /* --- 顶部导航栏 --- */
@@ -29418,7 +29419,8 @@ input:checked + .slider::after {
     flex: 1;
     overflow-y: auto;
     padding: 10px;
-    margin-bottom: 50px; /* 留出底部导航高度，且让滚动条不被遮挡 */
+    padding-bottom: 60px; /* 留出底部导航高度 */
+    margin-bottom: 0;
     box-sizing: border-box;
     width: 100%;
     -webkit-overflow-scrolling: touch;
@@ -29445,6 +29447,8 @@ input:checked + .slider::after {
 #xhs-my-collections-grid,
 #xhs-my-likes-grid {
     box-sizing: border-box;
+    padding: 10px;
+    background: #f5f5f5;
 }
 
 .xhs-card {
@@ -29529,11 +29533,13 @@ input:checked + .slider::after {
     display: flex;
     justify-content: space-around;
     align-items: center;
-    position: absolute;
+    position: fixed;
     bottom: 0;
-    width: 100%;
-    z-index: 20;
+    left: 0;
+    right: 0;
+    z-index: 100;
     padding-bottom: env(safe-area-inset-bottom, 0);
+    box-shadow: 0 -1px 5px rgba(0,0,0,0.05);
 }
 
 .xhs-nav-item {
@@ -29560,14 +29566,27 @@ input:checked + .slider::after {
 }
 
 .xhs-create-btn {
-    background-color: var(--xhs-red);
-    width: 40px;
-    height: 30px;
-    border-radius: 8px;
+    background: #ff2442;
+    width: 44px;
+    height: 24px;
+    border-radius: 6px;
     display: flex;
     align-items: center;
     justify-content: center;
     color: white;
+    cursor: pointer;
+    transition: transform 0.15s;
+    flex-shrink: 0;
+}
+
+.xhs-create-btn svg {
+    width: 16px;
+    height: 16px;
+    stroke-width: 3;
+}
+
+.xhs-create-btn:active {
+    transform: scale(0.95);
 }
 
 /* --- 消息页面 --- */
@@ -29698,6 +29717,11 @@ input:checked + .slider::after {
     transition: background 0.2s;
 }
 
+/* 未读通知渐变色背景 */
+.xhs-notification-item.unread {
+    background: linear-gradient(135deg, #fff5f5 0%, #fff 100%);
+}
+
 .xhs-notification-item:active {
     background: #f5f5f5;
 }
@@ -29796,6 +29820,37 @@ input:checked + .slider::after {
     background: #fafafa;
     border-radius: 8px;
     line-height: 1.4;
+}
+
+/* 通知列表封面图 */
+.xhs-notification-cover {
+    width: 56px;
+    height: 56px;
+    flex-shrink: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f5f5f5;
+}
+
+.xhs-notification-cover img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+
+/* 评论点赞标识 */
+.xhs-comment-like-badge {
+    font-size: 10px;
+    color: #fff;
+    background: #ff2442;
+    padding: 1px 6px;
+    border-radius: 8px;
+    margin-left: 6px;
+}
+
+.xhs-notification-item.comment-like {
+    background: linear-gradient(135deg, #fff5f5 0%, #fff 100%);
 }
 
 /* 空状态 */
@@ -30320,9 +30375,45 @@ input:checked + .slider::after {
 
 /* --- 个人主页 --- */
 .xhs-profile-header {
-    background: #fff;
-    padding: 20px 15px;
+    position: relative;
+    padding: 16px 16px 20px;
+    padding-top: env(safe-area-inset-top, 35px);
+    background: linear-gradient(180deg, #ff9a9e 0%, #fecfef 50%, #fff 100%);
+    background-size: cover;
     flex-shrink: 0;
+}
+
+/* 个人主页顶部按钮栏 */
+.xhs-profile-topbar {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 10px;
+    padding-top: 35px;
+    margin-bottom: 12px;
+}
+
+.xhs-profile-topbar-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.15);
+    transition: background 0.2s;
+}
+
+.xhs-profile-topbar-btn:active {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+/* 头像区域 */
+.xhs-profile-avatar-section {
+    display: flex;
+    justify-content: flex-start;
+    margin-bottom: 12px;
 }
 
 .xhs-profile-content-scrollable {
@@ -30330,74 +30421,139 @@ input:checked + .slider::after {
     overflow-y: auto;
     -webkit-overflow-scrolling: touch;
     width: 100%;
-    margin-bottom: 50px;
+    margin-bottom: 0;
     box-sizing: border-box;
+    background: #fff;
 }
 
 .xhs-profile-user {
     display: flex;
-    gap: 20px;
-    align-items: center;
+    flex-direction: column;
+    gap: 0;
+    align-items: flex-start;
 }
 
 .xhs-profile-avatar {
-    width: 80px;
-    height: 80px;
+    width: 76px;
+    height: 76px;
     border-radius: 50%;
-    border: 1px solid #eee;
+    border: 3px solid #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    object-fit: cover;
 }
 
 .xhs-profile-stats {
     display: flex;
-    gap: 20px;
-    text-align: center;
+    justify-content: flex-start;
+    gap: 30px;
+    margin-bottom: 16px;
+    padding: 0;
+    text-align: left;
 }
 
-.xhs-stat-num { font-weight: 600; font-size: 16px; color: #333; }
-.xhs-stat-label { font-size: 12px; color: #999; }
+.xhs-profile-stats .stat-box {
+    display: flex;
+    align-items: baseline;
+    gap: 4px;
+    flex-direction: row;
+}
+
+.xhs-stat-num { 
+    font-size: 18px;
+    font-weight: 700;
+    color: #333;
+}
+
+.xhs-stat-label { 
+    font-size: 13px; 
+    color: #999;
+    letter-spacing: 0;
+}
 
 .xhs-profile-info {
-    margin-top: 15px;
+    text-align: left;
+    margin-bottom: 16px;
 }
-.xhs-profile-name { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
-.xhs-profile-id { font-size: 12px; color: #999; margin-bottom: 10px; }
-.xhs-profile-bio { font-size: 13px; color: #333; line-height: 1.5; }
+
+.xhs-profile-name { 
+    font-size: 22px; 
+    font-weight: 700; 
+    margin-bottom: 8px; 
+    color: #333;
+}
+
+.xhs-profile-id { 
+    font-size: 13px; 
+    color: #999; 
+    margin-bottom: 10px;
+    display: block;
+}
+
+.xhs-profile-id::before {
+    display: none;
+}
+
+.xhs-profile-bio { 
+    font-size: 14px;
+    color: #666;
+    line-height: 1.6;
+    margin-bottom: 12px;
+    padding: 0;
+}
 
 .xhs-profile-tags {
-    margin-top: 15px;
     display: flex;
+    flex-wrap: wrap;
     gap: 8px;
+    margin-top: 0;
 }
+
 .xhs-tag {
-    background: #f4f4f4;
+    background: rgba(255, 255, 255, 0.9);
     color: #666;
-    font-size: 10px;
-    padding: 4px 8px;
+    font-size: 12px;
+    padding: 5px 12px;
     border-radius: 100px;
+    border: none;
 }
 
 .xhs-profile-tabs {
     display: flex;
     background: #fff;
-    margin-top: 10px;
-    border-bottom: 0.5px solid #eee;
+    border-bottom: 1px solid #f0f0f0;
     position: sticky;
     top: 0;
     flex-shrink: 0;
     z-index: 5;
+    margin: 0;
 }
 
 .xhs-profile-tab {
     flex: 1;
     text-align: center;
-    padding: 12px 0;
-    font-size: 14px;
+    padding: 14px 0;
+    font-size: 15px;
     color: #999;
+    position: relative;
+    transition: color 0.2s;
+    cursor: pointer;
 }
+
 .xhs-profile-tab.active {
     color: #333;
     font-weight: 600;
-    border-bottom: 2px solid var(--xhs-red);
+}
+
+.xhs-profile-tab.active::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 24px;
+    height: 3px;
+    background: var(--xhs-red);
+    border-radius: 2px;
 }
 
 /* --- 搜索页 --- */
@@ -32286,39 +32442,32 @@ input:checked + .slider::after {
     font-size: 14px;
 }
 
-/* 上传自定义背景 */
-.xhs-texture-upload-section {
-    margin-top: 20px;
-    padding-top: 15px;
-    border-top: 1px solid #eee;
-}
-
-.xhs-texture-upload-wrap {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-}
-
+/* 上传自定义背景 - 方形图标样式，与纹理项一致 */
 .xhs-texture-upload-btn {
+    width: 60px;
+    height: 60px;
+    border-radius: 10px;
+    flex-shrink: 0;
+    cursor: pointer;
+    border: 2px dashed #ddd;
+    transition: all 0.2s;
+    background: #fafafa;
     display: flex;
     align-items: center;
-    gap: 6px;
-    padding: 10px 16px;
-    background: #fff;
-    border: 1px solid #ddd;
-    border-radius: 20px;
-    font-size: 14px;
-    color: #333;
-    cursor: pointer;
-    transition: all 0.2s;
+    justify-content: center;
+    color: #999;
 }
 
-.xhs-texture-upload-btn:hover {
+.xhs-texture-upload-btn:hover,
+.xhs-texture-upload-btn:active {
     border-color: #ff2442;
     color: #ff2442;
+    background: #fff5f7;
 }
 
 .xhs-texture-upload-btn svg {
+    width: 24px;
+    height: 24px;
     stroke: currentColor;
 }
 
@@ -35541,4 +35690,703 @@ input:checked + .slider::after {
     border-radius: 10px;
     margin-bottom: 8px;
     display: inline-block;
+}
+
+/* 小红书背景设置样式 */
+.xhs-bg-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    margin-top: 10px;
+    padding: 12px;
+    background: #f8f8f8;
+    border-radius: 10px;
+}
+
+.xhs-bg-option-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.xhs-bg-option-row input[type="radio"] {
+    width: 16px;
+    height: 16px;
+    accent-color: #ff2442;
+    cursor: pointer;
+}
+
+.xhs-bg-option-row > label {
+    font-weight: normal;
+    margin: 0;
+    min-width: 70px;
+    font-size: 14px;
+    color: #333;
+}
+
+.xhs-bg-color-pickers {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.xhs-color-picker-wrap {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    background: #fff;
+    padding: 4px 8px;
+    border-radius: 6px;
+    border: 1px solid #e5e5e5;
+}
+
+.xhs-color-picker-wrap input[type="color"] {
+    width: 28px;
+    height: 28px;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    padding: 0;
+    background: none;
+}
+
+.xhs-color-picker-wrap input[type="color"]::-webkit-color-swatch-wrapper {
+    padding: 0;
+}
+
+.xhs-color-picker-wrap input[type="color"]::-webkit-color-swatch {
+    border-radius: 4px;
+    border: 1px solid rgba(0,0,0,0.1);
+}
+
+.xhs-color-value {
+    font-size: 12px;
+    color: #666;
+    font-family: monospace;
+    text-transform: uppercase;
+}
+
+.xhs-color-arrow {
+    color: #999;
+    font-size: 14px;
+}
+
+.xhs-bg-upload-btn {
+    font-size: 12px;
+    padding: 6px 14px;
+    background: #ff2442;
+    color: #fff;
+    border: none;
+    border-radius: 15px;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.xhs-bg-upload-btn:hover {
+    background: #e61d3a;
+}
+
+.xhs-bg-preview {
+    display: none;
+    width: 100%;
+    height: 60px;
+    border-radius: 8px;
+    background-size: cover;
+    background-position: center;
+    margin-top: 5px;
+    border: 1px solid #e5e5e5;
+}
+
+/* ======================================
+   Lofter 楼中楼回复样式
+   ====================================== */
+
+.lofter-comment-actions {
+    margin-top: 8px;
+}
+
+.lofter-comment-reply-btn {
+    font-size: 12px;
+    color: #00c3ff;
+    cursor: pointer;
+}
+
+.lofter-comment-reply-btn:hover {
+    text-decoration: underline;
+}
+
+.lofter-comment-replies {
+    margin-top: 10px;
+    padding-left: 10px;
+    border-left: 2px solid #f0f0f0;
+}
+
+.lofter-comment-reply {
+    display: flex;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.lofter-comment-reply:last-child {
+    border-bottom: none;
+}
+
+.lofter-reply-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.lofter-reply-content {
+    flex: 1;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.lofter-reply-name {
+    color: #00c3ff;
+    font-weight: 500;
+    margin-right: 6px;
+}
+
+.lofter-reply-text {
+    color: #333;
+}
+
+/* 楼中楼回复@样式 */
+.lofter-reply-to {
+    color: #999;
+}
+
+.lofter-reply-to-name {
+    color: #00c3ff;
+}
+
+.lofter-reply-time {
+    display: block;
+    font-size: 11px;
+    color: #999;
+    margin-top: 4px;
+}
+
+/* 回复输入框 */
+.lofter-reply-input-box {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border-top: 1px solid #eee;
+    padding: 12px 15px;
+    z-index: 1000;
+    box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
+}
+
+.lofter-reply-input-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+    font-size: 13px;
+    color: #666;
+}
+
+.lofter-reply-input-close {
+    font-size: 20px;
+    cursor: pointer;
+    color: #999;
+}
+
+.lofter-reply-input-wrap {
+    display: flex;
+    gap: 10px;
+}
+
+.lofter-reply-input {
+    flex: 1;
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid #e5e5e5;
+    border-radius: 18px;
+    font-size: 14px;
+    outline: none;
+}
+
+.lofter-reply-input:focus {
+    border-color: #00c3ff;
+}
+
+.lofter-reply-send-btn {
+    padding: 0 16px;
+    height: 36px;
+    background: #00c3ff;
+    color: #fff;
+    border: none;
+    border-radius: 18px;
+    font-size: 14px;
+    cursor: pointer;
+}
+
+.lofter-reply-send-btn:hover {
+    background: #00a8e6;
+}
+
+/* ======================================
+   Lofter 段评功能样式
+   ====================================== */
+
+/* 带段评标记的段落 */
+.lofter-paragraph-with-comment {
+    position: relative;
+    margin: 0 0 1em 0;
+    line-height: 1.8;
+    text-align: justify;
+}
+
+/* Lofter风格的段评气泡标记 - 内联显示在段落末尾 */
+.lofter-para-comment-bubble {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 0.5em;
+    padding: 1px 4px;
+    background: #f5f5f5;
+    border: 1px solid #e0e0e0;
+    border-radius: 4px;
+    font-size: 12px;
+    color: #999;
+    cursor: pointer;
+    vertical-align: text-bottom;
+    position: relative;
+    transition: all 0.2s;
+    line-height: 1.4;
+    min-width: 14px;
+    height: 16px;
+    box-sizing: border-box;
+    transform: translateY(-2px);
+}
+
+.lofter-para-comment-bubble:hover {
+    background: #ebebeb;
+    border-color: #d0d0d0;
+    color: #666;
+}
+
+/* 有评论时样式相同，只是显示数字 */
+.lofter-para-comment-bubble.has-comments {
+    color: #00c3ff;
+    background: rgba(0, 195, 255, 0.12);
+    border-color: rgba(0, 195, 255, 0.3);
+}
+
+.lofter-bubble-count {
+    font-weight: 500;
+    font-size: 11px;
+}
+
+/* 气泡小箭头（左侧指向文字） */
+.lofter-bubble-arrow {
+    position: absolute;
+    left: -5px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 0;
+    height: 0;
+    border-top: 4px solid transparent;
+    border-bottom: 4px solid transparent;
+    border-right: 5px solid #e0e0e0;
+}
+
+.lofter-bubble-arrow::after {
+    content: '';
+    position: absolute;
+    left: 2px;
+    top: -3px;
+    width: 0;
+    height: 0;
+    border-top: 3px solid transparent;
+    border-bottom: 3px solid transparent;
+    border-right: 4px solid #f5f5f5;
+}
+
+.lofter-para-comment-bubble:hover .lofter-bubble-arrow {
+    border-right-color: #d0d0d0;
+}
+
+.lofter-para-comment-bubble:hover .lofter-bubble-arrow::after {
+    border-right-color: #ebebeb;
+}
+
+.lofter-para-comment-bubble.has-comments .lofter-bubble-arrow::after {
+    border-right-color: #fff0f0;
+}
+
+/* 段评模态框 */
+.lofter-para-comment-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.5);
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    z-index: 2000;
+}
+
+.lofter-para-comment-container {
+    width: 100%;
+    max-height: 70vh;
+    background: #fff;
+    border-radius: 16px 16px 0 0;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.lofter-para-comment-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 20px;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.lofter-para-comment-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+}
+
+.lofter-para-comment-close {
+    font-size: 24px;
+    color: #999;
+    cursor: pointer;
+    line-height: 1;
+}
+
+.lofter-para-comment-quote {
+    display: flex;
+    gap: 8px;
+    padding: 12px 20px;
+    background: #fafafa;
+    border-bottom: 1px solid #f0f0f0;
+}
+
+.lofter-para-quote-mark {
+    font-size: 24px;
+    color: #ddd;
+    font-family: Georgia, serif;
+    line-height: 1;
+}
+
+.lofter-para-quote-text {
+    font-size: 13px;
+    color: #666;
+    line-height: 1.6;
+    flex: 1;
+}
+
+.lofter-para-comment-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px 20px;
+    min-height: 150px;
+    max-height: 300px;
+}
+
+.lofter-para-comment-empty {
+    text-align: center;
+    color: #999;
+    font-size: 14px;
+    padding: 40px 0;
+}
+
+.lofter-para-comment-item {
+    display: flex;
+    gap: 10px;
+    padding: 12px 0;
+    border-bottom: 1px solid #f5f5f5;
+}
+
+.lofter-para-comment-item:last-child {
+    border-bottom: none;
+}
+
+.lofter-para-comment-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.lofter-para-comment-content {
+    flex: 1;
+}
+
+.lofter-para-comment-name {
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    margin-bottom: 4px;
+}
+
+.lofter-para-comment-text {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #333;
+}
+
+.lofter-para-comment-time {
+    font-size: 11px;
+    color: #999;
+    margin-top: 6px;
+}
+
+.lofter-para-comment-input-area {
+    display: flex;
+    gap: 10px;
+    padding: 12px 20px;
+    border-top: 1px solid #f0f0f0;
+    background: #fff;
+}
+
+.lofter-para-comment-input {
+    flex: 1;
+    height: 36px;
+    padding: 0 14px;
+    border: 1px solid #e5e5e5;
+    border-radius: 18px;
+    font-size: 14px;
+    outline: none;
+}
+
+.lofter-para-comment-input:focus {
+    border-color: #00c3ff;
+}
+
+.lofter-para-comment-send {
+    padding: 0 16px;
+    height: 36px;
+    background: #00c3ff;
+    color: #fff;
+    border: none;
+    border-radius: 18px;
+    font-size: 14px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.lofter-para-comment-send:hover {
+    background: #00a8e6;
+}
+
+.lofter-para-comment-ai-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 0 12px;
+    height: 36px;
+    background: rgba(0,195,255,0.1);
+    color: #00c3ff;
+    border: none;
+    border-radius: 18px;
+    font-size: 13px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.lofter-para-comment-ai-btn:hover {
+    background: rgba(0,195,255,0.2);
+}
+
+/* ======================================
+   Lofter 楼中楼回复增强样式
+   ====================================== */
+
+/* 楼中楼回复的meta区域 */
+.lofter-reply-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 4px;
+}
+
+.lofter-reply-meta .lofter-reply-time {
+    display: inline;
+    margin-top: 0;
+}
+
+/* 楼中楼回复按钮 */
+.lofter-reply-action {
+    font-size: 11px;
+    color: #00c3ff;
+    cursor: pointer;
+}
+
+.lofter-reply-action:hover {
+    text-decoration: underline;
+}
+
+/* ======================================
+   Lofter 段评楼中楼样式
+   ====================================== */
+
+/* 段评meta区域 */
+.lofter-para-comment-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 6px;
+}
+
+.lofter-para-comment-meta .lofter-para-comment-time {
+    margin-top: 0;
+}
+
+/* 段评回复按钮 */
+.lofter-para-comment-reply-btn {
+    font-size: 11px;
+    color: #00c3ff;
+    cursor: pointer;
+}
+
+.lofter-para-comment-reply-btn:hover {
+    text-decoration: underline;
+}
+
+/* 段评楼中楼容器 */
+.lofter-para-replies {
+    margin-top: 10px;
+    padding-left: 10px;
+    border-left: 2px solid #f0f0f0;
+}
+
+/* 段评楼中楼回复项 */
+.lofter-para-reply-item {
+    display: flex;
+    gap: 8px;
+    padding: 8px 0;
+    border-bottom: 1px solid #f8f8f8;
+}
+
+.lofter-para-reply-item:last-child {
+    border-bottom: none;
+}
+
+.lofter-para-reply-avatar {
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.lofter-para-reply-content {
+    flex: 1;
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+.lofter-para-reply-name {
+    color: #00c3ff;
+    font-weight: 500;
+    margin-right: 6px;
+}
+
+.lofter-para-reply-text {
+    color: #333;
+}
+
+.lofter-para-reply-meta {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 4px;
+}
+
+.lofter-para-reply-time {
+    font-size: 11px;
+    color: #999;
+}
+
+.lofter-para-reply-action {
+    font-size: 11px;
+    color: #00c3ff;
+    cursor: pointer;
+}
+
+.lofter-para-reply-action:hover {
+    text-decoration: underline;
+}
+
+/* 段评回复提示 */
+.lofter-para-reply-hint {
+    font-size: 12px;
+    color: #00c3ff;
+    padding: 6px 12px;
+    background: rgba(0,195,255,0.1);
+    border-radius: 12px;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+.lofter-para-reply-hint:hover {
+    background: rgba(0,195,255,0.15);
+}
+
+/* 段评输入区域调整 */
+.lofter-para-comment-input-area {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    padding: 12px 20px;
+    border-top: 1px solid #f0f0f0;
+    background: #fff;
+}
+
+/* ======================================
+   Lofter Loading动效样式
+   ====================================== */
+
+/* 旋转动画 */
+@keyframes lofter-spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.lofter-spin {
+    animation: lofter-spin 1s linear infinite;
+}
+
+/* AI生成按钮loading状态 */
+.lofter-para-comment-ai-btn.loading {
+    pointer-events: none;
+    opacity: 0.8;
+}
+
+.lofter-para-comment-ai-btn.loading svg {
+    animation: lofter-spin 1s linear infinite;
+}
+
+/* 生成评论按钮loading状态 */
+#lofter-generate-comments-btn.loading {
+    pointer-events: none;
+    opacity: 0.8;
+}
+
+#lofter-generate-comments-btn.loading svg {
+    animation: lofter-spin 1s linear infinite;
+}
+
+#lofter-generate-comments-btn {
+    display: flex;
+    align-items: center;
+    gap: 4px;
 }

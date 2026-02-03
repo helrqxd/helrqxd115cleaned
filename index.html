@@ -730,37 +730,29 @@
 
 					<!-- 3. “我”的页面 -->
 					<div id="xhs-profile-view" class="xhs-view" style="display: none; height: 100%; overflow: hidden; background: #fff; flex-direction: column; box-sizing: border-box">
-						<div class="xhs-top-bar" style="border-bottom: none">
-							<div class="xhs-menu-icon" id="xhs-profile-menu-btn">≡</div>
-							<!-- 将右上角按钮改为设置按钮 -->
-							<div class="xhs-menu-icon" id="xhs-app-settings-btn">
-								<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-									<circle cx="12" cy="12" r="3"></circle>
-									<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-								</svg>
-							</div>
-						</div>
-
 						<!-- 原有的内容保持不变 -->
 						<div class="xhs-profile-header">
-							<!-- ... existing content ... -->
-							<div class="xhs-profile-user">
-								<img id="xhs-my-avatar" src="https://i.postimg.cc/qRqpK5kP/anime-avatar.jpg" class="xhs-profile-avatar" />
-								<div class="xhs-profile-stats">
-									<div class="stat-box">
-										<div class="xhs-stat-num" id="xhs-stat-follow">0</div>
-										<div class="xhs-stat-label">关注</div>
-									</div>
-									<div class="stat-box">
-										<div class="xhs-stat-num" id="xhs-stat-fans">0</div>
-										<div class="xhs-stat-label">粉丝</div>
-									</div>
-									<div class="stat-box">
-										<div class="xhs-stat-num" id="xhs-stat-likes">0</div>
-										<div class="xhs-stat-label">获赞与收藏</div>
-									</div>
+							<!-- 顶部按钮区域 -->
+							<div class="xhs-profile-topbar">
+								<div class="xhs-profile-topbar-btn" id="xhs-profile-menu-btn">
+									<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+										<line x1="3" y1="12" x2="21" y2="12"></line>
+										<line x1="3" y1="6" x2="21" y2="6"></line>
+										<line x1="3" y1="18" x2="21" y2="18"></line>
+									</svg>
+								</div>
+								<div class="xhs-profile-topbar-btn" id="xhs-app-settings-btn">
+									<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+										<circle cx="12" cy="12" r="3"></circle>
+										<path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+									</svg>
 								</div>
 							</div>
+							<!-- 头像区域 -->
+							<div class="xhs-profile-avatar-section">
+								<img id="xhs-my-avatar" src="https://i.postimg.cc/qRqpK5kP/anime-avatar.jpg" class="xhs-profile-avatar" />
+							</div>
+							<!-- 用户信息区域 -->
 							<div class="xhs-profile-info">
 								<div class="xhs-profile-name" id="xhs-my-name">MOMO</div>
 								<div class="xhs-profile-id">小红书号：<span id="xhs-my-id-display">123456789</span></div>
@@ -768,6 +760,21 @@
 								<div class="xhs-profile-tags" id="xhs-my-tags">
 									<div class="xhs-tag">双子座</div>
 									<div class="xhs-tag">广东</div>
+								</div>
+							</div>
+							<!-- 统计数据 -->
+							<div class="xhs-profile-stats">
+								<div class="stat-box">
+									<div class="xhs-stat-num" id="xhs-stat-follow">0</div>
+									<div class="xhs-stat-label">关注</div>
+								</div>
+								<div class="stat-box">
+									<div class="xhs-stat-num" id="xhs-stat-fans">0</div>
+									<div class="xhs-stat-label">粉丝</div>
+								</div>
+								<div class="stat-box">
+									<div class="xhs-stat-num" id="xhs-stat-likes">0</div>
+									<div class="xhs-stat-label">获赞与收藏</div>
 								</div>
 							</div>
 						</div>
@@ -918,20 +925,7 @@
 							<div class="xhs-texture-list" id="xhs-texture-list">
 								<!-- 纹理选项由JS生成 -->
 							</div>
-							<div class="xhs-texture-upload-section">
-								<div class="xhs-texture-label">或上传自定义背景</div>
-								<div class="xhs-texture-upload-wrap">
-									<button id="xhs-texture-upload-btn" class="xhs-texture-upload-btn">
-										<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-											<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-											<polyline points="17 8 12 3 7 8"></polyline>
-											<line x1="12" y1="3" x2="12" y2="15"></line>
-										</svg>
-										<span>上传背景图</span>
-									</button>
-									<input type="file" id="xhs-texture-upload-input" accept="image/*" style="display: none" />
-								</div>
-							</div>
+							<input type="file" id="xhs-texture-upload-input" accept="image/*" style="display: none" />
 						</div>
 					</div>
 
@@ -8417,6 +8411,37 @@
 					<div class="form-group">
 						<label>标签 (用空格分隔)</label>
 						<input type="text" id="xhs-settings-tags" placeholder="例如：双子座 广东" />
+					</div>
+
+					<hr style="opacity: 0.2; margin: 15px 0" />
+
+					<!-- 自定义背景设置 -->
+					<div class="form-group">
+						<label>主页背景</label>
+						<div class="xhs-bg-options">
+							<div class="xhs-bg-option-row">
+								<input type="radio" name="xhs-bg-type" id="xhs-bg-gradient" value="gradient" checked />
+								<label for="xhs-bg-gradient">渐变色</label>
+								<div class="xhs-bg-color-pickers">
+									<div class="xhs-color-picker-wrap">
+										<input type="color" id="xhs-bg-color1" value="#ff9a9e" />
+										<span class="xhs-color-value" id="xhs-bg-color1-text">#ff9a9e</span>
+									</div>
+									<span class="xhs-color-arrow">→</span>
+									<div class="xhs-color-picker-wrap">
+										<input type="color" id="xhs-bg-color2" value="#fecfef" />
+										<span class="xhs-color-value" id="xhs-bg-color2-text">#fecfef</span>
+									</div>
+								</div>
+							</div>
+							<div class="xhs-bg-option-row">
+								<input type="radio" name="xhs-bg-type" id="xhs-bg-image" value="image" />
+								<label for="xhs-bg-image">自定义图片</label>
+								<button id="xhs-bg-upload-btn" class="xhs-bg-upload-btn">上传图片</button>
+								<input type="file" id="xhs-bg-image-input" accept="image/*" hidden />
+							</div>
+							<div id="xhs-bg-preview" class="xhs-bg-preview"></div>
+						</div>
 					</div>
 
 					<hr style="opacity: 0.2; margin: 15px 0" />

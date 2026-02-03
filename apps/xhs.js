@@ -292,6 +292,11 @@ document.addEventListener('DOMContentLoaded', () => {
             ];
         }
 
+        // 应用背景设置
+        if (typeof applyProfileBackground === 'function') {
+            applyProfileBackground();
+        }
+
         // 基础信息
         const avatarEl = document.getElementById('xhs-my-avatar');
         if (avatarEl) avatarEl.src = s.avatar || "https://i.postimg.cc/qRqpK5kP/anime-avatar.jpg";
@@ -323,8 +328,26 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         const fansEl = document.getElementById('xhs-stat-fans');
         if (fansEl) fansEl.textContent = s.fansCount || "0";
+
+        // 获赞与收藏数使用实际笔记数据统计
         const likesEl = document.getElementById('xhs-stat-likes');
-        if (likesEl) likesEl.textContent = s.likesCount || "0";
+        if (likesEl) {
+            // 异步计算实际获赞与收藏数
+            (async () => {
+                let actualLikesCount = 0;
+                if (window.db && window.db.xhsNotes) {
+                    const allNotes = await window.db.xhsNotes.toArray();
+                    const myName = s.nickname || "MOMO";
+                    const myNotes = allNotes.filter(n => n.authorName === myName);
+                    myNotes.forEach(note => {
+                        if (note.stats) {
+                            actualLikesCount += (note.stats.likes || 0) + (note.stats.collects || 0);
+                        }
+                    });
+                }
+                likesEl.textContent = actualLikesCount || "0";
+            })();
+        }
 
         // 渲染标签
         const tagsContainer = document.getElementById('xhs-my-tags');
@@ -859,9 +882,30 @@ document.addEventListener('DOMContentLoaded', () => {
         if (window.db && window.db.xhsSettings) {
             await window.db.xhsSettings.put(window.state.xhsSettings);
         }
+
+        // 应用背景设置到个人主页
+        applyProfileBackground();
+
         // 仅在个人主页显示时重新渲染
         if (document.getElementById('xhs-profile-view').style.display !== 'none') {
             window.renderXhsProfile();
+        }
+    }
+
+    // 应用个人主页背景设置
+    function applyProfileBackground() {
+        const s = window.state?.xhsSettings;
+        if (!s) return;
+
+        const profileHeader = document.querySelector('#xhs-profile-view .xhs-profile-header');
+        if (!profileHeader) return;
+
+        if (s.profileBgType === 'image' && s.profileBgImage) {
+            profileHeader.style.background = `url(${s.profileBgImage}) center/cover no-repeat`;
+        } else {
+            const color1 = s.profileBgColor1 || '#ff9a9e';
+            const color2 = s.profileBgColor2 || '#fecfef';
+            profileHeader.style.background = `linear-gradient(180deg, ${color1} 0%, ${color2} 50%, #fff 100%)`;
         }
     }
 
@@ -937,15 +981,23 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // 清除未读计数
+    // 清除未读计数并标记所有条目为已读
     async function clearUnreadCount(type) {
         if (!window.state?.xhsSettings?.notifications) return;
 
         const notifications = window.state.xhsSettings.notifications;
         if (type === 'engagement') {
             notifications.unreadEngagement = 0;
+            // 将所有点赞收藏条目标记为已读
+            if (notifications.engagement && notifications.engagement.length > 0) {
+                notifications.engagement.forEach(n => n.isRead = true);
+            }
         } else if (type === 'comments') {
             notifications.unreadComments = 0;
+            // 将所有评论和@条目标记为已读
+            if (notifications.comments && notifications.comments.length > 0) {
+                notifications.comments.forEach(n => n.isRead = true);
+            }
         }
 
         await saveXhsSettings({});
@@ -973,12 +1025,29 @@ document.addEventListener('DOMContentLoaded', () => {
 
         container.innerHTML = notifications.map(n => {
             const d = n.data;
+            const isCommentLike = d.isCommentLike;
+            const isUnread = !n.isRead;
+
+            // 构建显示文本
+            let titleText, descText;
+            if (isCommentLike) {
+                // 评论点赞通知
+                titleText = '评论获赞';
+                descText = `"${d.commentText?.substring(0, 30) || ''}${(d.commentText?.length || 0) > 30 ? '...' : ''}"`;
+            } else {
+                // 笔记互动通知
+                titleText = d.noteTitle || '我的笔记';
+                descText = d.reason || '';
+            }
+
             return `
-                <div class="xhs-notification-item" data-note-id="${d.noteId}">
-                    <img class="xhs-notification-avatar" src="${d.noteCover || 'https://via.placeholder.com/44'}" onerror="this.src='https://via.placeholder.com/44'" />
+                <div class="xhs-notification-item ${isCommentLike ? 'comment-like' : ''} ${isUnread ? 'unread' : ''}" data-note-id="${d.noteId}" data-notification-id="${n.id}">
+                    <div class="xhs-notification-cover">
+                        <img src="${d.noteCover || 'https://via.placeholder.com/44'}" onerror="this.src='https://via.placeholder.com/44'" />
+                    </div>
                     <div class="xhs-notification-content">
                         <div class="xhs-notification-header">
-                            <span class="xhs-notification-user">${d.noteTitle || '我的笔记'}</span>
+                            <span class="xhs-notification-user">${titleText}</span>
                             <span class="xhs-notification-time">${formatXhsDate(n.timestamp)}</span>
                         </div>
                         <div class="xhs-engagement-change">
@@ -991,17 +1060,28 @@ document.addEventListener('DOMContentLoaded', () => {
                                 <span>+${d.collectsIncrease}</span>
                             </div>` : ''}
                         </div>
-                        ${d.reason ? `<div class="xhs-engagement-reason">${d.reason}</div>` : ''}
+                        ${descText ? `<div class="xhs-engagement-reason">${descText}</div>` : ''}
                     </div>
-                    ${d.noteCover ? `<img class="xhs-notification-preview" src="${d.noteCover}" onerror="this.style.display='none'" />` : ''}
                 </div>
             `;
         }).join('');
 
-        // 绑定点击事件
+        // 绑定点击事件（赞和收藏列表）
         container.querySelectorAll('.xhs-notification-item').forEach(item => {
             item.onclick = async () => {
                 const noteId = item.dataset.noteId;
+                const notificationId = item.dataset.notificationId;
+
+                // 标记为已读
+                if (notificationId && window.state?.xhsSettings?.notifications?.engagement) {
+                    const notification = window.state.xhsSettings.notifications.engagement.find(n => n.id === notificationId);
+                    if (notification && !notification.isRead) {
+                        notification.isRead = true;
+                        item.classList.remove('unread');
+                        await saveXhsSettings({});
+                    }
+                }
+
                 if (noteId && window.db && window.db.xhsNotes) {
                     const note = await window.db.xhsNotes.get(noteId);
                     if (note) {
@@ -1034,8 +1114,9 @@ document.addEventListener('DOMContentLoaded', () => {
         container.innerHTML = notifications.map(n => {
             const d = n.data;
             const isMention = n.type === 'mention';
+            const isUnread = !n.isRead;
             return `
-                <div class="xhs-notification-item" data-note-id="${d.noteId}">
+                <div class="xhs-notification-item ${isUnread ? 'unread' : ''}" data-note-id="${d.noteId}" data-notification-id="${n.id}">
                     <img class="xhs-notification-avatar" src="${d.userAvatar || 'https://api.dicebear.com/7.x/notionists/svg?seed=default'}" onerror="this.src='https://api.dicebear.com/7.x/notionists/svg?seed=default'" />
                     <div class="xhs-notification-content">
                         <div class="xhs-notification-header">
@@ -1052,10 +1133,22 @@ document.addEventListener('DOMContentLoaded', () => {
             `;
         }).join('');
 
-        // 绑定点击事件
+        // 绑定点击事件（评论和@列表）
         container.querySelectorAll('.xhs-notification-item').forEach(item => {
             item.onclick = async () => {
                 const noteId = item.dataset.noteId;
+                const notificationId = item.dataset.notificationId;
+
+                // 标记为已读
+                if (notificationId && window.state?.xhsSettings?.notifications?.comments) {
+                    const notification = window.state.xhsSettings.notifications.comments.find(n => n.id === notificationId);
+                    if (notification && !notification.isRead) {
+                        notification.isRead = true;
+                        item.classList.remove('unread');
+                        await saveXhsSettings({});
+                    }
+                }
+
                 if (noteId && window.db && window.db.xhsNotes) {
                     const note = await window.db.xhsNotes.get(noteId);
                     if (note) {
@@ -1077,8 +1170,8 @@ document.addEventListener('DOMContentLoaded', () => {
             likesBtn.onclick = async () => {
                 likesView.style.display = 'flex';
                 bringToFront(likesView);
-                renderLikesCollectsList();
-                await clearUnreadCount('engagement');
+                await clearUnreadCount('engagement');  // 先标记已读
+                renderLikesCollectsList();  // 再渲染列表
             };
         }
 
@@ -1097,8 +1190,8 @@ document.addEventListener('DOMContentLoaded', () => {
             commentsBtn.onclick = async () => {
                 commentsView.style.display = 'flex';
                 bringToFront(commentsView);
-                renderCommentsAtList();
-                await clearUnreadCount('comments');
+                await clearUnreadCount('comments');  // 先标记已读
+                renderCommentsAtList();  // 再渲染列表
             };
         }
 
@@ -2715,6 +2808,7 @@ ${memoryContext ? `【角色记忆与近期经历（帮助理解角色关系和�
                 // 分析当前评论区，找出用户发布的未被回复的评论
                 const unrepliedUserComments = [];
                 const commentMentionedCharacters = new Set(); // 未被回复评论中被@的角色
+                const mustReplyByMainAuthor = []; // 楼中楼中没有@任何人的未回复评论，主评论作者必须回复
 
                 if (note.comments && note.comments.length > 0) {
                     note.comments.forEach(c => {
@@ -2751,7 +2845,16 @@ ${memoryContext ? `【角色记忆与近期经历（帮助理解角色关系和�
 
                                         // 【修改】只检查未被回复的评论中的@角色
                                         const mentions = extractMentions(reply.text);
-                                        mentions.forEach(name => commentMentionedCharacters.add(name));
+                                        if (mentions.length > 0) {
+                                            mentions.forEach(name => commentMentionedCharacters.add(name));
+                                        } else {
+                                            // 没有@任何人的楼中楼评论，主评论作者必须回复
+                                            mustReplyByMainAuthor.push({
+                                                comment: reply,
+                                                parentId: c.id,
+                                                mainAuthor: c.user
+                                            });
+                                        }
                                     }
                                 }
                             });
@@ -2783,6 +2886,15 @@ ${memoryContext ? `【角色记忆与近期经历（帮助理解角色关系和�
                     const char = availableChars.find(c => c.name === name);
                     if (char) {
                         mustReplyCharacters.push(char);
+                    }
+                });
+
+                // 3. 楼中楼中没有@任何人的未回复评论，主评论作者必须回复
+                const mainAuthorsMustReply = [];
+                mustReplyByMainAuthor.forEach(item => {
+                    const char = availableChars.find(c => c.name === item.mainAuthor);
+                    if (char && !mainAuthorsMustReply.find(c => c.id === char.id)) {
+                        mainAuthorsMustReply.push(char);
                     }
                 });
 
@@ -2863,6 +2975,14 @@ ${memoryContext ? `【角色记忆与近期经历（帮助理解角色关系和�
                         }
                     }
 
+                    // 处理主评论作者必须回复的情况
+                    for (const char of mainAuthorsMustReply) {
+                        const memories = getCharacterMemory(char);
+                        if (memories && memories.length > 0) {
+                            memoryParts.push(...memories);
+                        }
+                    }
+
                     if (memoryParts.length > 0) {
                         chatMemoryContext = `\n【角色聊天记录参考】:\n${memoryParts.join('\n\n')}`;
                     }
@@ -2881,6 +3001,13 @@ ${memoryContext ? `【角色记忆与近期经历（帮助理解角色关系和�
 
                 // 添加必须回复的角色
                 mustReplyCharacters.forEach(char => {
+                    if (!allCommentingChars.find(c => c.id === char.id)) {
+                        allCommentingChars.push(char);
+                    }
+                });
+
+                // 添加主评论作者必须回复的角色
+                mainAuthorsMustReply.forEach(char => {
                     if (!allCommentingChars.find(c => c.id === char.id)) {
                         allCommentingChars.push(char);
                     }
@@ -2917,6 +3044,15 @@ ${memoryContext ? `【角色记忆与近期经历（帮助理解角色关系和�
                 let mustReplyContext = "";
                 if (mustReplyCharacters.length > 0) {
                     mustReplyContext = `\n【未被回复评论中@的角色（这些角色必须回复对应的评论）】:\n${mustReplyCharacters.map(c => c.name).join('、')}`;
+                }
+
+                // 构建主评论作者必须回复的上下文（楼中楼中没有@任何人的评论）
+                let mainAuthorMustReplyContext = "";
+                if (mustReplyByMainAuthor.length > 0) {
+                    const list = mustReplyByMainAuthor.map((item, idx) =>
+                        `${idx + 1}. 在主评论(ID:${item.parentId})的楼中楼中，用户评论(ID:${item.comment.id}): "${item.comment.text}" - 主评论作者"${item.mainAuthor}"必须在楼中楼内回复`
+                    ).join('\n');
+                    mainAuthorMustReplyContext = `\n【楼中楼中没有@任何人的未回复评论（主评论作者必须在楼中楼内回复）】:\n${list}`;
                 }
 
                 // 构建现有评论上下文
@@ -2970,6 +3106,7 @@ ${existingCommentsContext}
 ${unrepliedContext}
 ${noteMentionContext}
 ${mustReplyContext}
+${mainAuthorMustReplyContext}
 
 【评论生成规则】:
 1. 生成5条随机评论：从以下角色中选择发评论:
@@ -2977,24 +3114,31 @@ ${mustReplyContext}
    - 路人用户: 随机生成2个路人网名
    
 2. 评论类型分配（在5条随机评论中）:
-   - 2-3条主评论（直接评论笔记内容）
-   - 2-3条楼中楼回复（回复已有的评论）
+   - 2-3条主评论（直接评论笔记内容，不能包含"回复@"字样）
+   - 2-3条楼中楼回复（回复已有的评论，必须在楼中楼内，笔记首次生成评论时不需要楼中楼回复）
 
-3. ${unrepliedUserComments.length > 0 ? `【重要】必须回复用户"${myName}"的所有未被回复的评论！这些回复不计入5条随机评论数量。` : '如果用户有评论未被回复，优先回复用户的评论。'}
+3. 【重要-主评论格式】主评论是对笔记内容的直接评论，绝对不能出现"回复 @xxx"这种格式。只有楼中楼回复才使用"回复 @xxx"格式。
 
-4. ${noteMustCommentCharacters.length > 0 ? `【重要-笔记@角色】笔记内容中@了这些角色（${noteMustCommentCharacters.map(c => c.name).join('、')}），这是首次生成评论，这些角色必须发表主评论！不计入5条随机评论数量。评论内容要体现被作者@的感觉，比如"被cue到了"、"你@我干嘛"等互动感。` : ''}
+4. ${unrepliedUserComments.length > 0 ? `【重要】必须回复用户"${myName}"的所有未被回复的评论！这些回复必须在对应的楼中楼内，不是新的主评论。不计入5条随机评论数量。` : '如果用户有评论未被回复，优先回复用户的评论。'}
 
-5. ${mustReplyCharacters.length > 0 ? `【重要-回复@角色】用户未被回复的评论中@了这些角色（${mustReplyCharacters.map(c => c.name).join('、')}），这些角色必须回复对应@他们的评论！不计入5条随机评论数量。` : ''}
+5. ${noteMustCommentCharacters.length > 0 ? `【重要-笔记@角色】笔记内容中@了这些角色（${noteMustCommentCharacters.map(c => c.name).join('、')}），这是首次生成评论，这些角色必须发表主评论（不是楼中楼回复）！不计入5条随机评论数量。评论内容要体现被作者@的感觉，比如"被cue到了"、"你@我干嘛"等互动感，但不要出现"回复 @"格式。` : ''}
 
-6. 楼中楼回复格式必须为: "回复 @被回复者：评论内容"
+6. ${mustReplyCharacters.length > 0 ? `【重要-回复@角色】用户未被回复的评论中@了这些角色（${mustReplyCharacters.map(c => c.name).join('、')}），这些角色必须在楼中楼内回复对应@他们的评论！不计入5条随机评论数量。` : ''}
 
-7. 评论风格要求:
+7. ${mustReplyByMainAuthor.length > 0 ? `【重要-主评论作者楼中楼回复】楼中楼中有用户发的未回复且没有@任何角色的评论，主评论的原作者必须在同一楼中楼内回复该评论！具体要求：${mustReplyByMainAuthor.map(item => `"${item.mainAuthor}"必须在其主评论(ID:${item.parentId})的楼中楼内回复用户评论"${item.comment.text}"，格式为"回复 @${myName}：评论内容"`).join('；')}。这些回复必须设置replyToCommentId为对应的主评论ID，不是新的主评论！不计入5条随机评论数量。` : ''}
+
+8. 楼中楼回复格式规则:
+   - 只有楼中楼回复才使用格式: "回复 @被回复者：评论内容"
+   - 主评论绝对不能使用"回复 @"格式
+   - isMainComment为true时，text中不能有"回复 @"
+
+9. 评论风格要求:
    - 符合小红书风格，可使用emoji、网络用语
    - 有人设的角色要符合其人设特点
    - 路人评论要多样化，有正面也可以有中性评价
    - 评论长度适中，有长有短
 
-8. 互动数据增量：根据本次生成的评论质量和热度，估算应该增加的点赞和收藏数：
+9. 互动数据增量：根据本次生成的评论质量和热度，估算应该增加的点赞和收藏数：
    - 评论越正面热情，互动增量越高
    - 有角色参与评论时互动通常更活跃
    - 点赞增量范围：10-100，收藏增量范围：5-30
@@ -3106,7 +3250,11 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
                         };
 
                         if (genComment.isMainComment || !genComment.replyToCommentId) {
-                            // 主评论
+                            // 主评论 - 确保不包含"回复 @"格式
+                            if (newComment.text.match(/^回复\s*[@＠]/)) {
+                                // 移除错误的"回复 @xxx："格式
+                                newComment.text = newComment.text.replace(/^回复\s*[@＠][^\s：:]+[：:]\s*/, '');
+                            }
                             note.comments.push(newComment);
                             newCommentsForNotification.push(newComment);
                         } else {
@@ -3133,7 +3281,7 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
                         await addXhsNotification('comment', {
                             noteId: note.id,
                             noteTitle: note.title,
-                            noteCover: note.images?.[0] || '',
+                            noteCover: note.images?.[0] || note.imageUrl || note.cover || '',
                             userName: comment.user,
                             userAvatar: comment.avatar,
                             text: comment.text,
@@ -3159,7 +3307,7 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
                         await addXhsNotification('engagement', {
                             noteId: note.id,
                             noteTitle: note.title,
-                            noteCover: note.images?.[0] || '',
+                            noteCover: note.images?.[0] || note.imageUrl || note.cover || '',
                             likesIncrease: likesInc,
                             collectsIncrease: collectsInc,
                             reason: result.engagement.reason || '评论互动带来的热度提升',
@@ -3167,6 +3315,88 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
                         });
 
                         console.log(`[XHS] 互动增量 - 点赞+${likesInc}, 收藏+${collectsInc}`, result.engagement.reason || '');
+                    }
+
+                    // 给用户点赞数为0或1的评论添加点赞（必须添加，数量接近其他评论平均值）
+                    if (note.comments && note.comments.length > 0) {
+                        const myName = window.state.xhsSettings?.nickname || "我";
+                        const commentLikesNotifications = [];
+
+                        // 计算其他评论的平均点赞数
+                        let totalLikes = 0;
+                        let commentCount = 0;
+                        note.comments.forEach(comment => {
+                            if (!comment.isMine && comment.likes > 0) {
+                                totalLikes += comment.likes;
+                                commentCount++;
+                            }
+                            if (comment.replies) {
+                                comment.replies.forEach(reply => {
+                                    if (!reply.isMine && reply.likes > 0) {
+                                        totalLikes += reply.likes;
+                                        commentCount++;
+                                    }
+                                });
+                            }
+                        });
+                        const avgLikes = commentCount > 0 ? Math.max(3, Math.round(totalLikes / commentCount)) : 5;
+
+                        // 遍历所有评论，查找用户的评论
+                        note.comments.forEach(comment => {
+                            // 检查主评论 - 包括likes为undefined、0或1的情况
+                            const commentLikes = comment.likes || 0;
+                            if (comment.isMine && commentLikes <= 1) {
+                                // 必须添加点赞，数量接近平均值（±2波动）
+                                const likeIncrease = Math.max(1, avgLikes + Math.floor(Math.random() * 5) - 2);
+                                comment.likes = commentLikes + likeIncrease;
+                                commentLikesNotifications.push({
+                                    commentId: comment.id,
+                                    commentText: comment.text,
+                                    isReply: false,
+                                    parentUser: null,
+                                    likeIncrease: likeIncrease
+                                });
+                            }
+                            // 检查楼中楼回复
+                            if (comment.replies && comment.replies.length > 0) {
+                                comment.replies.forEach(reply => {
+                                    const replyLikes = reply.likes || 0;
+                                    if (reply.isMine && replyLikes <= 1) {
+                                        // 必须添加点赞，数量接近平均值（±2波动）
+                                        const likeIncrease = Math.max(1, avgLikes + Math.floor(Math.random() * 5) - 2);
+                                        reply.likes = replyLikes + likeIncrease;
+                                        commentLikesNotifications.push({
+                                            commentId: reply.id,
+                                            commentText: reply.text,
+                                            isReply: true,
+                                            parentUser: comment.user,
+                                            likeIncrease: likeIncrease
+                                        });
+                                    }
+                                });
+                            }
+                        });
+
+                        // 添加评论点赞通知
+                        for (const item of commentLikesNotifications) {
+                            await addXhsNotification('engagement', {
+                                noteId: note.id,
+                                noteTitle: note.title,
+                                noteCover: note.images?.[0] || note.imageUrl || note.cover || '',
+                                likesIncrease: item.likeIncrease,
+                                collectsIncrease: 0,
+                                isCommentLike: true,
+                                commentText: item.commentText,
+                                isReply: item.isReply,
+                                parentUser: item.parentUser,
+                                reason: `你的评论"${item.commentText.substring(0, 20)}${item.commentText.length > 20 ? '...' : ''}"获得了${item.likeIncrease}个赞`,
+                                timestamp: now
+                            });
+                        }
+
+                        if (commentLikesNotifications.length > 0) {
+                            console.log(`[XHS] 用户评论获得点赞 - ${commentLikesNotifications.length}条评论`);
+                        }
                     }
 
                     // 更新消息页红点
@@ -3774,27 +4004,42 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
                     item.style.backgroundSize = 'cover';
                     item.style.backgroundPosition = 'center';
 
-                    // 删除按钮
-                    const delBtn = document.createElement('span');
-                    delBtn.className = 'delete-btn';
-                    delBtn.textContent = '×';
-                    delBtn.onclick = (e) => {
-                        e.stopPropagation();
-                        deleteCustomTexture(idx - defaultTextures.length);
-                    };
-                    item.appendChild(delBtn);
+                    // 长按删除自定义背景
+                    bindLongPress(item, () => {
+                        showXhsConfirm('确定删除这个自定义背景吗？', () => {
+                            deleteCustomTexture(idx - defaultTextures.length);
+                        });
+                    }, () => {
+                        document.querySelectorAll('.xhs-texture-item').forEach(i => i.classList.remove('active'));
+                        item.classList.add('active');
+                        selectedTexture = idx;
+                        updateTextCoverPreview();
+                    }, false);
                 } else {
                     item.style.background = tex.css;
+                    item.onclick = () => {
+                        document.querySelectorAll('.xhs-texture-item').forEach(i => i.classList.remove('active'));
+                        item.classList.add('active');
+                        selectedTexture = idx;
+                        updateTextCoverPreview();
+                    };
                 }
 
-                item.onclick = () => {
-                    document.querySelectorAll('.xhs-texture-item').forEach(i => i.classList.remove('active'));
-                    item.classList.add('active');
-                    selectedTexture = idx;
-                    updateTextCoverPreview();
-                };
                 listEl.appendChild(item);
             });
+
+            // 在纹理列表末尾添加上传按钮（方形图标）
+            const uploadBtn = document.createElement('div');
+            uploadBtn.className = 'xhs-texture-upload-btn';
+            uploadBtn.innerHTML = `
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                    <line x1="12" y1="5" x2="12" y2="19"></line>
+                    <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+            `;
+            uploadBtn.onclick = () => textureUploadInput.click();
+            listEl.appendChild(uploadBtn);
+
             updateTextCoverPreview();
         }
 
@@ -3811,13 +4056,10 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
             }
         }
 
-        // 上传自定义背景
-        const textureUploadBtn = document.getElementById('xhs-texture-upload-btn');
+        // 上传自定义背景（仅使用隐藏的input）
         const textureUploadInput = document.getElementById('xhs-texture-upload-input');
 
-        if (textureUploadBtn && textureUploadInput) {
-            textureUploadBtn.onclick = () => textureUploadInput.click();
-
+        if (textureUploadInput) {
             textureUploadInput.onchange = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
@@ -4462,14 +4704,46 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
             updateContentCount();
         }
 
-        // Tag输入
+        // Tag输入 - 支持桌面和移动端
         const tagInput = document.getElementById('xhs-tag-input');
         const tagsContainer = document.getElementById('xhs-tags-container');
+        const tagAddBtn = document.getElementById('xhs-tag-add-btn');
 
         if (tagInput) {
+            // 桌面端回车键
             tagInput.onkeydown = (e) => {
-                if (e.key === 'Enter') {
+                if (e.key === 'Enter' || e.keyCode === 13) {
                     e.preventDefault();
+                    addTag(tagInput.value.trim());
+                    tagInput.value = '';
+                }
+            };
+
+            // 移动端软键盘回车/完成键 - 使用 keypress 和 input 事件作为备份
+            tagInput.onkeypress = (e) => {
+                if (e.key === 'Enter' || e.keyCode === 13 || e.which === 13) {
+                    e.preventDefault();
+                    addTag(tagInput.value.trim());
+                    tagInput.value = '';
+                }
+            };
+
+            // 移动端 IME 输入法确认 - 监听 compositionend 后的回车
+            tagInput.addEventListener('keyup', (e) => {
+                if (e.key === 'Enter' || e.keyCode === 13) {
+                    e.preventDefault();
+                    if (tagInput.value.trim()) {
+                        addTag(tagInput.value.trim());
+                        tagInput.value = '';
+                    }
+                }
+            });
+        }
+
+        // 添加按钮点击（移动端备用方案）
+        if (tagAddBtn) {
+            tagAddBtn.onclick = () => {
+                if (tagInput && tagInput.value.trim()) {
                     addTag(tagInput.value.trim());
                     tagInput.value = '';
                 }
@@ -4683,21 +4957,92 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
             document.getElementById('xhs-settings-fans').value = s.fansCount;
             document.getElementById('xhs-settings-tags').value = (s.tags || []).join(' ');
             document.getElementById('xhs-settings-persona').value = s.persona || "";
+
+            // 填充背景设置
+            const bgType = s.profileBgType || 'gradient';
+            const bgGradientRadio = document.getElementById('xhs-bg-gradient');
+            const bgImageRadio = document.getElementById('xhs-bg-image');
+            const bgColor1 = document.getElementById('xhs-bg-color1');
+            const bgColor2 = document.getElementById('xhs-bg-color2');
+            const bgColor1Text = document.getElementById('xhs-bg-color1-text');
+            const bgColor2Text = document.getElementById('xhs-bg-color2-text');
+            const bgPreview = document.getElementById('xhs-bg-preview');
+
+            if (bgType === 'image' && s.profileBgImage) {
+                bgImageRadio.checked = true;
+                bgPreview.style.display = 'block';
+                bgPreview.style.backgroundImage = `url(${s.profileBgImage})`;
+            } else {
+                bgGradientRadio.checked = true;
+                bgPreview.style.display = 'none';
+            }
+            const color1Val = s.profileBgColor1 || '#ff9a9e';
+            const color2Val = s.profileBgColor2 || '#fecfef';
+            bgColor1.value = color1Val;
+            bgColor2.value = color2Val;
+            if (bgColor1Text) bgColor1Text.textContent = color1Val;
+            if (bgColor2Text) bgColor2Text.textContent = color2Val;
+
             profileSettingsModal.classList.add('visible');
         });
+    }
+
+    // 背景图上传按钮
+    const bgUploadBtn = document.getElementById('xhs-bg-upload-btn');
+    const bgImageInput = document.getElementById('xhs-bg-image-input');
+    if (bgUploadBtn && bgImageInput) {
+        bgUploadBtn.onclick = () => bgImageInput.click();
+        bgImageInput.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (file && window.handleImageUploadAndCompress) {
+                const base64 = await window.handleImageUploadAndCompress(file);
+                const bgPreview = document.getElementById('xhs-bg-preview');
+                bgPreview.style.display = 'block';
+                bgPreview.style.backgroundImage = `url(${base64})`;
+                bgPreview.dataset.imageData = base64;
+                document.getElementById('xhs-bg-image').checked = true;
+            }
+        };
+    }
+
+    // 颜色选择器实时更新显示值
+    const bgColor1Input = document.getElementById('xhs-bg-color1');
+    const bgColor2Input = document.getElementById('xhs-bg-color2');
+    if (bgColor1Input) {
+        bgColor1Input.oninput = (e) => {
+            const textEl = document.getElementById('xhs-bg-color1-text');
+            if (textEl) textEl.textContent = e.target.value;
+        };
+    }
+    if (bgColor2Input) {
+        bgColor2Input.oninput = (e) => {
+            const textEl = document.getElementById('xhs-bg-color2-text');
+            if (textEl) textEl.textContent = e.target.value;
+        };
     }
 
     const pSaveBtn = document.getElementById('xhs-settings-save-btn');
     const pCancelBtn = document.getElementById('xhs-settings-cancel-btn');
     if (pCancelBtn) pCancelBtn.onclick = () => profileSettingsModal.classList.remove('visible');
     if (pSaveBtn) pSaveBtn.onclick = () => {
+        // 获取背景设置
+        const bgType = document.getElementById('xhs-bg-image').checked ? 'image' : 'gradient';
+        const bgColor1 = document.getElementById('xhs-bg-color1').value;
+        const bgColor2 = document.getElementById('xhs-bg-color2').value;
+        const bgPreview = document.getElementById('xhs-bg-preview');
+        const bgImage = bgPreview.dataset.imageData || window.state.xhsSettings?.profileBgImage || '';
+
         const newSettings = {
             avatar: document.getElementById('xhs-settings-avatar-preview').src,
             nickname: document.getElementById('xhs-settings-nickname').value,
             xhsId: document.getElementById('xhs-settings-id').value,
             fansCount: document.getElementById('xhs-settings-fans').value,
             tags: document.getElementById('xhs-settings-tags').value.trim().split(/\s+/),
-            persona: document.getElementById('xhs-settings-persona').value
+            persona: document.getElementById('xhs-settings-persona').value,
+            profileBgType: bgType,
+            profileBgColor1: bgColor1,
+            profileBgColor2: bgColor2,
+            profileBgImage: bgImage
         };
         saveXhsSettings(newSettings);
         profileSettingsModal.classList.remove('visible');
@@ -5104,16 +5449,16 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
         你是一个小红书用户资料生成器。请为用户"${authorName}"生成一个完整的小红书个人主页资料。
         
         ${characterContext}
-        ${suggestedStats}
         
         【要求】：
         1. 生成一个符合小红书风格的个人简介（20-60字），可以包含emoji，体现个性
         2. 生成3-5个个人标签（如星座、城市、职业、爱好等）
-        3. 根据角色属性和笔记数据生成合理的：
+        3. 根据角色属性生成合理的：
            - 关注数：通常在 50-2000 范围
            - 粉丝数：根据角色类型调整（普通用户 100-5万，网红/明星 10万-1000万）
-           - 获赞与收藏数：应与粉丝数成正比，通常是粉丝数的2-10倍
         4. 生成一个8-12位的小红书号（纯数字）
+        
+        注意：不需要生成"获赞与收藏数"，该数据将根据用户实际发布的笔记统计得出。
         
         【JSON返回格式】：
         {
@@ -5121,7 +5466,6 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
             "tags": ["标签1", "标签2", "标签3"],
             "followCount": 数字,
             "fansCount": 数字,
-            "likesCount": 数字,
             "xhsId": "小红书号"
         }
         
@@ -5180,7 +5524,7 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
 
             const result = JSON.parse(cleanJson);
 
-            // 构建完整的profile数据
+            // 构建完整的profile数据 - likesCount使用实际笔记统计数据
             const profileData = {
                 authorName: authorName,
                 avatar: authorAvatar,
@@ -5188,7 +5532,8 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
                 tags: result.tags || [],
                 followCount: result.followCount || Math.floor(Math.random() * 500) + 100,
                 fansCount: result.fansCount || Math.floor(Math.random() * 10000) + 1000,
-                likesCount: result.likesCount || Math.floor(Math.random() * 50000) + 5000,
+                // 使用实际统计数据，不由AI生成
+                likesCount: totalLikes + totalCollects,
                 xhsId: result.xhsId || Math.floor(Math.random() * 900000000 + 100000000).toString(),
                 isFollowed: false,
                 createdAt: Date.now()
@@ -5197,7 +5542,7 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
             return profileData;
         } catch (e) {
             console.error("生成角色主页失败:", e);
-            // 返回默认数据
+            // 返回默认数据 - likesCount使用实际统计数据
             return {
                 authorName: authorName,
                 avatar: authorAvatar,
@@ -5205,7 +5550,8 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
                 tags: ["小红书用户"],
                 followCount: Math.floor(Math.random() * 500) + 100,
                 fansCount: Math.floor(Math.random() * 10000) + 1000,
-                likesCount: Math.floor(Math.random() * 50000) + 5000,
+                // 使用实际统计数据
+                likesCount: totalLikes + totalCollects,
                 xhsId: Math.floor(Math.random() * 900000000 + 100000000).toString(),
                 isFollowed: false,
                 createdAt: Date.now()
@@ -5415,8 +5761,20 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
         const fansEl = views.userProfile.querySelector('#xhs-user-stat-fans');
         if (fansEl) fansEl.textContent = formatStatNumber(profile.fansCount || 0);
 
+        // 获赞与收藏数使用实际笔记数据统计
+        let actualLikesCount = 0;
+        if (window.db && window.db.xhsNotes) {
+            const allNotes = await window.db.xhsNotes.toArray();
+            const userNotes = allNotes.filter(n => n.authorName === profile.authorName);
+            userNotes.forEach(note => {
+                if (note.stats) {
+                    actualLikesCount += (note.stats.likes || 0) + (note.stats.collects || 0);
+                }
+            });
+        }
+
         const likesEl = views.userProfile.querySelector('#xhs-user-stat-likes');
-        if (likesEl) likesEl.textContent = formatStatNumber(profile.likesCount || 0);
+        if (likesEl) likesEl.textContent = formatStatNumber(actualLikesCount);
 
         // 关注按钮状态
         const followBtn = views.userProfile.querySelector('#xhs-user-follow-btn');
