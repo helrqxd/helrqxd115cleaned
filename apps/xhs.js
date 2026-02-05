@@ -191,6 +191,9 @@ document.addEventListener('DOMContentLoaded', () => {
         let startX, startY;
 
         const start = (e) => {
+            // 阻止事件冒泡，防止子元素的长按事件触发父元素
+            e.stopPropagation();
+
             isLongPress = false;
             isScrolling = false;
             // 记录触摸起始位置，用于判断滑动
@@ -1005,11 +1008,32 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 渲染点赞收藏通知列表
-    function renderLikesCollectsList() {
+    async function renderLikesCollectsList() {
         const container = document.getElementById('xhs-likes-collects-list');
         if (!container) return;
 
-        const notifications = window.state?.xhsSettings?.notifications?.engagement || [];
+        // 获取通知列表并过滤已删除笔记的记录
+        let notifications = window.state?.xhsSettings?.notifications?.engagement || [];
+        if (window.db && window.db.xhsNotes && notifications.length > 0) {
+            const validNotifications = [];
+            for (const n of notifications) {
+                const noteId = n.data?.noteId;
+                if (noteId) {
+                    const note = await window.db.xhsNotes.get(noteId);
+                    if (note) {
+                        validNotifications.push(n);
+                    }
+                } else {
+                    validNotifications.push(n);
+                }
+            }
+            // 如果有记录被删除，更新settings
+            if (validNotifications.length !== notifications.length) {
+                window.state.xhsSettings.notifications.engagement = validNotifications;
+                await saveXhsSettings({});
+                notifications = validNotifications;
+            }
+        }
 
         if (notifications.length === 0) {
             container.innerHTML = `
@@ -1093,11 +1117,55 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 渲染评论和@通知列表
-    function renderCommentsAtList() {
+    async function renderCommentsAtList() {
         const container = document.getElementById('xhs-comments-at-list');
         if (!container) return;
 
-        const notifications = window.state?.xhsSettings?.notifications?.comments || [];
+        // 获取通知列表并过滤已删除笔记/评论的记录
+        let notifications = window.state?.xhsSettings?.notifications?.comments || [];
+        if (window.db && window.db.xhsNotes && notifications.length > 0) {
+            const validNotifications = [];
+            for (const n of notifications) {
+                const noteId = n.data?.noteId;
+                if (noteId) {
+                    const note = await window.db.xhsNotes.get(noteId);
+                    if (note) {
+                        // 如果是回复评论，还需要检查原评论是否存在
+                        if (n.data.isReplyToComment && n.data.originalCommentId) {
+                            let found = false;
+                            if (note.comments) {
+                                for (const c of note.comments) {
+                                    if (c.id === n.data.originalCommentId) {
+                                        found = true;
+                                        break;
+                                    }
+                                    if (c.replies) {
+                                        for (const r of c.replies) {
+                                            if (r.id === n.data.originalCommentId) {
+                                                found = true;
+                                                break;
+                                            }
+                                        }
+                                    }
+                                    if (found) break;
+                                }
+                            }
+                            if (found) validNotifications.push(n);
+                        } else {
+                            validNotifications.push(n);
+                        }
+                    }
+                } else {
+                    validNotifications.push(n);
+                }
+            }
+            // 如果有记录被删除，更新settings
+            if (validNotifications.length !== notifications.length) {
+                window.state.xhsSettings.notifications.comments = validNotifications;
+                await saveXhsSettings({});
+                notifications = validNotifications;
+            }
+        }
 
         if (notifications.length === 0) {
             container.innerHTML = `
@@ -1115,6 +1183,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const d = n.data;
             const isMention = n.type === 'mention';
             const isUnread = !n.isRead;
+            const isReplyToComment = d.isReplyToComment === true;
+
+            // 区分笔记评论和回复评论
+            let actionText, metaText;
+            if (isMention) {
+                actionText = '@了你：';
+                metaText = d.noteTitle || '我的笔记';
+            } else if (isReplyToComment) {
+                actionText = '回复了你的评论：';
+                // 下方显示原评论内容而不是笔记标题
+                metaText = d.originalCommentText ? `"${d.originalCommentText.substring(0, 30)}${d.originalCommentText.length > 30 ? '...' : ''}"` : '';
+            } else {
+                actionText = '评论了你的笔记：';
+                metaText = d.noteTitle || '我的笔记';
+            }
+
             return `
                 <div class="xhs-notification-item ${isUnread ? 'unread' : ''}" data-note-id="${d.noteId}" data-notification-id="${n.id}">
                     <img class="xhs-notification-avatar" src="${d.userAvatar || 'https://api.dicebear.com/7.x/notionists/svg?seed=default'}" onerror="this.src='https://api.dicebear.com/7.x/notionists/svg?seed=default'" />
@@ -1123,9 +1207,9 @@ document.addEventListener('DOMContentLoaded', () => {
                             <span class="xhs-notification-user">${d.userName || '匿名用户'}</span>
                             <span class="xhs-notification-time">${formatXhsDate(n.timestamp)}</span>
                         </div>
-                        <div class="xhs-notification-text">${isMention ? '@了你：' : '评论了你的笔记：'}${d.text}</div>
+                        <div class="xhs-notification-text">${actionText}${d.text}</div>
                         <div class="xhs-notification-meta">
-                            <span class="xhs-notification-type">${d.noteTitle || '我的笔记'}</span>
+                            <span class="xhs-notification-type">${metaText}</span>
                         </div>
                     </div>
                     ${d.noteCover ? `<img class="xhs-notification-preview" src="${d.noteCover}" onerror="this.style.display='none'" />` : ''}
@@ -1171,7 +1255,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 likesView.style.display = 'flex';
                 bringToFront(likesView);
                 await clearUnreadCount('engagement');  // 先标记已读
-                renderLikesCollectsList();  // 再渲染列表
+                await renderLikesCollectsList();  // 再渲染列表
             };
         }
 
@@ -1191,7 +1275,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 commentsView.style.display = 'flex';
                 bringToFront(commentsView);
                 await clearUnreadCount('comments');  // 先标记已读
-                renderCommentsAtList();  // 再渲染列表
+                await renderCommentsAtList();  // 再渲染列表
             };
         }
 
@@ -3256,7 +3340,12 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
                                 newComment.text = newComment.text.replace(/^回复\s*[@＠][^\s：:]+[：:]\s*/, '');
                             }
                             note.comments.push(newComment);
-                            newCommentsForNotification.push(newComment);
+                            newCommentsForNotification.push({
+                                comment: newComment,
+                                isReplyToComment: false,
+                                originalCommentId: null,
+                                originalCommentText: null
+                            });
                         } else {
                             // 楼中楼回复
                             const parentComment = note.comments.find(c => c.id === genComment.replyToCommentId);
@@ -3267,25 +3356,54 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
                                     newComment.text = `回复 @${genComment.replyToUser}：${newComment.text}`;
                                 }
                                 parentComment.replies.push(newComment);
-                                newCommentsForNotification.push(newComment);
+
+                                // 检查是否是回复用户的评论（楼中楼回复）
+                                const myName = window.state.xhsSettings?.nickname || "我";
+                                const isReplyToMyComment = genComment.replyToUser === myName || parentComment.isMine;
+                                let originalText = parentComment.text;
+                                let originalId = parentComment.id;
+
+                                // 如果是回复楼中楼中的用户评论，找到原评论
+                                if (genComment.replyToUser === myName && parentComment.replies) {
+                                    const myReply = parentComment.replies.find(r => r.isMine && r.user === myName);
+                                    if (myReply) {
+                                        originalText = myReply.text;
+                                        originalId = myReply.id;
+                                    }
+                                }
+
+                                newCommentsForNotification.push({
+                                    comment: newComment,
+                                    isReplyToComment: isReplyToMyComment,
+                                    originalCommentId: isReplyToMyComment ? originalId : null,
+                                    originalCommentText: isReplyToMyComment ? originalText : null
+                                });
                             } else {
                                 // 如果找不到父评论，作为主评论添加
                                 note.comments.push(newComment);
-                                newCommentsForNotification.push(newComment);
+                                newCommentsForNotification.push({
+                                    comment: newComment,
+                                    isReplyToComment: false,
+                                    originalCommentId: null,
+                                    originalCommentText: null
+                                });
                             }
                         }
                     }
 
                     // 添加评论通知记录
-                    for (const comment of newCommentsForNotification) {
+                    for (const item of newCommentsForNotification) {
                         await addXhsNotification('comment', {
                             noteId: note.id,
                             noteTitle: note.title,
                             noteCover: note.images?.[0] || note.imageUrl || note.cover || '',
-                            userName: comment.user,
-                            userAvatar: comment.avatar,
-                            text: comment.text,
-                            timestamp: comment.timestamp
+                            userName: item.comment.user,
+                            userAvatar: item.comment.avatar,
+                            text: item.comment.text,
+                            timestamp: item.comment.timestamp,
+                            isReplyToComment: item.isReplyToComment,
+                            originalCommentId: item.originalCommentId,
+                            originalCommentText: item.originalCommentText
                         });
                     }
 
@@ -3679,11 +3797,31 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
     }
 
     function hideAllMainViews() {
+        // 隐藏所有主视图
         Object.values(views).forEach(view => {
-            if (view && view !== views.noteDetail) view.style.display = 'none';
+            if (view) view.style.display = 'none';
         });
+        // 隐藏视频占位页
         const videoPlaceholder = document.getElementById('xhs-video-view-placeholder');
         if (videoPlaceholder) videoPlaceholder.style.display = 'none';
+        // 隐藏赞和收藏列表页
+        const likesView = document.getElementById('xhs-likes-collects-view');
+        if (likesView) likesView.style.display = 'none';
+        // 隐藏评论和@列表页
+        const commentsView = document.getElementById('xhs-comments-at-view');
+        if (commentsView) commentsView.style.display = 'none';
+        // 隐藏搜索页
+        const searchView = document.getElementById('xhs-search-view');
+        if (searchView) {
+            searchView.classList.remove('active');
+            searchView.style.display = 'none';
+        }
+        // 隐藏创建笔记页
+        const createView = document.getElementById('xhs-create-view');
+        if (createView) {
+            createView.classList.remove('active');
+            createView.style.display = 'none';
+        }
     }
 
     bottomNavItems.forEach((item, index) => {
@@ -3702,11 +3840,7 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
                     videoView = document.createElement('div');
                     videoView.id = 'xhs-video-view-placeholder';
                     videoView.className = 'xhs-view';
-                    videoView.style.height = '100%';
-                    videoView.style.display = 'flex';
-                    videoView.style.justifyContent = 'center';
-                    videoView.style.alignItems = 'center';
-                    videoView.style.backgroundColor = '#000';
+                    videoView.style.cssText = 'position: absolute; top: 0; left: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; background-color: #000; z-index: 1;';
                     videoView.innerHTML = '<div class="xhs-video-placeholder"><h2>沉浸式视频</h2><p>功能开发中...</p></div>';
                     document.getElementById('xhs-view-container').appendChild(videoView);
                 }

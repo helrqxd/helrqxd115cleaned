@@ -16,7 +16,9 @@ document.addEventListener('DOMContentLoaded', () => {
         legu: document.getElementById('lofter-legu-view'),
         profile: document.getElementById('lofter-profile-view'),
         publish: document.getElementById('lofter-publish-view'),
-        article: document.getElementById('lofter-article-view')
+        article: document.getElementById('lofter-article-view'),
+        tagDetail: document.getElementById('lofter-tag-detail-view'),
+        collectionDetail: document.getElementById('lofter-collection-detail-view')
     };
 
     // 底部导航
@@ -251,6 +253,35 @@ document.addEventListener('DOMContentLoaded', () => {
         localStorage.setItem('lofterSubscribedTags', JSON.stringify(tags));
     }
 
+    // 获取订阅的合集
+    function getSubscribedCollections() {
+        const collections = localStorage.getItem('lofterSubscribedCollections');
+        return collections ? JSON.parse(collections) : [];
+    }
+
+    // 保存订阅的合集
+    function saveSubscribedCollections(collectionIds) {
+        localStorage.setItem('lofterSubscribedCollections', JSON.stringify(collectionIds));
+    }
+
+    // 订阅合集
+    function subscribeCollection(collectionId) {
+        let subscribedCollections = getSubscribedCollections();
+        if (!subscribedCollections.includes(collectionId)) {
+            subscribedCollections.push(collectionId);
+            saveSubscribedCollections(subscribedCollections);
+            return true;
+        }
+        return false;
+    }
+
+    // 取消订阅合集
+    function unsubscribeCollection(collectionId) {
+        let subscribedCollections = getSubscribedCollections();
+        subscribedCollections = subscribedCollections.filter(id => id !== collectionId);
+        saveSubscribedCollections(subscribedCollections);
+    }
+
     /* =========================================
         2.05 生成设置相关函数
        ========================================= */
@@ -421,7 +452,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 获取或创建作者的合集
-    function getOrCreateCollection(authorId, authorName, collectionName, workType) {
+    function getOrCreateCollection(authorId, authorName, collectionName, workType, generationSettings = null) {
         let collections = getLofterCollections();
         let collection = collections.find(c => c.authorId === authorId && c.name === collectionName);
 
@@ -433,12 +464,45 @@ document.addEventListener('DOMContentLoaded', () => {
                 name: collectionName,
                 workType: workType, // 'series' 或 'serial'
                 articleIds: [],
-                createdAt: Date.now()
+                createdAt: Date.now(),
+                // 生成设定（首次生成时保存）
+                generationSettings: generationSettings || null,
+                // 章节概要映射 { articleId: summary }
+                chapterSummaries: {}
             };
             collections.push(collection);
             saveLofterCollections(collections);
+        } else if (generationSettings && !collection.generationSettings) {
+            // 如果合集已存在但没有设定，保存设定
+            collection.generationSettings = generationSettings;
+            saveLofterCollections(collections);
         }
         return collection;
+    }
+
+    // 更新合集的生成设定
+    function updateCollectionSettings(collectionId, generationSettings) {
+        let collections = getLofterCollections();
+        const collection = collections.find(c => c.id === collectionId);
+        if (collection) {
+            collection.generationSettings = generationSettings;
+            saveLofterCollections(collections);
+            return true;
+        }
+        return false;
+    }
+
+    // 保存章节概要
+    function saveChapterSummary(collectionId, articleId, summary) {
+        let collections = getLofterCollections();
+        const collection = collections.find(c => c.id === collectionId);
+        if (collection) {
+            if (!collection.chapterSummaries) {
+                collection.chapterSummaries = {};
+            }
+            collection.chapterSummaries[articleId] = summary;
+            saveLofterCollections(collections);
+        }
     }
 
     // 添加作品到合集
@@ -533,7 +597,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 合集相关提示
         let collectionHint = '';
         if (workType === 'short_series' || workType === 'long_serial') {
-            collectionHint = `\n\n⚠️ 重要提示：由于作品类型是「${typeInfo.name}」，你必须在JSON中提供 collectionName（合集名/小说名）和 chapterNum（章节号，默认为1）。`;
+            collectionHint = `\n\n⚠️ 重要提示：由于作品类型是「${typeInfo.name}」，你必须在JSON中提供 collectionName（合集名/小说名）。`;
         }
 
         return `你是一位资深的同人文创作者，擅长根据角色人设创作高质量的同人作品。请基于以下详细设定，创作一篇精彩的同人作品。
@@ -588,7 +652,6 @@ ${typeInfo.desc}
   "bonusContent": "彩蛋内容（如果hasBonus为true）",
   "bonusCost": 5到30之间的数字,
   "collectionName": "合集名（short_series和long_serial必填）",
-  "chapterNum": 1,
   "comments": [
     {"name": "评论者昵称", "text": "评论内容（要符合同人圈氛围）"},
     {"name": "评论者昵称2", "text": "评论内容2"}
@@ -729,8 +792,20 @@ ${typeInfo.desc}
 
                     // 处理合集（short_series 和 long_serial 类型需要合集）
                     let collectionId = null;
+                    let chapterNum = null;
                     if ((work.type === 'short_series' || work.type === 'long_serial') && work.collectionName) {
-                        const collection = getOrCreateCollection(
+                        const collections = getLofterCollections();
+                        let collection = collections.find(c => c.authorId === authorId && c.name === work.collectionName);
+
+                        if (collection) {
+                            // 如果合集已存在，章节号为现有章节数+1
+                            chapterNum = collection.articleIds.length + 1;
+                        } else {
+                            // 如果是新合集，章节号为1
+                            chapterNum = 1;
+                        }
+
+                        collection = getOrCreateCollection(
                             authorId,
                             work.authorName,
                             work.collectionName,
@@ -789,7 +864,7 @@ ${typeInfo.desc}
                         bonusUnlocked: false,
                         collectionId: collectionId,
                         collectionName: work.collectionName || null,
-                        chapterNum: work.chapterNum || null,
+                        chapterNum: chapterNum,
                         likes: Math.floor(Math.random() * 500) + 50,
                         collects: Math.floor(Math.random() * 100) + 10,
                         comments: generatedComments,
@@ -1405,38 +1480,102 @@ ${typeInfo.desc}
         switchView('article');
     }
 
-    // 打开合集模态框
+    // 打开合集模态框（从文章详情页打开）
     async function openCollectionModal(collectionId) {
         const collections = getLofterCollections();
         const collection = collections.find(c => c.id === collectionId);
         if (!collection) return;
 
         const modal = document.getElementById('lofter-collection-modal');
-        const titleEl = document.getElementById('lofter-collection-modal-title');
+        const headerEl = document.getElementById('lofter-collection-modal-header');
         const listEl = document.getElementById('lofter-collection-works-list');
 
-        titleEl.textContent = collection.name;
-        listEl.innerHTML = '';
+        // 检查是否已订阅
+        const subscribedCollections = getSubscribedCollections();
+        const isSubscribed = subscribedCollections.includes(collectionId);
 
+        // 获取文章数据
         const articles = await getLofterArticles();
+        const totalViews = collection.articleIds.reduce((sum, id) => {
+            const article = articles.find(a => a.id === id);
+            return sum + (article?.views || 0);
+        }, 0);
+
+        // 渲染头部合集信息
+        headerEl.innerHTML = `
+            <div class="lofter-collection-modal-cover">
+                <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                    <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                    <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                </svg>
+            </div>
+            <div class="lofter-collection-modal-info">
+                <h3 class="lofter-collection-modal-title">${collection.name}</h3>
+                <div class="lofter-collection-modal-author">@${collection.authorName}</div>
+                <div class="lofter-collection-modal-stats">
+                    <span class="lofter-collection-modal-stat">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                        </svg>
+                        ${collection.articleIds.length}篇
+                    </span>
+                    <span class="lofter-collection-modal-stat">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                            <circle cx="12" cy="12" r="3"></circle>
+                        </svg>
+                        ${totalViews}
+                    </span>
+                </div>
+            </div>
+            <button class="lofter-collection-modal-subscribe ${isSubscribed ? 'subscribed' : ''}" id="lofter-collection-modal-subscribe">
+                ${isSubscribed ? '✓ 已订阅' : '+ 订阅'}
+            </button>
+        `;
+
+        // 订阅按钮事件
+        const subscribeBtn = document.getElementById('lofter-collection-modal-subscribe');
+        subscribeBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (isSubscribed) {
+                unsubscribeCollection(collectionId);
+                showLofterToast('已取消订阅');
+            } else {
+                subscribeCollection(collectionId);
+                showLofterToast('订阅成功');
+            }
+            modal.style.display = 'none';
+        };
+
+        // 渲染章节列表
+        listEl.innerHTML = '';
         collection.articleIds.forEach((aid, index) => {
             const article = articles.find(a => a.id === aid);
             if (!article) return;
 
             const isCurrent = aid === currentArticleId;
             const itemEl = document.createElement('div');
-            itemEl.className = `lofter-collection-work-item ${isCurrent ? 'lofter-collection-work-current' : ''}`;
+            itemEl.className = `lofter-collection-modal-item ${isCurrent ? 'current' : ''}`;
 
-            let coverImg = article.images && article.images.length > 0
-                ? article.images[0]
-                : 'https://via.placeholder.com/80x80?text=文';
+            const chapterNum = article.chapterNum || (index + 1);
 
             itemEl.innerHTML = `
-                <img src="${coverImg}" class="lofter-collection-work-cover" alt="封面">
-                <div class="lofter-collection-work-info">
-                    <div class="lofter-collection-work-title">${article.chapterNum ? `第${article.chapterNum}章 ` : ''}${article.title}</div>
-                    <div class="lofter-collection-work-meta">${formatLofterDate(article.timestamp)} · ${article.views || 0} 阅读</div>
+                <div class="lofter-collection-modal-item-num">${chapterNum}</div>
+                <div class="lofter-collection-modal-item-content">
+                    <div class="lofter-collection-modal-item-title">${article.title}</div>
+                    <div class="lofter-collection-modal-item-meta">
+                        <span>${formatLofterDate(article.timestamp)}</span>
+                        <span class="lofter-collection-modal-item-views">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                            ${article.views || 0}
+                        </span>
+                    </div>
                 </div>
+                ${isCurrent ? '<div class="lofter-collection-modal-item-badge">当前</div>' : '<div class="lofter-collection-modal-item-arrow">›</div>'}
             `;
 
             if (!isCurrent) {
@@ -2939,7 +3078,7 @@ ${hasUnreplied ? `★★★ 最高优先级：必须为上述未回复的用户�
         renderSubscribedCollections();
     }
 
-    function renderSubscribedTags() {
+    async function renderSubscribedTags() {
         const container = document.getElementById('lofter-subscribed-tags');
 
         const emptyState = document.getElementById('lofter-tags-empty');
@@ -2955,14 +3094,46 @@ ${hasUnreplied ? `★★★ 最高优先级：必须为上述未回复的用户�
 
         if (emptyState) emptyState.style.display = 'none';
 
+        const articles = await getLofterArticles();
+
         container.innerHTML = '';
         tags.forEach(tag => {
+            // 查找该标签最近更新的作品
+            const tagArticles = articles.filter(a => a.tags && a.tags.includes(tag));
+            tagArticles.sort((a, b) => b.timestamp - a.timestamp);
+            const latestArticle = tagArticles[0];
+
             const card = document.createElement('div');
-            card.className = 'lofter-tag-card';
+            card.className = 'lofter-subscribe-tag-item';
+
+            let latestInfoHtml = '';
+            if (latestArticle) {
+                latestInfoHtml = `
+                    <div class="lofter-tag-latest">
+                        <div class="lofter-tag-latest-title">${latestArticle.title}</div>
+                        <div class="lofter-tag-latest-meta">${formatLofterDate(latestArticle.timestamp)} · ${latestArticle.authorName}</div>
+                    </div>
+                `;
+            } else {
+                latestInfoHtml = `
+                    <div class="lofter-tag-latest">
+                        <div class="lofter-tag-latest-empty">暂无相关作品</div>
+                    </div>
+                `;
+            }
+
             card.innerHTML = `
-                <div class="lofter-tag-card-name">#${tag}</div>
-                <div class="lofter-tag-card-count">${Math.floor(Math.random() * 10000)}篇内容</div>
+                <div class="lofter-subscribe-tag-header">
+                    <div class="lofter-tag-name">#${tag}</div>
+                    <div class="lofter-tag-count">${tagArticles.length}篇</div>
+                </div>
+                ${latestInfoHtml}
             `;
+
+            // 点击打开标签详情页
+            card.addEventListener('click', () => {
+                openTagDetailPage(tag);
+            });
 
             // 长按删除
             setupLongPress(card, () => {
@@ -2973,14 +3144,81 @@ ${hasUnreplied ? `★★★ 最高优先级：必须为上述未回复的用户�
         });
     }
 
-    function renderSubscribedCollections() {
+    async function renderSubscribedCollections() {
         const container = document.getElementById('lofter-subscribed-collections');
         const emptyState = document.getElementById('lofter-collections-empty');
         if (!container) return;
 
-        // 暂时显示空状态
+        const subscribedCollectionIds = getSubscribedCollections();
+
+        if (subscribedCollectionIds.length === 0) {
+            container.innerHTML = '';
+            if (emptyState) emptyState.style.display = 'flex';
+            return;
+        }
+
+        if (emptyState) emptyState.style.display = 'none';
+
+        const allCollections = getLofterCollections();
+        const articles = await getLofterArticles();
+
         container.innerHTML = '';
-        if (emptyState) emptyState.style.display = 'flex';
+
+        subscribedCollectionIds.forEach(collectionId => {
+            const collection = allCollections.find(c => c.id === collectionId);
+            if (!collection) return;
+
+            // 获取合集中的文章
+            const collectionArticles = articles.filter(a => collection.articleIds.includes(a.id));
+            collectionArticles.sort((a, b) => b.timestamp - a.timestamp);
+            const latestArticle = collectionArticles[0];
+
+            const card = document.createElement('div');
+            card.className = 'lofter-subscribe-collection-item';
+
+            let latestInfoHtml = '';
+            if (latestArticle) {
+                latestInfoHtml = `
+                    <div class="lofter-collection-latest">
+                        <div class="lofter-collection-latest-title">${latestArticle.chapterNum ? `第${latestArticle.chapterNum}章 ` : ''}${latestArticle.title}</div>
+                        <div class="lofter-collection-latest-meta">${formatLofterDate(latestArticle.timestamp)} · ${latestArticle.authorName}</div>
+                    </div>
+                `;
+            } else {
+                latestInfoHtml = `
+                    <div class="lofter-collection-latest">
+                        <div class="lofter-collection-latest-empty">暂无章节</div>
+                    </div>
+                `;
+            }
+
+            card.innerHTML = `
+                <div class="lofter-subscribe-collection-header">
+                    <div class="lofter-collection-icon">📚</div>
+                    <div class="lofter-collection-info">
+                        <div class="lofter-collection-name">${collection.name}</div>
+                        <div class="lofter-collection-count">${collection.articleIds.length}章</div>
+                    </div>
+                </div>
+                ${latestInfoHtml}
+            `;
+
+            // 点击打开合集详情页
+            card.addEventListener('click', () => {
+                openCollectionDetailPage(collectionId);
+            });
+
+            // 长按删除（取消订阅）
+            setupLongPress(card, () => {
+                if (confirm(`确定要取消订阅合集「${collection.name}」吗？`)) {
+                    unsubscribeCollection(collectionId);
+                    renderSubscribedCollections();
+                    showLofterToast('已取消订阅');
+                }
+            });
+
+            container.appendChild(card);
+        });
     }
 
     /* =========================================
@@ -3743,7 +3981,6 @@ ${typeInfo.desc}
   "bonusContent": "彩蛋内容（如果hasBonus为true）",
   "bonusCost": 5到30之间的数字,
   "collectionName": "合集名（short_series和long_serial必填）",
-  "chapterNum": 1,
   "comments": [
     {"name": "评论者昵称", "text": "评论内容（要符合同人圈氛围）"},
     {"name": "评论者昵称2", "text": "评论内容2"}
@@ -3858,12 +4095,35 @@ ${typeInfo.desc}
 
             // 处理合集
             let collectionId = null;
+            let chapterNum = null;
             if ((work.type === 'short_series' || work.type === 'long_serial') && work.collectionName) {
-                const collection = getOrCreateCollection(
+                const collections = getLofterCollections();
+                let collection = collections.find(c => c.authorId === authorId && c.name === work.collectionName);
+
+                if (collection) {
+                    // 如果合集已存在，章节号为现有章节数+1
+                    chapterNum = collection.articleIds.length + 1;
+                } else {
+                    // 如果是新合集，章节号为1
+                    chapterNum = 1;
+                }
+
+                // 准备生成设定（首次创建时保存）
+                const generationSettings = {
+                    protagonistIds,
+                    supportingIds,
+                    workType: work.type,
+                    styleIndex: styleIndex !== undefined ? styleIndex.toString() : '',
+                    wordCount: wordCount,
+                    worldBookId: genSettings.worldBookId || ''
+                };
+
+                collection = getOrCreateCollection(
                     authorId,
                     work.authorName,
                     work.collectionName,
-                    work.type === 'short_series' ? 'series' : 'serial'
+                    work.type === 'short_series' ? 'series' : 'serial',
+                    generationSettings
                 );
                 collectionId = collection.id;
             }
@@ -3904,7 +4164,7 @@ ${typeInfo.desc}
                 bonusUnlocked: false,
                 collectionId: collectionId,
                 collectionName: work.collectionName || null,
-                chapterNum: work.chapterNum || null,
+                chapterNum: chapterNum,
                 likes: Math.floor(Math.random() * 500) + 50,
                 collects: Math.floor(Math.random() * 100) + 10,
                 comments: generatedComments,
@@ -4161,6 +4421,781 @@ ${typeInfo.desc}
 
     // 初始化打赏礼物事件
     setupTipGifts();
+
+    /* =========================================
+        标签详情页
+       ========================================= */
+
+    // 打开标签详情页
+    async function openTagDetailPage(tag) {
+        const articles = await getLofterArticles();
+        const tagArticles = articles.filter(a => a.tags && a.tags.includes(tag));
+        tagArticles.sort((a, b) => b.timestamp - a.timestamp);
+
+        // 设置标题
+        document.getElementById('lofter-tag-detail-title').textContent = `#${tag}`;
+
+        // 渲染作品列表
+        const content = document.getElementById('lofter-tag-detail-content');
+        content.innerHTML = '';
+
+        if (tagArticles.length === 0) {
+            content.innerHTML = `
+                <div class="lofter-empty-state">
+                    <div class="lofter-empty-icon">📝</div>
+                    <p>该标签下还没有作品</p>
+                </div>
+            `;
+        } else {
+            // 使用瀑布流布局
+            const leftCol = document.createElement('div');
+            leftCol.className = 'lofter-waterfall-column';
+            const rightCol = document.createElement('div');
+            rightCol.className = 'lofter-waterfall-column';
+
+            content.appendChild(leftCol);
+            content.appendChild(rightCol);
+
+            tagArticles.forEach((article, index) => {
+                const card = createWaterfallCard(article);
+                if (index % 2 === 0) {
+                    leftCol.appendChild(card);
+                } else {
+                    rightCol.appendChild(card);
+                }
+            });
+        }
+
+        // 切换到标签详情视图
+        switchView('tagDetail');
+    }
+
+    // 标签详情返回按钮
+    const tagDetailBackBtn = document.getElementById('lofter-tag-detail-back');
+    if (tagDetailBackBtn) {
+        tagDetailBackBtn.addEventListener('click', () => {
+            switchView('subscribe');
+        });
+    }
+
+    /* =========================================
+        合集详情页
+       ========================================= */
+
+    // 当前合集排序方式（true=顺序，false=倒序）
+    let collectionSortAsc = true;
+
+    // 打开合集详情页
+    async function openCollectionDetailPage(collectionId) {
+        const collections = getLofterCollections();
+        const collection = collections.find(c => c.id === collectionId);
+        if (!collection) return;
+
+        const articles = await getLofterArticles();
+
+        // 设置标题
+        document.getElementById('lofter-collection-detail-title').textContent = collection.name;
+
+        // 更新订阅按钮状态
+        const subscribeBtn = document.getElementById('lofter-collection-subscribe-btn');
+        const subscribedCollections = getSubscribedCollections();
+        const isSubscribed = subscribedCollections.includes(collectionId);
+        subscribeBtn.textContent = isSubscribed ? '已订阅' : '+ 订阅';
+        subscribeBtn.classList.toggle('subscribed', isSubscribed);
+
+        // 订阅按钮点击事件
+        subscribeBtn.onclick = () => {
+            if (isSubscribed) {
+                unsubscribeCollection(collectionId);
+                showLofterToast('已取消订阅');
+            } else {
+                subscribeCollection(collectionId);
+                showLofterToast('订阅成功');
+            }
+            openCollectionDetailPage(collectionId); // 刷新页面
+        };
+
+        // 渲染合集信息
+        const infoContainer = document.getElementById('lofter-collection-detail-info');
+        infoContainer.innerHTML = `
+            <div class="lofter-collection-header-card">
+                <div class="lofter-collection-cover-section">
+                    <div class="lofter-collection-cover-placeholder">
+                        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                            <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                            <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                        </svg>
+                    </div>
+                </div>
+                <div class="lofter-collection-info-section">
+                    <h2 class="lofter-collection-name">${collection.name}</h2>
+                    <div class="lofter-collection-author">${collection.authorName}</div>
+                    <div class="lofter-collection-stats">
+                        <span class="lofter-collection-stat-item">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+                            </svg>
+                            ${collection.articleIds.length}章
+                        </span>
+                        <span class="lofter-collection-stat-item">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                <circle cx="12" cy="12" r="3"></circle>
+                            </svg>
+                            ${collection.articleIds.reduce((sum, id) => {
+            const article = articles.find(a => a.id === id);
+            return sum + (article?.views || 0);
+        }, 0)} 阅读
+                        </span>
+                    </div>
+                    <div class="lofter-collection-type-badge">${collection.workType === 'series' ? '短篇系列' : '长篇连载'}</div>
+                </div>
+            </div>
+            <div class="lofter-collection-action-bar">
+                <button class="lofter-collection-action-btn-new" id="lofter-collection-settings-btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M12 1v6m0 6v6"></path>
+                        <path d="M16.24 7.76l-2.12 2.12m-4.24 4.24l-2.12 2.12m8.48 0l-2.12-2.12m-4.24-4.24L7.76 7.76"></path>
+                    </svg>
+                    <span>故事设定</span>
+                </button>
+                <button class="lofter-collection-action-btn-new lofter-collection-update-btn-new" id="lofter-collection-update-btn">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="17 8 12 3 7 8"></polyline>
+                        <line x1="12" y1="3" x2="12" y2="15"></line>
+                    </svg>
+                    <span>催更下一章</span>
+                </button>
+            </div>
+        `;
+
+        // 设定按钮点击事件
+        document.getElementById('lofter-collection-settings-btn').onclick = () => {
+            openCollectionSettingsPage(collectionId);
+        };
+
+        // 催更按钮点击事件
+        document.getElementById('lofter-collection-update-btn').onclick = () => {
+            openCollectionUpdateModal(collectionId);
+        };
+
+        // 渲染作品列表
+        renderCollectionWorks(collection, articles);
+
+        // 排序按钮点击事件
+        const sortBtn = document.getElementById('lofter-collection-sort-btn');
+        sortBtn.onclick = () => {
+            collectionSortAsc = !collectionSortAsc;
+            renderCollectionWorks(collection, articles);
+            showLofterToast(collectionSortAsc ? '切换为顺序' : '切换为倒序');
+        };
+
+        // 切换到合集详情视图
+        switchView('collectionDetail');
+    }
+
+    // 渲染合集中的作品列表
+    function renderCollectionWorks(collection, articles) {
+        const content = document.getElementById('lofter-collection-detail-content');
+        content.innerHTML = '';
+
+        if (collection.articleIds.length === 0) {
+            content.innerHTML = `
+                <div class="lofter-empty-state">
+                    <div class="lofter-empty-icon">📚</div>
+                    <p>合集中还没有作品</p>
+                </div>
+            `;
+            return;
+        }
+
+        // 获取合集中的文章并排序
+        const collectionArticles = collection.articleIds.map(aid => {
+            return articles.find(a => a.id === aid);
+        }).filter(a => a); // 过滤掉不存在的文章
+
+        // 根据排序方式调整顺序
+        if (!collectionSortAsc) {
+            collectionArticles.reverse();
+        }
+
+        // 创建作品列表
+        collectionArticles.forEach((article, index) => {
+            const chapterIndex = collectionSortAsc ? index + 1 : collectionArticles.length - index;
+            const itemEl = document.createElement('div');
+            itemEl.className = 'lofter-collection-chapter-item';
+
+            const hasCover = article.images && article.images.length > 0;
+            const coverImg = hasCover ? article.images[0] : null;
+
+            itemEl.innerHTML = `
+                <div class="lofter-chapter-number">
+                    <span class="lofter-chapter-num-text">${article.chapterNum || chapterIndex}</span>
+                </div>
+                <div class="lofter-chapter-content-wrapper">
+                    <div class="lofter-chapter-text-info">
+                        <div class="lofter-chapter-title-new">${article.title}</div>
+                        <div class="lofter-chapter-meta-new">
+                            <span class="lofter-chapter-date">${formatLofterDate(article.timestamp)}</span>
+                            <span class="lofter-chapter-stats">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>
+                                    <circle cx="12" cy="12" r="3"></circle>
+                                </svg>
+                                ${article.views || 0}
+                            </span>
+                            <span class="lofter-chapter-stats">
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                    <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
+                                </svg>
+                                ${article.likes || 0}
+                            </span>
+                        </div>
+                    </div>
+                    ${hasCover ? `<img src="${coverImg}" class="lofter-chapter-thumb" alt="封面">` : ''}
+                </div>
+            `;
+
+            itemEl.addEventListener('click', () => {
+                openArticleDetail(article.id);
+            });
+
+            content.appendChild(itemEl);
+        });
+    }
+
+    // 合集详情返回按钮
+    const collectionDetailBackBtn = document.getElementById('lofter-collection-detail-back');
+    if (collectionDetailBackBtn) {
+        collectionDetailBackBtn.addEventListener('click', () => {
+            switchView('subscribe');
+        });
+    }
+
+    /* =========================================
+        故事设定页面（复用自定义生成页面）
+       ========================================= */
+
+    // 当前正在编辑设定的合集ID
+    let currentEditingCollectionId = null;
+
+    // 打开故事设定页面（复用自定义生成弹窗）
+    function openCollectionSettingsPage(collectionId) {
+        const collections = getLofterCollections();
+        const collection = collections.find(c => c.id === collectionId);
+        if (!collection) return;
+
+        currentEditingCollectionId = collectionId;
+
+        // 获取合集的生成设定，如果没有则使用默认值
+        const settings = collection.generationSettings || {
+            protagonistIds: [],
+            supportingIds: [],
+            workType: collection.workType === 'series' ? 'short_series' : 'long_serial',
+            styleIndex: '',
+            wordCount: 1500,
+            worldBookId: ''
+        };
+
+        // 复用自定义生成弹窗并修改标题和按钮文本
+        const modal = document.getElementById('lofter-custom-gen-modal');
+        const modalTitle = modal.querySelector('.modal-header span:nth-child(2)');
+        const submitBtn = document.getElementById('lofter-custom-gen-submit');
+        const originalTitle = modalTitle.textContent;
+        const originalBtnText = submitBtn.textContent;
+        modalTitle.textContent = '故事设定';
+        submitBtn.textContent = '确定';
+
+        // 预填充数据
+        renderCustomGenModal();
+
+        // 设置选中的角色
+        setTimeout(() => {
+            // 主角
+            document.querySelectorAll('#lofter-custom-protagonist .lofter-custom-char-item').forEach(item => {
+                if (settings.protagonistIds.includes(item.dataset.id)) {
+                    item.classList.add('selected');
+                }
+            });
+
+            // 配角
+            document.querySelectorAll('#lofter-custom-supporting .lofter-custom-char-item').forEach(item => {
+                if (settings.supportingIds.includes(item.dataset.id)) {
+                    item.classList.add('selected');
+                }
+            });
+
+            // 作品类型
+            const workTypeSelect = document.getElementById('lofter-custom-work-type');
+            if (workTypeSelect) workTypeSelect.value = settings.workType;
+
+            // 文风
+            const styleSelect = document.getElementById('lofter-custom-style');
+            if (styleSelect) styleSelect.value = settings.styleIndex;
+
+            // 字数
+            const wordCountInput = document.getElementById('lofter-custom-word-count');
+            if (wordCountInput) wordCountInput.value = settings.wordCount;
+        }, 50);
+
+        modal.style.display = 'flex';
+
+        // 临时移除原有的事件监听器，然后添加新的（通过克隆替换按钮）
+        const submitBtnClone = submitBtn.cloneNode(true);
+        submitBtn.parentNode.replaceChild(submitBtnClone, submitBtn);
+        const closeBtnTemp = document.getElementById('lofter-custom-gen-close');
+        const closeBtnClone = closeBtnTemp.cloneNode(true);
+        closeBtnTemp.parentNode.replaceChild(closeBtnClone, closeBtnTemp);
+
+        // 重新获取替换后的元素
+        const newSubmitBtn = document.getElementById('lofter-custom-gen-submit');
+        const newCloseBtn = document.getElementById('lofter-custom-gen-close');
+
+        // 定义故事设定保存函数
+        const saveSettingsHandler = () => {
+            const protagonistEls = document.querySelectorAll('#lofter-custom-protagonist .lofter-custom-char-item.selected');
+            if (protagonistEls.length === 0) {
+                showLofterToast('请至少选择一个主角');
+                return;
+            }
+            const protagonistIds = Array.from(protagonistEls).map(el => el.dataset.id);
+
+            const supportingEls = document.querySelectorAll('#lofter-custom-supporting .lofter-custom-char-item.selected');
+            const supportingIds = Array.from(supportingEls).map(el => el.dataset.id);
+
+            const workType = document.getElementById('lofter-custom-work-type')?.value || 'long_serial';
+            const styleIndex = document.getElementById('lofter-custom-style')?.value;
+            const wordCount = parseInt(document.getElementById('lofter-custom-word-count')?.value) || 1500;
+
+            const newSettings = {
+                protagonistIds,
+                supportingIds,
+                workType,
+                styleIndex,
+                wordCount
+            };
+
+            updateCollectionSettings(currentEditingCollectionId, newSettings);
+            showLofterToast('设定已保存');
+
+            // 恢复标题、按钮文本和状态
+            modal.style.display = 'none';
+            modalTitle.textContent = originalTitle;
+            newSubmitBtn.textContent = originalBtnText;
+            currentEditingCollectionId = null;
+
+            // 恢复原始按钮（带有原始事件监听器）
+            newSubmitBtn.parentNode.replaceChild(submitBtn, newSubmitBtn);
+            newCloseBtn.parentNode.replaceChild(closeBtnTemp, newCloseBtn);
+        };
+
+        // 定义关闭函数
+        const closeSettingsHandler = () => {
+            modal.style.display = 'none';
+            modalTitle.textContent = originalTitle;
+            newSubmitBtn.textContent = originalBtnText;
+            currentEditingCollectionId = null;
+
+            // 恢复原始按钮（带有原始事件监听器）
+            newSubmitBtn.parentNode.replaceChild(submitBtn, newSubmitBtn);
+            newCloseBtn.parentNode.replaceChild(closeBtnTemp, newCloseBtn);
+        };
+
+        // 添加临时事件监听器
+        newSubmitBtn.addEventListener('click', saveSettingsHandler);
+        newCloseBtn.addEventListener('click', closeSettingsHandler);
+    }
+
+    /* =========================================
+        催更功能和章节概要生成
+       ========================================= */
+
+    // 打开催更弹窗
+    function openCollectionUpdateModal(collectionId) {
+        const collections = getLofterCollections();
+        const collection = collections.find(c => c.id === collectionId);
+        if (!collection) return;
+
+        // 检查是否有生成设定
+        if (!collection.generationSettings) {
+            showLofterToast('请先配置故事设定');
+            return;
+        }
+
+        // 创建催更弹窗
+        const modal = document.createElement('div');
+        modal.className = 'lofter-update-modal';
+        modal.innerHTML = `
+            <div class="lofter-update-modal-content">
+                <div class="lofter-update-modal-header">
+                    <span>催更下一章</span>
+                    <span class="lofter-update-modal-close">×</span>
+                </div>
+                <div class="lofter-update-modal-body">
+                    <div class="lofter-update-hint">💡 您可以提示接下来的剧情走向</div>
+                    <textarea class="lofter-update-plot-input" placeholder="例如：主角终于向对方表白...（选填，留空则AI自由发挥）" id="lofter-update-plot-input"></textarea>
+                </div>
+                <div class="lofter-update-modal-footer">
+                    <button class="lofter-update-cancel-btn">取消</button>
+                    <button class="lofter-update-submit-btn" id="lofter-update-submit-btn">立即生成</button>
+                </div>
+            </div>
+        `;
+
+        document.body.appendChild(modal);
+
+        // 关闭按钮
+        modal.querySelector('.lofter-update-modal-close').onclick = () => {
+            modal.remove();
+        };
+
+        modal.querySelector('.lofter-update-cancel-btn').onclick = () => {
+            modal.remove();
+        };
+
+        // 点击遮罩关闭
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                modal.remove();
+            }
+        };
+
+        // 提交生成
+        document.getElementById('lofter-update-submit-btn').onclick = async () => {
+            const plotHint = document.getElementById('lofter-update-plot-input').value.trim();
+            modal.remove();
+            await generateNextChapter(collectionId, plotHint);
+        };
+    }
+
+    // 生成下一章节
+    async function generateNextChapter(collectionId, plotHint = '') {
+        const overlay = document.getElementById('lofter-generating-overlay');
+        const progressEl = document.getElementById('lofter-generating-progress');
+
+        // 检查API配置
+        const apiConfig = window.state?.apiConfig;
+        if (!apiConfig || !apiConfig.proxyUrl || !apiConfig.apiKey) {
+            showLofterToast('请先在设置中配置API');
+            return;
+        }
+
+        const collections = getLofterCollections();
+        const collection = collections.find(c => c.id === collectionId);
+        if (!collection || !collection.generationSettings) {
+            showLofterToast('合集设定错误');
+            return;
+        }
+
+        overlay.style.display = 'flex';
+        progressEl.textContent = '正在生成下一章...';
+
+        try {
+            const settings = collection.generationSettings;
+            const articles = await getLofterArticles();
+
+            // 获取主角和配角信息
+            const allCharacters = getAllCharacterProfiles();
+            const protagonists = allCharacters.filter(c => settings.protagonistIds.includes(c.id));
+            const supportingChars = allCharacters.filter(c => settings.supportingIds.includes(c.id));
+
+            if (protagonists.length === 0) {
+                showLofterToast('未找到主角信息');
+                return;
+            }
+
+            // 获取世界书内容
+            let worldBookContent = '';
+            if (settings.worldBookId) {
+                worldBookContent = await getWorldBookContent(settings.worldBookId);
+            }
+
+            // 获取文风
+            const genSettings = getLofterGenSettings();
+            const stylePresets = genSettings.stylePresets && genSettings.stylePresets.length > 0
+                ? genSettings.stylePresets
+                : defaultStylePresets;
+
+            let selectedStyle = '';
+            if (settings.styleIndex !== '' && settings.styleIndex !== undefined) {
+                selectedStyle = stylePresets[parseInt(settings.styleIndex)] || '';
+            } else {
+                selectedStyle = stylePresets[Math.floor(Math.random() * stylePresets.length)];
+            }
+
+            // 获取上一章内容和所有之前章节的概要
+            const chapterNum = collection.articleIds.length + 1;
+            let previousContext = '';
+
+            if (chapterNum > 1) {
+                // 有前置章节
+                const previousArticleId = collection.articleIds[collection.articleIds.length - 1];
+                const previousArticle = articles.find(a => a.id === previousArticleId);
+
+                if (chapterNum === 2) {
+                    // 第2章，只使用第1章全文
+                    if (previousArticle) {
+                        previousContext = `\n\n【上一章（第1章）内容】\n${previousArticle.title}\n\n${previousArticle.content}`;
+                    }
+                } else {
+                    // 第3章及以后，使用所有之前章节的概要 + 上一章全文
+                    let allSummaries = '';
+
+                    // 收集第1章到第n-2章的所有概要
+                    for (let i = 0; i < collection.articleIds.length - 1; i++) {
+                        const articleId = collection.articleIds[i];
+                        const summary = collection.chapterSummaries?.[articleId];
+                        if (summary) {
+                            allSummaries += `【第${i + 1}章情节概要】\n${summary}\n\n`;
+                        }
+                    }
+
+                    if (allSummaries) {
+                        previousContext = `\n\n【之前章节概要】\n${allSummaries}`;
+                    }
+
+                    // 添加上一章全文
+                    if (previousArticle) {
+                        previousContext += `【上一章（第${chapterNum - 1}章）内容】\n${previousArticle.title}\n\n${previousArticle.content}`;
+                    }
+                }
+            }
+
+            // 构建生成prompt
+            const prompt = buildChapterGenerationPrompt(
+                protagonists,
+                supportingChars,
+                settings.workType,
+                selectedStyle,
+                settings.wordCount,
+                plotHint,
+                worldBookContent,
+                previousContext,
+                chapterNum,
+                collection.name
+            );
+
+            // 调用API生成
+            const { proxyUrl, apiKey, model, temperature } = apiConfig;
+            const isGemini = proxyUrl.includes('googleapis');
+            const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.8;
+
+            let responseData;
+
+            if (isGemini) {
+                const url = `${proxyUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                const res = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: prompt }] }],
+                        generationConfig: { temperature: requestTemp }
+                    })
+                });
+                const json = await res.json();
+                if (!json.candidates?.[0]?.content?.parts?.[0]) {
+                    throw new Error(json.error?.message || 'API返回格式异常');
+                }
+                responseData = json.candidates[0].content.parts[0].text;
+            } else {
+                const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${apiKey}`
+                    },
+                    body: JSON.stringify({
+                        model: model || 'gpt-3.5-turbo',
+                        messages: [{ role: 'user', content: prompt }],
+                        temperature: requestTemp
+                    })
+                });
+                const json = await res.json();
+                if (!json.choices?.[0]?.message) {
+                    throw new Error(json.error?.message || 'API返回格式异常');
+                }
+                responseData = json.choices[0].message.content;
+            }
+
+            // 解析JSON
+            let cleanJson = responseData;
+            const jsonMatch = responseData.match(/\{[\s\S]*\}/);
+            if (jsonMatch) {
+                cleanJson = jsonMatch[0];
+            }
+
+            const work = JSON.parse(cleanJson);
+            const now = Date.now();
+
+            // 处理AI生成的评论
+            let generatedComments = [];
+            if (work.comments && Array.isArray(work.comments)) {
+                const commentAvatars = [
+                    'https://api.dicebear.com/7.x/notionists/svg?seed=update1',
+                    'https://api.dicebear.com/7.x/notionists/svg?seed=update2',
+                    'https://api.dicebear.com/7.x/notionists/svg?seed=update3',
+                    'https://api.dicebear.com/7.x/notionists/svg?seed=update4'
+                ];
+                generatedComments = work.comments.map((c, idx) => ({
+                    id: generateId(),
+                    name: c.name || `读者${idx + 1}`,
+                    avatar: commentAvatars[idx % commentAvatars.length],
+                    text: c.text || c.content || '写得太棒了！',
+                    timestamp: now - Math.floor(Math.random() * 3600000)
+                }));
+            }
+
+            // 创建新章节文章对象
+            const newArticle = {
+                id: generateId(),
+                authorId: collection.authorId,
+                authorName: collection.authorName,
+                authorAvatar: `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(collection.authorName)}`,
+                title: work.title,
+                content: work.content,
+                images: [],
+                tags: work.tags || [],
+                workType: settings.workType,
+                authorNotes: work.authorNotes || '',
+                hasBonus: work.hasBonus || false,
+                bonusContent: work.bonusContent || '',
+                bonusCost: work.bonusCost || 10,
+                bonusUnlocked: false,
+                collectionId: collectionId,
+                collectionName: collection.name,
+                chapterNum: chapterNum,
+                likes: Math.floor(Math.random() * 500) + 50,
+                collects: Math.floor(Math.random() * 100) + 10,
+                comments: generatedComments,
+                tips: [],
+                views: Math.floor(Math.random() * 2000) + 100,
+                timestamp: now,
+                isLiked: false,
+                isCollected: false,
+                isAIGenerated: true
+            };
+
+            articles.unshift(newArticle);
+            await saveLofterArticles(articles);
+
+            // 添加到合集
+            addArticleToCollection(collectionId, newArticle.id);
+
+            // 保存上一章的概要（如果有）
+            if (work.previousChapterSummary && chapterNum > 1) {
+                const previousArticleId = collection.articleIds[collection.articleIds.length - 2]; // 因为刚添加了新章节
+                saveChapterSummary(collectionId, previousArticleId, work.previousChapterSummary);
+            }
+
+            renderDiscoverFeed();
+            showLofterToast(`第${chapterNum}章生成成功！`);
+
+            // 刷新合集详情页
+            openCollectionDetailPage(collectionId);
+
+        } catch (error) {
+            console.error('生成下一章失败:', error);
+            showLofterToast('生成失败: ' + error.message);
+        } finally {
+            overlay.style.display = 'none';
+        }
+    }
+
+    // 构建章节生成prompt
+    function buildChapterGenerationPrompt(protagonists, supportingChars, workType, stylePreset, wordCount, plotHint, worldBookContent, previousContext, chapterNum, collectionName) {
+        // 构建角色信息
+        const protagonistInfo = protagonists.map(c => {
+            return `【主角】${c.name}\n【人设】\n${c.persona}`;
+        }).join('\n\n');
+
+        const supportingInfo = supportingChars.length > 0
+            ? supportingChars.map(c => {
+                return `【配角】${c.name}\n【人设】\n${c.persona}`;
+            }).join('\n\n')
+            : '';
+
+        // 世界书设定
+        let worldBookSection = '';
+        if (worldBookContent) {
+            worldBookSection = `\n\n## 📚 世界观设定背景：\n${worldBookContent}`;
+        }
+
+        // 文风要求
+        let styleSection = '';
+        if (stylePreset) {
+            styleSection = `\n\n## ✍️ 文风要求：\n${stylePreset}`;
+        }
+
+        // 剧情提示
+        let plotSection = '';
+        if (plotHint) {
+            plotSection = `\n\n## 💡 用户期望的剧情走向：\n${plotHint}`;
+        }
+
+        // 生成上一章概要的要求
+        let summaryRequirement = '';
+        if (chapterNum > 1) {
+            summaryRequirement = `\n\n## 📝 重要：生成上一章概要\n请在JSON的 previousChapterSummary 字段中，用300字概括上一章（第${chapterNum - 1}章）的核心情节，包括：\n- 主要事件和冲突\n- 关键人物互动\n- 情感变化\n- 结局或悬念\n\n这个概要将用于生成下一章时提供上下文，请确保信息准确且简洁。`;
+        }
+
+        return `你是一位资深的连载小说作者。现在需要你为连载小说《${collectionName}》创作第${chapterNum}章。
+
+═══════════════════════════════════════
+📖 角色设定
+═══════════════════════════════════════
+
+${protagonistInfo}
+
+${supportingInfo}${worldBookSection}${styleSection}${previousContext}${plotSection}${summaryRequirement}
+
+═══════════════════════════════════════
+📝 创作要求
+═══════════════════════════════════════
+
+【章节号】第${chapterNum}章
+【字数要求】约${wordCount}字
+【作品类型】${workType === 'short_series' ? '短篇系列' : '长篇连载'}
+
+【内容要求】
+1. 与前面的情节自然衔接，保持连贯性
+2. 推进主线剧情，但不要一次性展开太多
+3. 人物性格要与设定保持一致
+4. 对话生动自然，符合人物身份
+5. 适当的悬念或情感张力
+6. 结尾可以留有期待感
+
+【必须包含的元素】
+- 章节标题（可以诗意、有梗或直接点题）
+- 3-5个精准标签
+- 作者有话说（50-150字）
+- 2-4条读者评论
+
+【可选元素】
+- 彩蛋内容（需设置5-30糖果券解锁价格）
+
+═══════════════════════════════════════
+📤 输出格式（严格JSON）
+═══════════════════════════════════════
+
+{
+  "title": "第${chapterNum}章标题",
+  "content": "章节正文内容（必须达到${wordCount}字左右）",
+  "tags": ["标签1", "标签2", "标签3"],
+  "authorNotes": "作者有话说",
+  "hasBonus": true或false,
+  "bonusContent": "彩蛋内容",
+  "bonusCost": 10,
+  "previousChapterSummary": "${chapterNum > 1 ? '上一章的情节概要（300字）' : ''}",
+  "comments": [
+    {"name": "读者昵称", "text": "评论内容"}
+  ]
+}
+
+⚠️ 注意：直接输出JSON，不要添加任何markdown代码块标记。${chapterNum > 1 ? '必须包含 previousChapterSummary 字段。' : ''}`;
+    }
 
     console.log('Lofter App Initialized');
 });
