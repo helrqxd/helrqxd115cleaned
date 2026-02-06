@@ -184,13 +184,18 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 绑定长按事件 (区分点击和长按)
-    function bindLongPress(element, onLongPress, onClick, enableEffect = true) {
+    function bindLongPress(element, onLongPress, onClick, enableEffect = true, excludeSelector = null) {
         let timer;
         let isLongPress = false;
         let isScrolling = false;
+        let isExcluded = false;
         let startX, startY;
 
         const start = (e) => {
+            // 检查触发源是否属于排除区域（如头像、点赞按钮等）
+            isExcluded = excludeSelector && e.target.closest(excludeSelector);
+            if (isExcluded) return; // 不拦截，让子元素自行处理
+
             // 阻止事件冒泡，防止子元素的长按事件触发父元素
             e.stopPropagation();
 
@@ -235,6 +240,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
 
         const move = (e) => {
+            if (isExcluded) return;
             if (!startX) return;
             let x, y;
             if (e.touches) {
@@ -255,6 +261,7 @@ document.addEventListener('DOMContentLoaded', () => {
         // 触摸事件
         element.addEventListener('touchstart', start, { passive: true });
         element.addEventListener('touchend', (e) => {
+            if (isExcluded) { isExcluded = false; return; } // 排除区域不拦截
             cancel();
             if (!isLongPress && !isScrolling && onClick) {
                 // 阻止点击穿透：如果触发了自定义点击事件，阻止默认的 click 事件
@@ -267,9 +274,11 @@ document.addEventListener('DOMContentLoaded', () => {
         // 鼠标事件 (PC调试用)
         element.addEventListener('mousedown', start);
         element.addEventListener('mousemove', (e) => {
+            if (isExcluded) return;
             if (e.buttons === 1) move(e);
         });
         element.addEventListener('mouseup', (e) => {
+            if (isExcluded) { isExcluded = false; return; }
             cancel();
             if (!isLongPress && !isScrolling && onClick) {
                 onClick(e);
@@ -940,14 +949,20 @@ document.addEventListener('DOMContentLoaded', () => {
 
         if (type === 'engagement') {
             notifications.engagement.unshift(record);
-            notifications.unreadEngagement += (data.likesIncrease || 0) + (data.collectsIncrease || 0);
+            // 只有与自己相关的通知才计入未读数（自己笔记的互动 + 自己评论的点赞）
+            if (data.isCommentLike || data.isOwnNote) {
+                notifications.unreadEngagement += 1;
+            }
             // 保持最多100条记录
             if (notifications.engagement.length > 100) {
                 notifications.engagement = notifications.engagement.slice(0, 100);
             }
         } else if (type === 'comment' || type === 'mention') {
             notifications.comments.unshift(record);
-            notifications.unreadComments += 1;
+            // 只有与自己相关的通知才计入未读数（自己笔记的评论 + 回复自己评论的通知）
+            if (data.isOwnNote || data.isReplyToComment) {
+                notifications.unreadComments += 1;
+            }
             // 保持最多100条记录
             if (notifications.comments.length > 100) {
                 notifications.comments = notifications.comments.slice(0, 100);
@@ -957,17 +972,34 @@ document.addEventListener('DOMContentLoaded', () => {
         await saveXhsSettings({});
     }
 
-    // 更新消息页红点
+    // 更新消息页红点（从实际数据计算过滤后的未读数）
     function updateMessageBadges() {
         const notifications = window.state?.xhsSettings?.notifications;
         if (!notifications) return;
+
+        // ★ 从数据中实时计算过滤后的未读数，而非使用累计计数器
+        const engagementUnread = (notifications.engagement || []).filter(n => {
+            if (n.isRead) return false;
+            const d = n.data;
+            return d.isCommentLike || d.isOwnNote; // 只计算与自己相关的
+        }).length;
+
+        const commentsUnread = (notifications.comments || []).filter(n => {
+            if (n.isRead) return false;
+            const d = n.data;
+            return d.isOwnNote || d.isReplyToComment; // 只计算与自己相关的
+        }).length;
+
+        // 同步回存，保持计数器一致
+        notifications.unreadEngagement = engagementUnread;
+        notifications.unreadComments = commentsUnread;
 
         const likesBadge = document.getElementById('xhs-likes-badge');
         const commentsBadge = document.getElementById('xhs-comments-badge');
 
         if (likesBadge) {
-            if (notifications.unreadEngagement > 0) {
-                likesBadge.textContent = notifications.unreadEngagement > 99 ? '99+' : notifications.unreadEngagement;
+            if (engagementUnread > 0) {
+                likesBadge.textContent = engagementUnread > 99 ? '99+' : engagementUnread;
                 likesBadge.style.display = 'flex';
             } else {
                 likesBadge.style.display = 'none';
@@ -975,12 +1007,19 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (commentsBadge) {
-            if (notifications.unreadComments > 0) {
-                commentsBadge.textContent = notifications.unreadComments > 99 ? '99+' : notifications.unreadComments;
+            if (commentsUnread > 0) {
+                commentsBadge.textContent = commentsUnread > 99 ? '99+' : commentsUnread;
                 commentsBadge.style.display = 'flex';
             } else {
                 commentsBadge.style.display = 'none';
             }
+        }
+
+        // ★ 底部导航栏"消息"按钮红点
+        const totalUnread = engagementUnread + commentsUnread;
+        const navDot = document.getElementById('xhs-nav-msg-dot');
+        if (navDot) {
+            navDot.style.display = totalUnread > 0 ? 'block' : 'none';
         }
     }
 
@@ -1019,15 +1058,20 @@ document.addEventListener('DOMContentLoaded', () => {
             for (const n of notifications) {
                 const noteId = n.data?.noteId;
                 if (noteId) {
-                    const note = await window.db.xhsNotes.get(noteId);
+                    // 兼容数字和字符串ID
+                    let note = await window.db.xhsNotes.get(noteId);
+                    if (!note && !isNaN(noteId)) note = await window.db.xhsNotes.get(Number(noteId));
                     if (note) {
+                        // 补充旧数据缺失的isOwnNote字段
+                        if (n.data.isOwnNote === undefined) {
+                            n.data.isOwnNote = note.isMine === true;
+                        }
                         validNotifications.push(n);
                     }
                 } else {
                     validNotifications.push(n);
                 }
             }
-            // 如果有记录被删除，更新settings
             if (validNotifications.length !== notifications.length) {
                 window.state.xhsSettings.notifications.engagement = validNotifications;
                 await saveXhsSettings({});
@@ -1035,13 +1079,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        // ★ 过滤：只保留自己笔记的互动通知 + 自己评论的点赞通知
+        notifications = notifications.filter(n => {
+            const d = n.data;
+            if (d.isCommentLike) return true; // 评论点赞始终显示
+            if (d.isOwnNote) return true; // 自己笔记的互动显示
+            return false;
+        });
+
         if (notifications.length === 0) {
             container.innerHTML = `
-                <div class="xhs-notification-empty">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <div class="xhs-notif-empty">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5">
                         <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
                     </svg>
-                    <p>暂无点赞收藏通知</p>
+                    <p>暂无赞和收藏通知</p>
                 </div>
             `;
             return;
@@ -1052,48 +1104,45 @@ document.addEventListener('DOMContentLoaded', () => {
             const isCommentLike = d.isCommentLike;
             const isUnread = !n.isRead;
 
-            // 构建显示文本
-            let titleText, descText;
+            let actionText, descText;
             if (isCommentLike) {
-                // 评论点赞通知
-                titleText = '评论获赞';
-                descText = `"${d.commentText?.substring(0, 30) || ''}${(d.commentText?.length || 0) > 30 ? '...' : ''}"`;
+                actionText = `你的评论收到 <span class="xhs-notif-highlight">${d.likesIncrease}</span> 个赞`;
+                descText = d.commentText ? `"${d.commentText.substring(0, 40)}${(d.commentText.length || 0) > 40 ? '...' : ''}"` : '';
             } else {
-                // 笔记互动通知
-                titleText = d.noteTitle || '我的笔记';
-                descText = d.reason || '';
+                const parts = [];
+                if (d.likesIncrease > 0) parts.push(`<span class="xhs-notif-highlight">${d.likesIncrease}</span> 个赞`);
+                if (d.collectsIncrease > 0) parts.push(`<span class="xhs-notif-highlight">${d.collectsIncrease}</span> 个收藏`);
+                actionText = `收到 ${parts.join('、')}`;
+                descText = d.noteTitle || '';
             }
 
             return `
-                <div class="xhs-notification-item ${isCommentLike ? 'comment-like' : ''} ${isUnread ? 'unread' : ''}" data-note-id="${d.noteId}" data-notification-id="${n.id}">
-                    <div class="xhs-notification-cover">
-                        <img src="${d.noteCover || 'https://via.placeholder.com/44'}" onerror="this.src='https://via.placeholder.com/44'" />
+                <div class="xhs-notif-item ${isUnread ? 'xhs-notif-unread' : ''}" data-note-id="${d.noteId}" data-notification-id="${n.id}">
+                    <div class="xhs-notif-icon-wrap ${isCommentLike ? 'comment-like' : 'note-like'}">
+                        ${isCommentLike
+                    ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ff2442" stroke="none"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>'
+                    : (d.collectsIncrease > 0 && !d.likesIncrease
+                        ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ffa726" stroke="none"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"/></svg>'
+                        : '<svg width="20" height="20" viewBox="0 0 24 24" fill="#ff2442" stroke="none"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>')
+                }
                     </div>
-                    <div class="xhs-notification-content">
-                        <div class="xhs-notification-header">
-                            <span class="xhs-notification-user">${titleText}</span>
-                            <span class="xhs-notification-time">${formatXhsDate(n.timestamp)}</span>
-                        </div>
-                        <div class="xhs-engagement-change">
-                            ${d.likesIncrease > 0 ? `<div class="xhs-engagement-item likes">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="#ff2442" stroke="#ff2442" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
-                                <span>+${d.likesIncrease}</span>
-                            </div>` : ''}
-                            ${d.collectsIncrease > 0 ? `<div class="xhs-engagement-item collects">
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="#ffa500" stroke="#ffa500" stroke-width="2"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg>
-                                <span>+${d.collectsIncrease}</span>
-                            </div>` : ''}
-                        </div>
-                        ${descText ? `<div class="xhs-engagement-reason">${descText}</div>` : ''}
+                    <div class="xhs-notif-body">
+                        <div class="xhs-notif-action">${actionText}</div>
+                        ${descText ? `<div class="xhs-notif-desc">${descText}</div>` : ''}
+                        ${d.reason ? `<div class="xhs-notif-reason">${d.reason}</div>` : ''}
+                        <div class="xhs-notif-time">${formatXhsDate(n.timestamp)}</div>
+                    </div>
+                    <div class="xhs-notif-thumb">
+                        <img src="${d.noteCover || 'https://via.placeholder.com/44'}" onerror="this.src='https://via.placeholder.com/44'" />
                     </div>
                 </div>
             `;
         }).join('');
 
-        // 绑定点击事件（赞和收藏列表）
-        container.querySelectorAll('.xhs-notification-item').forEach(item => {
+        // 绑定点击事件
+        container.querySelectorAll('.xhs-notif-item').forEach(item => {
             item.onclick = async () => {
-                const noteId = item.dataset.noteId;
+                const rawId = item.dataset.noteId;
                 const notificationId = item.dataset.notificationId;
 
                 // 标记为已读
@@ -1101,14 +1150,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     const notification = window.state.xhsSettings.notifications.engagement.find(n => n.id === notificationId);
                     if (notification && !notification.isRead) {
                         notification.isRead = true;
-                        item.classList.remove('unread');
+                        item.classList.remove('xhs-notif-unread');
                         await saveXhsSettings({});
                     }
                 }
 
-                if (noteId && window.db && window.db.xhsNotes) {
-                    const note = await window.db.xhsNotes.get(noteId);
+                if (rawId && window.db && window.db.xhsNotes) {
+                    let note = await window.db.xhsNotes.get(rawId);
+                    if (!note && !isNaN(rawId)) note = await window.db.xhsNotes.get(Number(rawId));
                     if (note) {
+                        // 隐藏当前列表视图
+                        const likesView = document.getElementById('xhs-likes-collects-view');
+                        if (likesView) likesView.style.display = 'none';
                         openXhsNoteDetail(note);
                     }
                 }
@@ -1128,23 +1181,23 @@ document.addEventListener('DOMContentLoaded', () => {
             for (const n of notifications) {
                 const noteId = n.data?.noteId;
                 if (noteId) {
-                    const note = await window.db.xhsNotes.get(noteId);
+                    // 兼容数字和字符串ID
+                    let note = await window.db.xhsNotes.get(noteId);
+                    if (!note && !isNaN(noteId)) note = await window.db.xhsNotes.get(Number(noteId));
                     if (note) {
+                        // 补充旧数据缺失的isOwnNote字段
+                        if (n.data.isOwnNote === undefined) {
+                            n.data.isOwnNote = note.isMine === true;
+                        }
                         // 如果是回复评论，还需要检查原评论是否存在
                         if (n.data.isReplyToComment && n.data.originalCommentId) {
                             let found = false;
                             if (note.comments) {
                                 for (const c of note.comments) {
-                                    if (c.id === n.data.originalCommentId) {
-                                        found = true;
-                                        break;
-                                    }
+                                    if (c.id === n.data.originalCommentId) { found = true; break; }
                                     if (c.replies) {
                                         for (const r of c.replies) {
-                                            if (r.id === n.data.originalCommentId) {
-                                                found = true;
-                                                break;
-                                            }
+                                            if (r.id === n.data.originalCommentId) { found = true; break; }
                                         }
                                     }
                                     if (found) break;
@@ -1159,7 +1212,6 @@ document.addEventListener('DOMContentLoaded', () => {
                     validNotifications.push(n);
                 }
             }
-            // 如果有记录被删除，更新settings
             if (validNotifications.length !== notifications.length) {
                 window.state.xhsSettings.notifications.comments = validNotifications;
                 await saveXhsSettings({});
@@ -1167,10 +1219,19 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
 
+        // ★ 过滤：他人笔记下回复其他人的评论不显示
+        // 只保留: 自己笔记的所有评论 + 他人笔记下回复自己的评论
+        notifications = notifications.filter(n => {
+            const d = n.data;
+            if (d.isOwnNote) return true; // 自己笔记的评论全部显示
+            if (d.isReplyToComment) return true; // 回复自己评论的通知显示
+            return false;
+        });
+
         if (notifications.length === 0) {
             container.innerHTML = `
-                <div class="xhs-notification-empty">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <div class="xhs-notif-empty">
+                    <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#ccc" stroke-width="1.5">
                         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
                     </svg>
                     <p>暂无评论和@通知</p>
@@ -1185,42 +1246,39 @@ document.addEventListener('DOMContentLoaded', () => {
             const isUnread = !n.isRead;
             const isReplyToComment = d.isReplyToComment === true;
 
-            // 区分笔记评论和回复评论
-            let actionText, metaText;
+            let actionText;
             if (isMention) {
-                actionText = '@了你：';
-                metaText = d.noteTitle || '我的笔记';
+                actionText = ' @了你';
             } else if (isReplyToComment) {
-                actionText = '回复了你的评论：';
-                // 下方显示原评论内容而不是笔记标题
-                metaText = d.originalCommentText ? `"${d.originalCommentText.substring(0, 30)}${d.originalCommentText.length > 30 ? '...' : ''}"` : '';
+                actionText = ' 回复了你的评论';
             } else {
-                actionText = '评论了你的笔记：';
-                metaText = d.noteTitle || '我的笔记';
+                actionText = ' 评论了你的笔记';
             }
 
+            // 清理评论文本中的"回复 @xxx："前缀用于显示
+            let displayText = d.text || '';
+            displayText = displayText.replace(/^回复\s*[@＠][^\s：:]+[：:]\s*/, '');
+            if (displayText.length > 60) displayText = displayText.substring(0, 60) + '...';
+
             return `
-                <div class="xhs-notification-item ${isUnread ? 'unread' : ''}" data-note-id="${d.noteId}" data-notification-id="${n.id}">
-                    <img class="xhs-notification-avatar" src="${d.userAvatar || 'https://api.dicebear.com/7.x/notionists/svg?seed=default'}" onerror="this.src='https://api.dicebear.com/7.x/notionists/svg?seed=default'" />
-                    <div class="xhs-notification-content">
-                        <div class="xhs-notification-header">
-                            <span class="xhs-notification-user">${d.userName || '匿名用户'}</span>
-                            <span class="xhs-notification-time">${formatXhsDate(n.timestamp)}</span>
+                <div class="xhs-notif-item xhs-notif-comment ${isUnread ? 'xhs-notif-unread' : ''}" data-note-id="${d.noteId}" data-notification-id="${n.id}">
+                    <img class="xhs-notif-avatar" src="${d.userAvatar || 'https://api.dicebear.com/7.x/notionists/svg?seed=default'}" onerror="this.src='https://api.dicebear.com/7.x/notionists/svg?seed=default'" />
+                    <div class="xhs-notif-body">
+                        <div class="xhs-notif-action">
+                            <span class="xhs-notif-username">${d.userName || '匿名用户'}</span>${actionText}
                         </div>
-                        <div class="xhs-notification-text">${actionText}${d.text}</div>
-                        <div class="xhs-notification-meta">
-                            <span class="xhs-notification-type">${metaText}</span>
-                        </div>
+                        <div class="xhs-notif-comment-text">${displayText}</div>
+                        <div class="xhs-notif-time">${formatXhsDate(n.timestamp)}</div>
                     </div>
-                    ${d.noteCover ? `<img class="xhs-notification-preview" src="${d.noteCover}" onerror="this.style.display='none'" />` : ''}
+                    ${d.noteCover ? `<div class="xhs-notif-thumb"><img src="${d.noteCover}" onerror="this.style.display='none'" /></div>` : ''}
                 </div>
             `;
         }).join('');
 
-        // 绑定点击事件（评论和@列表）
-        container.querySelectorAll('.xhs-notification-item').forEach(item => {
+        // 绑定点击事件
+        container.querySelectorAll('.xhs-notif-item').forEach(item => {
             item.onclick = async () => {
-                const noteId = item.dataset.noteId;
+                const rawId = item.dataset.noteId;
                 const notificationId = item.dataset.notificationId;
 
                 // 标记为已读
@@ -1228,14 +1286,18 @@ document.addEventListener('DOMContentLoaded', () => {
                     const notification = window.state.xhsSettings.notifications.comments.find(n => n.id === notificationId);
                     if (notification && !notification.isRead) {
                         notification.isRead = true;
-                        item.classList.remove('unread');
+                        item.classList.remove('xhs-notif-unread');
                         await saveXhsSettings({});
                     }
                 }
 
-                if (noteId && window.db && window.db.xhsNotes) {
-                    const note = await window.db.xhsNotes.get(noteId);
+                if (rawId && window.db && window.db.xhsNotes) {
+                    let note = await window.db.xhsNotes.get(rawId);
+                    if (!note && !isNaN(rawId)) note = await window.db.xhsNotes.get(Number(rawId));
                     if (note) {
+                        // 隐藏当前列表视图
+                        const commentsView = document.getElementById('xhs-comments-at-view');
+                        if (commentsView) commentsView.style.display = 'none';
                         openXhsNoteDetail(note);
                     }
                 }
@@ -1254,8 +1316,11 @@ document.addEventListener('DOMContentLoaded', () => {
             likesBtn.onclick = async () => {
                 likesView.style.display = 'flex';
                 bringToFront(likesView);
-                await clearUnreadCount('engagement');  // 先标记已读
-                await renderLikesCollectsList();  // 再渲染列表
+                await renderLikesCollectsList();  // 先渲染列表（显示未读高亮）
+                // 延迟标记已读，让用户看到未读状态
+                setTimeout(async () => {
+                    await clearUnreadCount('engagement');
+                }, 1500);
             };
         }
 
@@ -1274,8 +1339,11 @@ document.addEventListener('DOMContentLoaded', () => {
             commentsBtn.onclick = async () => {
                 commentsView.style.display = 'flex';
                 bringToFront(commentsView);
-                await clearUnreadCount('comments');  // 先标记已读
-                await renderCommentsAtList();  // 再渲染列表
+                await renderCommentsAtList();  // 先渲染列表（显示未读高亮）
+                // 延迟标记已读，让用户看到未读状态
+                setTimeout(async () => {
+                    await clearUnreadCount('comments');
+                }, 1500);
             };
         }
 
@@ -1735,11 +1803,25 @@ document.addEventListener('DOMContentLoaded', () => {
 
                     // 评论时间逻辑
                     if (note.comments && Array.isArray(note.comments)) {
+                        // 构建角色名→头像映射
+                        const charMap = {};
+                        if (window.state.chats) {
+                            Object.values(window.state.chats).forEach(ch => {
+                                if (!ch.isGroup && ch.name) {
+                                    charMap[ch.name] = ch.settings?.aiAvatar || ch.avatar || '';
+                                }
+                            });
+                        }
                         note.comments.forEach(c => {
                             const timeRange = now - note.timestamp;
                             const commentOffset = Math.floor(Math.random() * timeRange);
                             c.timestamp = note.timestamp + commentOffset;
                             c.dateStr = formatXhsDate(c.timestamp);
+                            // 匹配角色头像
+                            if (c.user && charMap[c.user]) {
+                                c.avatar = charMap[c.user];
+                                c.isCharacter = true;
+                            }
                         });
                         note.comments.sort((a, b) => a.timestamp - b.timestamp);
                     }
@@ -1898,12 +1980,26 @@ document.addEventListener('DOMContentLoaded', () => {
                     });
 
                     if (note.comments) {
+                        // 构建角色名→头像映射
+                        const charMap = {};
+                        if (window.state.chats) {
+                            Object.values(window.state.chats).forEach(ch => {
+                                if (!ch.isGroup && ch.name) {
+                                    charMap[ch.name] = ch.settings?.aiAvatar || ch.avatar || '';
+                                }
+                            });
+                        }
                         note.comments.forEach(c => {
                             // 评论时间：在笔记发布后到现在的随机时间
                             const timeRange = now - note.timestamp;
                             const commentOffset = Math.floor(Math.random() * timeRange);
                             c.timestamp = note.timestamp + commentOffset;
                             c.dateStr = formatXhsDate(c.timestamp);
+                            // 匹配角色头像
+                            if (c.user && charMap[c.user]) {
+                                c.avatar = charMap[c.user];
+                                c.isCharacter = true;
+                            }
                         });
                         // 按时间排序
                         note.comments.sort((a, b) => a.timestamp - b.timestamp);
@@ -2639,6 +2735,7 @@ ${memoryContext ? `【角色记忆与近期经历（帮助理解角色关系和�
                     };
 
                     // 绑定长按事件：删除评论；点击事件：回复
+                    // ★ excludeSelector 排除头像、用户名、点赞按钮，防止手机端点击这些元素时触发回复
                     bindLongPress(cItem,
                         // 长按 - 删除评论
                         () => {
@@ -2662,7 +2759,9 @@ ${memoryContext ? `【角色记忆与近期经历（帮助理解角色关系和�
                                 commentInput.placeholder = `回复 @${c.user}...`;
                                 commentInput.focus();
                             }
-                        }
+                        },
+                        true,
+                        '.xhs-avatar-clickable, .comment-like-btn'
                     );                    // 渲染子评论 (回复)
                     if (c.replies && c.replies.length > 0) {
                         const subContainer = cItem.querySelector('.xhs-sub-comments');
@@ -2731,6 +2830,7 @@ ${memoryContext ? `【角色记忆与近期经历（帮助理解角色关系和�
                             };
 
                             // 绑定长按事件：删除子评论；点击事件：回复
+                            // ★ excludeSelector 排除头像、用户名、点赞按钮
                             bindLongPress(rItem,
                                 // 长按 - 只删除该条子评论，不影响主评论
                                 () => {
@@ -2755,7 +2855,8 @@ ${memoryContext ? `【角色记忆与近期经历（帮助理解角色关系和�
                                         commentInput.focus();
                                     }
                                 },
-                                false // 禁止特效
+                                false, // 禁止特效
+                                '.xhs-avatar-clickable, .sub-comment-like-btn'
                             ); subContainer.appendChild(rItem);
                         });
                     }
@@ -3241,7 +3342,7 @@ ${mainAuthorMustReplyContext}
         }
     ],
     "engagement": {
-        "likesIncrease": 数字(10-100),
+        "likesIncrease": 数字(10-100)，依当前笔记质量、互动情况而定，可高可低,
         "collectsIncrease": 数字(5-30),
         "reason": "简短说明为什么给这个增量"
     }
@@ -3326,8 +3427,8 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
                             user: genComment.user,
                             avatar: avatar,
                             text: genComment.text,
-                            timestamp: now - Math.floor(Math.random() * 60 * 60 * 1000), // 过去1小时内的随机时间
-                            dateStr: formatXhsDate(now - Math.floor(Math.random() * 60 * 60 * 1000)),
+                            timestamp: now,
+                            dateStr: formatXhsDate(now),
                             likes: Math.floor(Math.random() * 50),
                             isLiked: false,
                             isMine: false
@@ -3403,7 +3504,8 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
                             timestamp: item.comment.timestamp,
                             isReplyToComment: item.isReplyToComment,
                             originalCommentId: item.originalCommentId,
-                            originalCommentText: item.originalCommentText
+                            originalCommentText: item.originalCommentText,
+                            isOwnNote: note.isMine === true
                         });
                     }
 
@@ -3429,7 +3531,8 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
                             likesIncrease: likesInc,
                             collectsIncrease: collectsInc,
                             reason: result.engagement.reason || '评论互动带来的热度提升',
-                            timestamp: now
+                            timestamp: now,
+                            isOwnNote: note.isMine === true
                         });
 
                         console.log(`[XHS] 互动增量 - 点赞+${likesInc}, 收藏+${collectsInc}`, result.engagement.reason || '');
@@ -3508,7 +3611,8 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
                                 isReply: item.isReply,
                                 parentUser: item.parentUser,
                                 reason: `你的评论"${item.commentText.substring(0, 20)}${item.commentText.length > 20 ? '...' : ''}"获得了${item.likeIncrease}个赞`,
-                                timestamp: now
+                                timestamp: now,
+                                isOwnNote: note.isMine === true
                             });
                         }
 

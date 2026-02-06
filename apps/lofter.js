@@ -345,14 +345,25 @@ document.addEventListener('DOMContentLoaded', () => {
         2.1 长按删除工具函数
        ========================================= */
 
-    // 设置长按事件
+    // 设置长按事件（含滑动检测，防止滚动时误触发）
     function setupLongPress(element, callback, duration = 600) {
         let pressTimer = null;
         let isLongPress = false;
+        let startX = 0;
+        let startY = 0;
+        const MOVE_THRESHOLD = 10; // 移动超过10px则视为滑动
 
         const start = (e) => {
             if (e.type === 'click' && e.button !== 0) return;
             isLongPress = false;
+            // 记录起始位置
+            if (e.touches && e.touches.length > 0) {
+                startX = e.touches[0].clientX;
+                startY = e.touches[0].clientY;
+            } else {
+                startX = e.clientX;
+                startY = e.clientY;
+            }
             pressTimer = setTimeout(() => {
                 isLongPress = true;
                 callback();
@@ -366,6 +377,23 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         };
 
+        const onMove = (e) => {
+            if (!pressTimer) return;
+            let currentX, currentY;
+            if (e.touches && e.touches.length > 0) {
+                currentX = e.touches[0].clientX;
+                currentY = e.touches[0].clientY;
+            } else {
+                currentX = e.clientX;
+                currentY = e.clientY;
+            }
+            const dx = Math.abs(currentX - startX);
+            const dy = Math.abs(currentY - startY);
+            if (dx > MOVE_THRESHOLD || dy > MOVE_THRESHOLD) {
+                cancel();
+            }
+        };
+
         const handleClick = (e) => {
             if (isLongPress) {
                 e.preventDefault();
@@ -375,6 +403,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
         element.addEventListener('mousedown', start);
         element.addEventListener('touchstart', start, { passive: true });
+        element.addEventListener('mousemove', onMove);
+        element.addEventListener('touchmove', onMove, { passive: true });
         element.addEventListener('mouseup', cancel);
         element.addEventListener('mouseleave', cancel);
         element.addEventListener('touchend', cancel);
@@ -842,7 +872,7 @@ ${typeInfo.desc}
                             name: c.name || `读者${idx + 1}`,
                             avatar: commentAvatars[idx % commentAvatars.length],
                             text: c.text || c.content || '写得太棒了！',
-                            timestamp: now - Math.floor(Math.random() * 3600000)
+                            timestamp: now
                         }));
                     }
 
@@ -865,16 +895,19 @@ ${typeInfo.desc}
                         collectionId: collectionId,
                         collectionName: work.collectionName || null,
                         chapterNum: chapterNum,
-                        likes: Math.floor(Math.random() * 500) + 50,
+                        likes: 0,
                         collects: Math.floor(Math.random() * 100) + 10,
                         comments: generatedComments,
                         tips: [],
-                        views: Math.floor(Math.random() * 2000) + 100,
+                        views: 0,
                         timestamp: now, // 使用实际发布时间
                         isLiked: false,
                         isCollected: false,
                         isAIGenerated: true
                     };
+                    // 确保点赞数 < 阅读数
+                    newArticle.views = Math.floor(Math.random() * 2000) + 100;
+                    newArticle.likes = Math.floor(Math.random() * newArticle.views * 0.5) + 10;
 
                     articles.unshift(newArticle);
 
@@ -2273,7 +2306,7 @@ ${unrepliedUserComments.length > 0 ? `★★★ 最高优先级：必须为上�
                         name: c.name || `读者${idx + 1}`,
                         avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=para${idx}${now}`,
                         text: c.text,
-                        timestamp: now - Math.floor(Math.random() * 3600000),
+                        timestamp: now,
                         isUser: false,
                         replies: [] // 支持楼中楼
                     });
@@ -2309,7 +2342,7 @@ ${unrepliedUserComments.length > 0 ? `★★★ 最高优先级：必须为上�
                             name: r.name || '热心读者',
                             avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=parareplier${idx}${now}`,
                             text: r.text,
-                            timestamp: now - Math.floor(Math.random() * 1800000),
+                            timestamp: now,
                             isUser: false
                         });
                     }
@@ -2759,7 +2792,7 @@ ${unrepliedUserComments.length > 0 ? `★★★ 最高优先级：必须为上�
                     name: c.name || `读者${idx + 1}`,
                     avatar: commentAvatars[idx % commentAvatars.length],
                     text: c.text,
-                    timestamp: now - Math.floor(Math.random() * 3600000),
+                    timestamp: now,
                     replies: [],
                     isUser: false
                 });
@@ -2794,7 +2827,7 @@ ${unrepliedUserComments.length > 0 ? `★★★ 最高优先级：必须为上�
                         name: r.name || '热心读者',
                         avatar: `https://api.dicebear.com/7.x/notionists/svg?seed=replier${idx}`,
                         text: r.text,
-                        timestamp: now - Math.floor(Math.random() * 1800000),
+                        timestamp: now,
                         isUser: false
                     });
                 }
@@ -4142,7 +4175,7 @@ ${typeInfo.desc}
                     name: c.name || `读者${idx + 1}`,
                     avatar: commentAvatars[idx % commentAvatars.length],
                     text: c.text || c.content || '写得太棒了！',
-                    timestamp: now - Math.floor(Math.random() * 3600000)
+                    timestamp: now
                 }));
             }
 
@@ -4165,17 +4198,20 @@ ${typeInfo.desc}
                 collectionId: collectionId,
                 collectionName: work.collectionName || null,
                 chapterNum: chapterNum,
-                likes: Math.floor(Math.random() * 500) + 50,
+                likes: 0,
                 collects: Math.floor(Math.random() * 100) + 10,
                 comments: generatedComments,
                 tips: [],
-                views: Math.floor(Math.random() * 2000) + 100,
+                views: 0,
                 timestamp: now,
                 isLiked: false,
                 isCollected: false,
                 isAIGenerated: true,
                 isCustomGenerated: true // 标记为自定义生成
             };
+            // 确保点赞数 < 阅读数
+            newArticle.views = Math.floor(Math.random() * 2000) + 100;
+            newArticle.likes = Math.floor(Math.random() * newArticle.views * 0.5) + 10;
 
             let articles = await getLofterArticles();
             articles.unshift(newArticle);
@@ -5044,7 +5080,7 @@ ${typeInfo.desc}
                     name: c.name || `读者${idx + 1}`,
                     avatar: commentAvatars[idx % commentAvatars.length],
                     text: c.text || c.content || '写得太棒了！',
-                    timestamp: now - Math.floor(Math.random() * 3600000)
+                    timestamp: now
                 }));
             }
 
@@ -5067,16 +5103,19 @@ ${typeInfo.desc}
                 collectionId: collectionId,
                 collectionName: collection.name,
                 chapterNum: chapterNum,
-                likes: Math.floor(Math.random() * 500) + 50,
+                likes: 0,
                 collects: Math.floor(Math.random() * 100) + 10,
                 comments: generatedComments,
                 tips: [],
-                views: Math.floor(Math.random() * 2000) + 100,
+                views: 0,
                 timestamp: now,
                 isLiked: false,
                 isCollected: false,
                 isAIGenerated: true
             };
+            // 确保点赞数 < 阅读数
+            newArticle.views = Math.floor(Math.random() * 2000) + 100;
+            newArticle.likes = Math.floor(Math.random() * newArticle.views * 0.5) + 10;
 
             articles.unshift(newArticle);
             await saveLofterArticles(articles);

@@ -701,29 +701,29 @@
 					</div>
 
 					<!-- 赞和收藏详情页 -->
-					<div id="xhs-likes-collects-view" class="xhs-view" style="display: none; height: 100%; background: #f5f5f5">
-						<div class="xhs-sub-header">
+					<div id="xhs-likes-collects-view" class="xhs-view" style="display: none; height: 100%; background: #fff">
+						<div class="xhs-sub-header xhs-notif-header">
 							<svg class="xhs-back-btn" id="xhs-likes-back" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 								<polyline points="15 18 9 12 15 6"></polyline>
 							</svg>
 							<span>赞和收藏</span>
 							<div style="width: 24px"></div>
 						</div>
-						<div id="xhs-likes-collects-list" class="xhs-notification-list">
+						<div id="xhs-likes-collects-list" class="xhs-notif-list">
 							<!-- 点赞收藏记录由JS生成 -->
 						</div>
 					</div>
 
 					<!-- 评论和@详情页 -->
-					<div id="xhs-comments-at-view" class="xhs-view" style="display: none; height: 100%; background: #f5f5f5">
-						<div class="xhs-sub-header">
+					<div id="xhs-comments-at-view" class="xhs-view" style="display: none; height: 100%; background: #fff">
+						<div class="xhs-sub-header xhs-notif-header">
 							<svg class="xhs-back-btn" id="xhs-comments-back" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
 								<polyline points="15 18 9 12 15 6"></polyline>
 							</svg>
 							<span>评论和@</span>
 							<div style="width: 24px"></div>
 						</div>
-						<div id="xhs-comments-at-list" class="xhs-notification-list">
+						<div id="xhs-comments-at-list" class="xhs-notif-list">
 							<!-- 评论@记录由JS生成 -->
 						</div>
 					</div>
@@ -813,8 +813,9 @@
 							<line x1="5" y1="12" x2="19" y2="12"></line>
 						</svg>
 					</div>
-					<div class="xhs-nav-item">
+					<div class="xhs-nav-item" style="position: relative">
 						<span>消息</span>
+						<span class="xhs-nav-msg-dot" id="xhs-nav-msg-dot" style="display: none"></span>
 					</div>
 					<div class="xhs-nav-item">
 						<span>我</span>
@@ -9947,10 +9948,6 @@
 							<span class="lofter-recharge-amount">500 🪙</span>
 							<span class="lofter-recharge-price">¥ 400 <small>省100元</small></span>
 						</div>
-					</div>
-					<div class="lofter-recharge-wallet">
-						<span>从账户钱包扣款</span>
-						<span class="lofter-wallet-balance">余额: ¥ <span id="lofter-wallet-balance">0</span></span>
 					</div>
 				</div>
 			</div>

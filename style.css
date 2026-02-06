@@ -29699,184 +29699,214 @@ input:checked + .slider::after {
     color: #333;
 }
 
-/* 通知列表 */
-.xhs-notification-list {
+/* ==========================================
+   小红书通知页面样式（赞和收藏 / 评论和@）
+   ========================================== */
+
+/* 通知页顶部栏 */
+.xhs-notif-header {
+    background: #fff;
+    border-bottom: 0.5px solid #f0f0f0;
+}
+
+.xhs-notif-header span {
+    font-size: 17px;
+    font-weight: 600;
+    color: #222;
+    letter-spacing: 0.3px;
+}
+
+/* 通知列表容器 */
+.xhs-notif-list {
     padding: 0;
     overflow-y: auto;
     height: calc(100% - 80px);
+    background: #fff;
 }
 
-/* 通知项样式 */
-.xhs-notification-item {
+/* 单条通知项 */
+.xhs-notif-item {
     display: flex;
+    align-items: flex-start;
     gap: 12px;
-    padding: 14px 15px;
+    padding: 16px 16px 16px 16px;
     background: #fff;
-    margin-bottom: 1px;
+    border-bottom: 0.5px solid #f5f5f5;
     cursor: pointer;
-    transition: background 0.2s;
+    position: relative;
+    transition: background 0.15s ease;
 }
 
-/* 未读通知主题色背景 */
-.xhs-notification-item.unread {
-    background: linear-gradient(135deg, rgba(255, 36, 66, 0.12) 0%, rgba(255, 36, 66, 0.06) 100%);
+.xhs-notif-item:active {
+    background: #fafafa;
 }
 
-/* 已读通知无背景 */
-.xhs-notification-item:not(.unread) {
-    background: #fff;
+/* 未读通知样式 */
+.xhs-notif-item.xhs-notif-unread {
+    background: #fff5f5;
+    border-left: 3px solid #ff2442;
+    padding-left: 13px;
 }
 
-.xhs-notification-item:active {
-    background: #f5f5f5;
+/* 未读红点指示器 */
+.xhs-notif-dot {
+    position: absolute;
+    left: 4px;
+    top: 22px;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: #ff2442;
+    flex-shrink: 0;
+    box-shadow: 0 0 0 2px rgba(255, 36, 66, 0.2);
 }
 
-.xhs-notification-avatar {
-    width: 44px;
-    height: 44px;
+/* 赞和收藏 - 图标容器 */
+.xhs-notif-icon-wrap {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.xhs-notif-icon-wrap.note-like {
+    background: #fff0f1;
+}
+
+.xhs-notif-icon-wrap.comment-like {
+    background: #fff0f1;
+}
+
+/* 评论和@ - 头像 */
+.xhs-notif-avatar {
+    width: 40px;
+    height: 40px;
     border-radius: 50%;
     object-fit: cover;
     flex-shrink: 0;
 }
 
-.xhs-notification-content {
+/* 通知文本主体 */
+.xhs-notif-body {
     flex: 1;
     min-width: 0;
+    padding-top: 1px;
 }
 
-.xhs-notification-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 4px;
-}
-
-.xhs-notification-user {
+/* 操作描述行 */
+.xhs-notif-action {
     font-size: 14px;
+    color: #333;
+    line-height: 1.5;
+    margin-bottom: 2px;
+}
+
+.xhs-notif-highlight {
+    color: #ff2442;
+    font-weight: 600;
+}
+
+.xhs-notif-username {
     font-weight: 600;
     color: #333;
 }
 
-.xhs-notification-time {
-    font-size: 12px;
+/* 笔记标题 / 评论摘要 */
+.xhs-notif-desc {
+    font-size: 13px;
     color: #999;
+    line-height: 1.4;
+    margin-top: 2px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
-.xhs-notification-text {
-    font-size: 14px;
-    color: #666;
+/* 互动原因文本 */
+.xhs-notif-reason {
+    font-size: 12px;
+    color: #b08d57;
     line-height: 1.4;
-    margin-bottom: 6px;
+    margin-top: 3px;
+    background: linear-gradient(90deg, #fff8ee, #fffdf8);
+    padding: 2px 8px;
+    border-radius: 4px;
+    border-left: 2px solid #f0c060;
     display: -webkit-box;
     -webkit-line-clamp: 2;
     -webkit-box-orient: vertical;
     overflow: hidden;
 }
 
-.xhs-notification-meta {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-
-.xhs-notification-type {
-    font-size: 12px;
-    color: #999;
-    padding: 2px 8px;
-    background: #f5f5f5;
-    border-radius: 10px;
-}
-
-.xhs-notification-preview {
-    width: 50px;
-    height: 50px;
-    border-radius: 6px;
-    object-fit: cover;
-    flex-shrink: 0;
-}
-
-/* 点赞收藏增量标识 */
-.xhs-engagement-change {
-    display: flex;
-    gap: 10px;
+/* 评论内容文本 */
+.xhs-notif-comment-text {
+    font-size: 14px;
+    color: #555;
+    line-height: 1.5;
     margin-top: 4px;
-}
-
-.xhs-engagement-item {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 13px;
-}
-
-.xhs-engagement-item.likes {
-    color: #ff2442;
-}
-
-.xhs-engagement-item.collects {
-    color: #ffa500;
-}
-
-.xhs-engagement-reason {
-    font-size: 12px;
-    color: #999;
-    margin-top: 4px;
-    padding: 6px 10px;
-    background: #fafafa;
-    border-radius: 8px;
-    line-height: 1.4;
-}
-
-/* 通知列表封面图 */
-.xhs-notification-cover {
-    width: 56px;
-    height: 56px;
-    flex-shrink: 0;
-    border-radius: 8px;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
     overflow: hidden;
+}
+
+/* 时间戳 */
+.xhs-notif-time {
+    font-size: 12px;
+    color: #bbb;
+    margin-top: 6px;
+}
+
+/* 右侧笔记封面缩略图 */
+.xhs-notif-thumb {
+    width: 48px;
+    height: 48px;
+    border-radius: 6px;
+    overflow: hidden;
+    flex-shrink: 0;
     background: #f5f5f5;
 }
 
-.xhs-notification-cover img {
+.xhs-notif-thumb img {
     width: 100%;
     height: 100%;
     object-fit: cover;
     display: block;
 }
 
-/* 评论点赞标识 */
-.xhs-comment-like-badge {
-    font-size: 10px;
-    color: #fff;
-    background: #ff2442;
-    padding: 1px 6px;
-    border-radius: 8px;
-    margin-left: 6px;
-}
-
-.xhs-notification-item.comment-like {
-    background: linear-gradient(135deg, #fff5f5 0%, #fff 100%);
-}
-
 /* 空状态 */
-.xhs-notification-empty {
+.xhs-notif-empty {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    padding: 60px 20px;
-    color: #999;
+    padding: 80px 20px;
+    color: #ccc;
 }
 
-.xhs-notification-empty svg {
-    width: 60px;
-    height: 60px;
-    margin-bottom: 15px;
-    opacity: 0.5;
+.xhs-notif-empty svg {
+    margin-bottom: 16px;
+    opacity: 0.6;
 }
 
-.xhs-notification-empty p {
+.xhs-notif-empty p {
     font-size: 14px;
+    color: #bbb;
+}
+
+/* 底部导航消息红点 */
+.xhs-nav-msg-dot {
+    position: absolute;
+    top: -2px;
+    right: 8px;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #ff2442;
+    box-shadow: 0 0 0 2px #fff;
 }
 
 /* 赞和收藏、评论和@详情页定位 */
@@ -33380,9 +33410,11 @@ input:checked + .slider::after {
 /* Lofter 瀑布流布局 - 双列Flex横向排列（只在active时生效） */
 .lofter-waterfall-column {
     flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 10px;
+    overflow: hidden;
 }
 
 .lofter-waterfall .lofter-waterfall-card {
@@ -33390,6 +33422,9 @@ input:checked + .slider::after {
     border-radius: 10px;
     overflow: hidden;
     box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    min-width: 0;
+    width: 100%;
+    box-sizing: border-box;
 }
 
 .lofter-waterfall-card .lofter-wf-image {
@@ -35153,6 +35188,7 @@ input:checked + .slider::after {
     transition: all 0.3s;
     white-space: nowrap;
     flex-shrink: 0;
+    margin-top: 28px;
 }
 
 .lofter-collection-modal-subscribe:hover {
@@ -36809,6 +36845,7 @@ input:checked + .slider::after {
 
 #lofter-collection-detail-view .lofter-content-area {
     padding: 0;
+    padding-bottom: 65px;
     background: #f8f8f8;
 }
 
