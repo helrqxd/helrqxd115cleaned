@@ -76,6 +76,15 @@ document.addEventListener('DOMContentLoaded', () => {
     // 默认头像
     const defaultAvatar = 'https://files.catbox.moe/q6z5fc.jpeg';
 
+    // 可选的作品类型配置（统一定义，自定义生成和自由生成共用）
+    const WORK_TYPE_CONFIG = {
+        // 'image': { name: '同人图/漫画', desc: '详细描述一幅同人插画或漫画的画面内容，包括构图、人物神态、动作、场景氛围等' },
+        'short_story': { name: '短篇小说（单篇完结）', desc: '独立完整的短篇故事，有开头、发展、高潮、结尾，情节紧凑，主题明确' },
+        'short_series': { name: '短篇系列', desc: '属于某个主题系列的短篇，可以独立阅读但与系列其他作品有关联，需要系列名和章节号' },
+        'long_complete': { name: '长篇一发完', desc: '较长的完整故事，情节丰富，人物刻画深入，有完整的故事弧线' },
+        'long_serial': { name: '长篇连载章节', desc: '连载小说的一个章节，有承上启下的作用，结尾可以留有悬念，需要小说名和章节号' }
+    };
+
     // 默认文风预设版本号（当更新预设内容时，需要增加此版本号）
     const STYLE_PRESETS_VERSION = 2;
 
@@ -433,6 +442,13 @@ document.addEventListener('DOMContentLoaded', () => {
         switch (type) {
             case 'article':
                 let articles = await getLofterArticles();
+                const deletedArticle = articles.find(a => a.id === id);
+
+                // 如果文章属于某个合集，更新合集数据
+                if (deletedArticle && deletedArticle.collectionId) {
+                    removeArticleFromCollection(deletedArticle, articles);
+                }
+
                 articles = articles.filter(a => a.id !== id);
                 await saveLofterArticles(articles);
                 renderDiscoverFeed();
@@ -545,6 +561,56 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // 从合集中移除作品（删除文章时调用）
+    // 保留被删除章节的梗概供催更使用，更新剩余章节编号
+    function removeArticleFromCollection(article, allArticles) {
+        let collections = getLofterCollections();
+        const collection = collections.find(c => c.id === article.collectionId);
+        if (!collection) return;
+
+        const deletedIndex = collection.articleIds.indexOf(article.id);
+        if (deletedIndex === -1) return;
+
+        const originalChapterNum = article.chapterNum || (deletedIndex + 1);
+
+        // 1. 保留被删除章节的梗概（供催更时作为上下文参考）
+        if (!collection.preservedSummaries) {
+            collection.preservedSummaries = [];
+        }
+
+        // 获取已有的章节概要，若没有则用正文截取摘要
+        const existingSummary = collection.chapterSummaries?.[article.id];
+        const contentSummary = article.content.length > 500
+            ? article.content.substring(0, 500) + '...'
+            : article.content;
+        const summary = existingSummary || contentSummary;
+
+        collection.preservedSummaries.push({
+            originalChapterNum: originalChapterNum,
+            title: article.title,
+            summary: summary,
+            deletedAt: Date.now()
+        });
+
+        // 2. 从合集的 articleIds 中移除
+        collection.articleIds = collection.articleIds.filter(aid => aid !== article.id);
+
+        // 3. 清理 chapterSummaries 中对应的条目
+        if (collection.chapterSummaries && collection.chapterSummaries[article.id]) {
+            delete collection.chapterSummaries[article.id];
+        }
+
+        // 4. 重新编号剩余章节
+        collection.articleIds.forEach((aid, index) => {
+            const a = allArticles.find(art => art.id === aid);
+            if (a) {
+                a.chapterNum = index + 1;
+            }
+        });
+
+        saveLofterCollections(collections);
+    }
+
     // 获取所有角色人设（包括用户角色）
     function getAllCharacterProfiles(allowedCharacterIds = null) {
         const characters = [];
@@ -601,16 +667,7 @@ document.addEventListener('DOMContentLoaded', () => {
             return `【角色名】${c.name}\n【角色人设】\n${c.persona}`;
         }).join('\n\n---\n\n');
 
-        // 作品类型详细说明（暂时移除image类型）
-        const workTypeDetails = {
-            // 'image': { name: '同人图/漫画', desc: '详细描述一幅同人插画或漫画的画面内容，包括构图、人物神态、动作、场景氛围等' },
-            'short_story': { name: '短篇小说（单篇完结）', desc: '独立完整的短篇故事，有开头、发展、高潮、结尾，情节紧凑，主题明确' },
-            'short_series': { name: '短篇系列', desc: '属于某个主题系列的短篇，可以独立阅读但与系列其他作品有关联，需要系列名和章节号' },
-            'long_complete': { name: '长篇一发完', desc: '较长的完整故事，情节丰富，人物刻画深入，有完整的故事弧线' },
-            'long_serial': { name: '长篇连载章节', desc: '连载小说的一个章节，有承上启下的作用，结尾可以留有悬念，需要小说名和章节号' }
-        };
-
-        const typeInfo = workTypeDetails[workType] || workTypeDetails['short_story'];
+        const typeInfo = WORK_TYPE_CONFIG[workType] || WORK_TYPE_CONFIG['short_story'];
 
         // 世界书设定
         let worldBookSection = '';
@@ -794,14 +851,8 @@ ${typeInfo.desc}
         const now = Date.now();
         let successCount = 0;
 
-        // 可用的作品类型列表（暂时移除image类型）
-        const availableWorkTypes = [
-            // 'image', // 图片作品功能暂时移除，后续继续开发
-            'short_story',
-            'short_series',
-            'long_complete',
-            'long_serial'
-        ];
+        // 可用的作品类型列表（从 WORK_TYPE_CONFIG 读取）
+        const availableWorkTypes = Object.keys(WORK_TYPE_CONFIG);
 
         try {
             // 分别生成每个作品
@@ -3761,6 +3812,18 @@ ${hasUnreplied ? `★★★ 最高优先级：必须为上述未回复的用户�
     function renderCustomGenModal() {
         const characters = getAllCharacterProfiles();
 
+        // 渲染作品类型选择（从代码中的 WORK_TYPE_CONFIG 读取，不经过数据库）
+        const workTypeSelect = document.getElementById('lofter-custom-work-type');
+        if (workTypeSelect) {
+            workTypeSelect.innerHTML = '';
+            Object.entries(WORK_TYPE_CONFIG).forEach(([value, typeInfo]) => {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = typeInfo.name;
+                workTypeSelect.appendChild(option);
+            });
+        }
+
         // 渲染主角选择（多选）
         const protagonistContainer = document.getElementById('lofter-custom-protagonist');
         if (protagonistContainer) {
@@ -3884,31 +3947,8 @@ ${hasUnreplied ? `★★★ 最高优先级：必须为上述未回复的用户�
             }).join('\n\n');
         }
 
-        // 作品类型详细说明
-        const workTypeDetails = {
-            'short_story': {
-                name: '短篇小说（单篇完结）',
-                desc: '独立完整的短篇故事，有开头、发展、高潮、结尾，情节紧凑，主题明确'
-            },
-            'short_series': {
-                name: '短篇系列',
-                desc: '属于某个主题系列的短篇，可以独立阅读但与系列其他作品有关联，需要系列名和章节号'
-            },
-            'long_complete': {
-                name: '长篇一发完',
-                desc: '较长的完整故事，情节丰富，人物刻画深入，有完整的故事弧线，不允许分章节'
-            },
-            'long_serial': {
-                name: '长篇连载章节',
-                desc: '连载小说的一个章节，有承上启下的作用，结尾可以留有悬念，需要小说名和章节号'
-            },
-            'image': {
-                name: '同人图/漫画',
-                desc: '详细描述一幅同人插画或漫画的画面内容，包括构图、人物神态、动作、场景氛围等'
-            }
-        };
-
-        const typeInfo = workTypeDetails[workType] || workTypeDetails['short_story'];
+        // 作品类型详细说明（从统一配置 WORK_TYPE_CONFIG 读取）
+        const typeInfo = WORK_TYPE_CONFIG[workType] || WORK_TYPE_CONFIG['short_story'];
 
         // 世界书设定
         let worldBookSection = '';
@@ -4006,7 +4046,7 @@ ${typeInfo.desc}
 {
   "type": "${workType}",
   "authorName": "作者笔名",
-  "title": "作品标题",
+  "title": "作品标题（如果是长篇连载，标题必须为【第1章 标题】）",
   "content": "作品正文内容（必须达到${wordCount}字左右）",
   "tags": ["CP标签", "主题标签", "情感标签", "其他标签"],
   "authorNotes": "作者有话说的内容",
@@ -4971,13 +5011,23 @@ ${typeInfo.desc}
                 const previousArticleId = collection.articleIds[collection.articleIds.length - 1];
                 const previousArticle = articles.find(a => a.id === previousArticleId);
 
+                // 收集已删除章节的保留梗概（确保删除章节后上下文不丢失）
+                let preservedContext = '';
+                if (collection.preservedSummaries && collection.preservedSummaries.length > 0) {
+                    const sorted = [...collection.preservedSummaries].sort((a, b) => a.originalChapterNum - b.originalChapterNum);
+                    preservedContext = '\n\n【已删除章节的情节概要（保留供衔接参考）】\n';
+                    sorted.forEach(ps => {
+                        preservedContext += `[原第${ps.originalChapterNum}章「${ps.title}」]\n${ps.summary}\n\n`;
+                    });
+                }
+
                 if (chapterNum === 2) {
-                    // 第2章，只使用第1章全文
+                    // 第2章，只使用第1章全文 + 已删除章节梗概
                     if (previousArticle) {
-                        previousContext = `\n\n【上一章（第1章）内容】\n${previousArticle.title}\n\n${previousArticle.content}`;
+                        previousContext = preservedContext + `\n\n【上一章（第1章）内容】\n${previousArticle.title}\n\n${previousArticle.content}`;
                     }
                 } else {
-                    // 第3章及以后，使用所有之前章节的概要 + 上一章全文
+                    // 第3章及以后，使用所有之前章节的概要 + 上一章全文 + 已删除章节梗概
                     let allSummaries = '';
 
                     // 收集第1章到第n-2章的所有概要
@@ -4989,8 +5039,8 @@ ${typeInfo.desc}
                         }
                     }
 
-                    if (allSummaries) {
-                        previousContext = `\n\n【之前章节概要】\n${allSummaries}`;
+                    if (allSummaries || preservedContext) {
+                        previousContext = preservedContext + `\n\n【之前章节概要】\n${allSummaries}`;
                     }
 
                     // 添加上一章全文

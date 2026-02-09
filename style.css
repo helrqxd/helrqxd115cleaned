@@ -35385,43 +35385,45 @@ input:checked + .slider::after {
     display: inline-block;
 }
 
-/* Lofter 生成中弹窗（右下角悬浮） */
+/* Lofter 生成中弹窗（顶部标题栏处悬浮，缩小不遮挡） */
 .lofter-generating-overlay {
     position: fixed;
-    bottom: 80px;
-    right: 20px;
+    top: 36px;
+    left: 50%;
+    transform: translateX(-50%);
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     display: flex;
     align-items: center;
     justify-content: center;
     z-index: 9999;
-    border-radius: 16px;
-    padding: 16px 20px;
-    box-shadow: 0 8px 32px rgba(102, 126, 234, 0.4);
+    border-radius: 20px;
+    padding: 6px 16px;
+    box-shadow: 0 4px 16px rgba(102, 126, 234, 0.35);
     animation: lofter-popup-in 0.3s ease-out;
+    max-width: 280px;
 }
 
 @keyframes lofter-popup-in {
     from {
         opacity: 0;
-        transform: translateY(20px) scale(0.9);
+        transform: translateX(-50%) translateY(-10px) scale(0.9);
     }
     to {
         opacity: 1;
-        transform: translateY(0) scale(1);
+        transform: translateX(-50%) translateY(0) scale(1);
     }
 }
 
 .lofter-generating-content {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 8px;
     color: #fff;
 }
 
 .lofter-generating-spinner {
-    width: 24px;
-    height: 24px;
+    width: 16px;
+    height: 16px;
     border: 2px solid rgba(255, 255, 255, 0.3);
     border-top-color: #fff;
     border-radius: 50%;
@@ -35434,15 +35436,16 @@ input:checked + .slider::after {
 }
 
 .lofter-generating-text {
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 500;
     white-space: nowrap;
 }
 
 .lofter-generating-progress {
-    font-size: 12px;
+    font-size: 11px;
     color: rgba(255, 255, 255, 0.8);
-    margin-left: 4px;
+    margin-left: 2px;
+    white-space: nowrap;
 }
 
 /* 开发中遮罩层 */
