@@ -311,7 +311,7 @@ document.addEventListener('DOMContentLoaded', () => {
         return {
             workCount: 3,
             allowedCharacters: [], // 空数组表示允许所有角色
-            worldBookId: '',
+            worldBookIds: [], // 绑定的世界书ID数组（多选）
             stylePresets: [...defaultStylePresets],
             stylePresetsVersion: STYLE_PRESETS_VERSION
         };
@@ -330,24 +330,34 @@ document.addEventListener('DOMContentLoaded', () => {
         return [];
     }
 
-    // 获取世界书内容
-    async function getWorldBookContent(worldBookId) {
-        if (!worldBookId) return '';
+    // 获取世界书内容（支持单个ID或ID数组）
+    async function getWorldBookContent(worldBookIdOrIds) {
+        if (!worldBookIdOrIds) return '';
 
         const worldBooks = getAllWorldBooks();
-        const worldBook = worldBooks.find(wb => wb.id === worldBookId);
-        if (!worldBook) return '';
 
-        // 构建世界书内容字符串
-        let content = `【世界书: ${worldBook.name}】\n`;
-        if (worldBook.entries && worldBook.entries.length > 0) {
-            worldBook.entries.forEach(entry => {
-                if (entry.enabled !== false) {
-                    content += `\n[${entry.keywords?.join(', ') || '条目'}]\n${entry.content}\n`;
-                }
-            });
+        // 兼容旧的单个ID格式，统一转为数组
+        const ids = Array.isArray(worldBookIdOrIds) ? worldBookIdOrIds : [worldBookIdOrIds];
+        if (ids.length === 0) return '';
+
+        let allContent = '';
+        for (const wbId of ids) {
+            if (!wbId) continue;
+            const worldBook = worldBooks.find(wb => wb.id === wbId);
+            if (!worldBook) continue;
+
+            // 构建世界书内容字符串
+            allContent += `【世界书: ${worldBook.name}】\n`;
+            if (worldBook.entries && worldBook.entries.length > 0) {
+                worldBook.entries.forEach(entry => {
+                    if (entry.enabled !== false) {
+                        allContent += `\n[${entry.keywords?.join(', ') || '条目'}]\n${entry.content}\n`;
+                    }
+                });
+            }
+            allContent += '\n';
         }
-        return content;
+        return allContent.trim();
     }
 
     /* =========================================
@@ -562,7 +572,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // 从合集中移除作品（删除文章时调用）
-    // 保留被删除章节的梗概供催更使用，更新剩余章节编号
+    // 彻底删除，不保留已删除章节的任何信息，不影响后续续写
     function removeArticleFromCollection(article, allArticles) {
         let collections = getLofterCollections();
         const collection = collections.find(c => c.id === article.collectionId);
@@ -571,33 +581,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const deletedIndex = collection.articleIds.indexOf(article.id);
         if (deletedIndex === -1) return;
 
-        const originalChapterNum = article.chapterNum || (deletedIndex + 1);
-
-        // 1. 保留被删除章节的梗概（供催更时作为上下文参考）
-        if (!collection.preservedSummaries) {
-            collection.preservedSummaries = [];
-        }
-
-        // 获取已有的章节概要，若没有则用正文截取摘要
-        const existingSummary = collection.chapterSummaries?.[article.id];
-        const contentSummary = article.content.length > 500
-            ? article.content.substring(0, 500) + '...'
-            : article.content;
-        const summary = existingSummary || contentSummary;
-
-        collection.preservedSummaries.push({
-            originalChapterNum: originalChapterNum,
-            title: article.title,
-            summary: summary,
-            deletedAt: Date.now()
-        });
-
-        // 2. 从合集的 articleIds 中移除
+        // 1. 从合集的 articleIds 中移除
         collection.articleIds = collection.articleIds.filter(aid => aid !== article.id);
 
-        // 3. 清理 chapterSummaries 中对应的条目
+        // 2. 清理 chapterSummaries 中对应的条目
         if (collection.chapterSummaries && collection.chapterSummaries[article.id]) {
             delete collection.chapterSummaries[article.id];
+        }
+
+        // 3. 清理 preservedSummaries（如果存在旧数据则一并清除）
+        if (collection.preservedSummaries) {
+            delete collection.preservedSummaries;
         }
 
         // 4. 重新编号剩余章节
@@ -833,10 +827,11 @@ ${typeInfo.desc}
         // 使用设置中的作品数量
         const workCount = Math.min(Math.max(genSettings.workCount || 3, 1), 10);
 
-        // 获取世界书内容
+        // 获取世界书内容（兼容旧版单选和新版多选）
         let worldBookContent = '';
-        if (genSettings.worldBookId) {
-            worldBookContent = await getWorldBookContent(genSettings.worldBookId);
+        const wbIds = genSettings.worldBookIds || (genSettings.worldBookId ? [genSettings.worldBookId] : []);
+        if (wbIds.length > 0) {
+            worldBookContent = await getWorldBookContent(wbIds);
         }
 
         // 获取文风预设列表
@@ -3585,15 +3580,26 @@ ${hasUnreplied ? `★★★ 最高优先级：必须为上述未回复的用户�
             }
         }
 
-        // 渲染世界书选择
-        const worldbookSelect = document.getElementById('lofter-gen-worldbook');
-        if (worldbookSelect) {
+        // 渲染世界书选择（多选）
+        const worldbookContainer = document.getElementById('lofter-gen-worldbook-list');
+        if (worldbookContainer) {
             const worldBooks = getAllWorldBooks();
-            worldbookSelect.innerHTML = '<option value="">不使用世界书</option>';
-            worldBooks.forEach(wb => {
-                const selected = genSettings.worldBookId === wb.id ? 'selected' : '';
-                worldbookSelect.innerHTML += `<option value="${wb.id}" ${selected}>${wb.name}</option>`;
-            });
+            // 兼容旧版单选：如果存在旧的 worldBookId 则转换为数组
+            const selectedIds = genSettings.worldBookIds || (genSettings.worldBookId ? [genSettings.worldBookId] : []);
+
+            if (worldBooks.length === 0) {
+                worldbookContainer.innerHTML = '<div class="lofter-gen-empty">暂无世界书</div>';
+            } else {
+                worldbookContainer.innerHTML = worldBooks.map(wb => {
+                    const isChecked = selectedIds.includes(wb.id);
+                    return `
+                        <label class="lofter-gen-checkbox-item">
+                            <input type="checkbox" value="${wb.id}" ${isChecked ? 'checked' : ''} />
+                            <span>${wb.name}</span>
+                        </label>
+                    `;
+                }).join('');
+            }
         }
 
         // 渲染文风预设列表
@@ -3711,10 +3717,19 @@ ${hasUnreplied ? `★★★ 最高优先级：必须为上述未回复的用户�
                 }
             }
 
-            // 获取世界书选择
-            const worldbookSelect = document.getElementById('lofter-gen-worldbook');
-            if (worldbookSelect) {
-                genSettings.worldBookId = worldbookSelect.value;
+            // 获取世界书选择（多选）
+            const worldbookContainer = document.getElementById('lofter-gen-worldbook-list');
+            if (worldbookContainer) {
+                const checkboxes = worldbookContainer.querySelectorAll('input[type="checkbox"]');
+                const selectedWbIds = [];
+                checkboxes.forEach(cb => {
+                    if (cb.checked) {
+                        selectedWbIds.push(cb.value);
+                    }
+                });
+                genSettings.worldBookIds = selectedWbIds;
+                // 清除旧的单选字段
+                delete genSettings.worldBookId;
             }
 
             saveLofterGenSettings(genSettings);
@@ -4088,10 +4103,11 @@ ${typeInfo.desc}
         // 获取生成设置
         const genSettings = getLofterGenSettings();
 
-        // 获取世界书内容
+        // 获取世界书内容（兼容旧版单选和新版多选）
         let worldBookContent = '';
-        if (genSettings.worldBookId) {
-            worldBookContent = await getWorldBookContent(genSettings.worldBookId);
+        const wbIds = genSettings.worldBookIds || (genSettings.worldBookId ? [genSettings.worldBookId] : []);
+        if (wbIds.length > 0) {
+            worldBookContent = await getWorldBookContent(wbIds);
         }
 
         // 获取文风预设
@@ -4181,14 +4197,15 @@ ${typeInfo.desc}
                     chapterNum = 1;
                 }
 
-                // 准备生成设定（首次创建时保存）
+                // 准备生成设定（首次创建时保存，包含剧情提示词）
                 const generationSettings = {
                     protagonistIds,
                     supportingIds,
                     workType: work.type,
                     styleIndex: styleIndex !== undefined ? styleIndex.toString() : '',
                     wordCount: wordCount,
-                    worldBookId: genSettings.worldBookId || ''
+                    worldBookIds: wbIds,
+                    plotHint: plotHint || ''
                 };
 
                 collection = getOrCreateCollection(
@@ -4773,7 +4790,8 @@ ${typeInfo.desc}
             workType: collection.workType === 'series' ? 'short_series' : 'long_serial',
             styleIndex: '',
             wordCount: 1500,
-            worldBookId: ''
+            worldBookIds: [],
+            plotHint: ''
         };
 
         // 复用自定义生成弹窗并修改标题和按钮文本
@@ -4815,6 +4833,10 @@ ${typeInfo.desc}
             // 字数
             const wordCountInput = document.getElementById('lofter-custom-word-count');
             if (wordCountInput) wordCountInput.value = settings.wordCount;
+
+            // 剧情提示词
+            const plotHintInput = document.getElementById('lofter-custom-plot-hint');
+            if (plotHintInput) plotHintInput.value = settings.plotHint || '';
         }, 50);
 
         modal.style.display = 'flex';
@@ -4845,13 +4867,15 @@ ${typeInfo.desc}
             const workType = document.getElementById('lofter-custom-work-type')?.value || 'long_serial';
             const styleIndex = document.getElementById('lofter-custom-style')?.value;
             const wordCount = parseInt(document.getElementById('lofter-custom-word-count')?.value) || 1500;
+            const plotHint = document.getElementById('lofter-custom-plot-hint')?.value.trim() || '';
 
             const newSettings = {
                 protagonistIds,
                 supportingIds,
                 workType,
                 styleIndex,
-                wordCount
+                wordCount,
+                plotHint
             };
 
             updateCollectionSettings(currentEditingCollectionId, newSettings);
@@ -4941,9 +4965,17 @@ ${typeInfo.desc}
 
         // 提交生成
         document.getElementById('lofter-update-submit-btn').onclick = async () => {
-            const plotHint = document.getElementById('lofter-update-plot-input').value.trim();
+            const userPlotHint = document.getElementById('lofter-update-plot-input').value.trim();
             modal.remove();
-            await generateNextChapter(collectionId, plotHint);
+            // 合并合集存储的剧情提示词和用户本次输入的提示词
+            const storedPlotHint = collection.generationSettings?.plotHint || '';
+            let mergedPlotHint = '';
+            if (storedPlotHint && userPlotHint) {
+                mergedPlotHint = `【合集剧情设定】${storedPlotHint}\n\n【本章剧情提示】${userPlotHint}`;
+            } else {
+                mergedPlotHint = userPlotHint || storedPlotHint;
+            }
+            await generateNextChapter(collectionId, mergedPlotHint);
         };
     }
 
@@ -4983,10 +5015,11 @@ ${typeInfo.desc}
                 return;
             }
 
-            // 获取世界书内容
+            // 获取世界书内容（兼容旧版单选和新版多选）
             let worldBookContent = '';
-            if (settings.worldBookId) {
-                worldBookContent = await getWorldBookContent(settings.worldBookId);
+            const settingsWbIds = settings.worldBookIds || (settings.worldBookId ? [settings.worldBookId] : []);
+            if (settingsWbIds.length > 0) {
+                worldBookContent = await getWorldBookContent(settingsWbIds);
             }
 
             // 获取文风
@@ -5002,50 +5035,46 @@ ${typeInfo.desc}
                 selectedStyle = stylePresets[Math.floor(Math.random() * stylePresets.length)];
             }
 
-            // 获取上一章内容和所有之前章节的概要
+            // 获取上一章全文 + 更早章节的概要（仅基于当前实际存在的章节）
             const chapterNum = collection.articleIds.length + 1;
             let previousContext = '';
 
             if (chapterNum > 1) {
-                // 有前置章节
+                // 上一章（合集中最后一篇）全文
                 const previousArticleId = collection.articleIds[collection.articleIds.length - 1];
                 const previousArticle = articles.find(a => a.id === previousArticleId);
 
-                // 收集已删除章节的保留梗概（确保删除章节后上下文不丢失）
-                let preservedContext = '';
-                if (collection.preservedSummaries && collection.preservedSummaries.length > 0) {
-                    const sorted = [...collection.preservedSummaries].sort((a, b) => a.originalChapterNum - b.originalChapterNum);
-                    preservedContext = '\n\n【已删除章节的情节概要（保留供衔接参考）】\n';
-                    sorted.forEach(ps => {
-                        preservedContext += `[原第${ps.originalChapterNum}章「${ps.title}」]\n${ps.summary}\n\n`;
-                    });
-                }
-
                 if (chapterNum === 2) {
-                    // 第2章，只使用第1章全文 + 已删除章节梗概
+                    // 第2章，只使用第1章全文
                     if (previousArticle) {
-                        previousContext = preservedContext + `\n\n【上一章（第1章）内容】\n${previousArticle.title}\n\n${previousArticle.content}`;
+                        previousContext = `\n\n【上一章（第1章）内容】\n${previousArticle.title}\n\n${previousArticle.content}`;
                     }
                 } else {
-                    // 第3章及以后，使用所有之前章节的概要 + 上一章全文 + 已删除章节梗概
+                    // 第3章及以后：每个更早章节的概要 + 上一章全文
                     let allSummaries = '';
 
-                    // 收集第1章到第n-2章的所有概要
+                    // 收集第1章到倒数第2章的概要
                     for (let i = 0; i < collection.articleIds.length - 1; i++) {
                         const articleId = collection.articleIds[i];
                         const summary = collection.chapterSummaries?.[articleId];
                         if (summary) {
                             allSummaries += `【第${i + 1}章情节概要】\n${summary}\n\n`;
+                        } else {
+                            // 如果没有概要，用文章标题做简略标记
+                            const a = articles.find(art => art.id === articleId);
+                            if (a) {
+                                allSummaries += `【第${i + 1}章】${a.title}（概要待生成）\n\n`;
+                            }
                         }
                     }
 
-                    if (allSummaries || preservedContext) {
-                        previousContext = preservedContext + `\n\n【之前章节概要】\n${allSummaries}`;
+                    if (allSummaries) {
+                        previousContext = `\n\n【之前章节概要】\n${allSummaries}`;
                     }
 
                     // 添加上一章全文
                     if (previousArticle) {
-                        previousContext += `【上一章（第${chapterNum - 1}章）内容】\n${previousArticle.title}\n\n${previousArticle.content}`;
+                        previousContext += `\n\n【上一章（第${chapterNum - 1}章）内容】\n${previousArticle.title}\n\n${previousArticle.content}`;
                     }
                 }
             }
