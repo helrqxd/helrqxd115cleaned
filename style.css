@@ -4997,6 +4997,22 @@ body {
   justify-content: center;
   align-items: center;
 }
+
+/* === AI报错红点标记样式 === */
+.error-dot {
+  width: 10px;
+  height: 10px;
+  background-color: #ff3b30;
+  border-radius: 50%;
+  display: none; /* 默认隐藏 */
+  box-shadow: 0 0 4px rgba(255, 59, 48, 0.5);
+  animation: error-dot-pulse 2s ease-in-out infinite;
+}
+
+@keyframes error-dot-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
 /* ▲▲▲ 新样式粘贴结束 ▲▲▲ */
 
 /* ▼▼▼ 【全新】通话记录页面与卡片样式 ▼▼▼ */

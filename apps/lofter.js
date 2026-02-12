@@ -82,6 +82,112 @@ document.addEventListener('DOMContentLoaded', () => {
         return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
     }
 
+    /**
+     * 集中式AI调用函数：发送请求并返回完整的响应文本
+     * 内部使用SSE流式传输保持连接活跃，防止长时间思考的模型（如Claude Opus）导致连接超时
+     * 对外接口为非流式——返回收集完毕的完整文本字符串
+     */
+    async function callLofterAI(prompt) {
+        const apiConfig = window.state?.apiConfig;
+        if (!apiConfig || !apiConfig.proxyUrl || !apiConfig.apiKey) {
+            throw new Error('请先在设置中配置API');
+        }
+        const { proxyUrl, apiKey, model, temperature } = apiConfig;
+        const isGemini = proxyUrl.includes('googleapis');
+        const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.8;
+
+        if (isGemini) {
+            // Gemini API：使用标准非流式请求（Google Cloud超时足够长）
+            const url = `${proxyUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
+            const res = await fetch(url, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    contents: [{ parts: [{ text: prompt }] }],
+                    generationConfig: { temperature: requestTemp }
+                })
+            });
+            if (!res.ok) {
+                const errBody = await res.text().catch(() => '');
+                throw new Error(`Gemini API请求失败 (${res.status}): ${errBody || res.statusText}`);
+            }
+            const json = await res.json();
+            if (!json.candidates?.[0]?.content?.parts?.[0]) {
+                throw new Error(json.error?.message || json.promptFeedback?.blockReason || 'Gemini API返回格式异常');
+            }
+            return json.candidates[0].content.parts[0].text;
+        }
+
+        // OpenAI兼容API：使用SSE流式传输保持连接，内部收集完整响应
+        const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+                model: model || 'gpt-3.5-turbo',
+                messages: [{ role: 'user', content: prompt }],
+                temperature: requestTemp,
+                stream: true
+            })
+        });
+
+        if (!res.ok) {
+            const errBody = await res.text().catch(() => '');
+            throw new Error(`API请求失败 (${res.status}): ${errBody || res.statusText}`);
+        }
+
+        const contentType = res.headers.get('content-type') || '';
+
+        // 兼容：如果服务端返回了非流式JSON响应，直接解析
+        if (contentType.includes('application/json')) {
+            const json = await res.json();
+            if (!json.choices?.[0]?.message) {
+                throw new Error(json.error?.message || 'API返回格式异常');
+            }
+            return json.choices[0].message.content;
+        }
+
+        // SSE流式响应：逐块读取并拼接完整内容
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let fullContent = '';
+        let buffer = '';
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            buffer += decoder.decode(value, { stream: true });
+            const lines = buffer.split('\n');
+            buffer = lines.pop() || '';
+
+            for (const line of lines) {
+                const trimmed = line.trim();
+                if (!trimmed || !trimmed.startsWith('data:')) continue;
+                const data = trimmed.slice(trimmed.startsWith('data: ') ? 6 : 5).trim();
+                if (data === '[DONE]') continue;
+
+                try {
+                    const parsed = JSON.parse(data);
+                    const delta = parsed.choices?.[0]?.delta;
+                    if (delta?.content) {
+                        fullContent += delta.content;
+                    }
+                } catch (e) {
+                    // 跳过非JSON行
+                }
+            }
+        }
+
+        if (!fullContent) {
+            throw new Error('API返回内容为空');
+        }
+
+        return fullContent;
+    }
+
     // 可选的作品类型配置（统一定义，自定义生成和自由生成共用）
     const WORK_TYPE_CONFIG = {
         // 'image': { name: '同人图/漫画', desc: '详细描述一幅同人插画或漫画的画面内容，包括构图、人物神态、动作、场景氛围等' },
@@ -751,53 +857,10 @@ ${typeInfo.desc}
     // 调用AI生成单个作品
     // workType: 预先随机决定的作品类型
     async function generateSingleWork(characters, worldBookContent, stylePreset, workType) {
-        const apiConfig = window.state?.apiConfig;
-        const { proxyUrl, apiKey, model, temperature } = apiConfig;
-        const isGemini = proxyUrl.includes('googleapis');
-
-        // 使用设置中的 temperature，如果没有设置则使用默认值
-        const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.8;
-
         const prompt = buildLofterGenerationPrompt(characters, worldBookContent, stylePreset, workType);
-        let responseData;
+        let responseData = await callLofterAI(prompt);
 
-        if (isGemini) {
-            const url = `${proxyUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { temperature: requestTemp }
-                })
-            });
-            const json = await res.json();
-            if (!json.candidates?.[0]?.content?.parts?.[0]) {
-                throw new Error(json.error?.message || 'API返回格式异常');
-            }
-            responseData = json.candidates[0].content.parts[0].text;
-        } else {
-            const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: model || 'gpt-3.5-turbo',
-                    messages: [{ role: 'user', content: prompt }],
-                    temperature: requestTemp,
-                    stream: false
-                })
-            });
-            const json = await res.json();
-            if (!json.choices?.[0]?.message) {
-                throw new Error(json.error?.message || 'API返回格式异常');
-            }
-            responseData = json.choices[0].message.content;
-        }
-
-        // 移除思维链标签（如 <think>...</think>）后解析JSON
+        // 移除思维链标签后解析JSON
         responseData = stripThinkingTags(responseData);
         let cleanJson = responseData;
         const jsonMatch = responseData.match(/\{[\s\S]*\}/);
@@ -2178,10 +2241,6 @@ ${typeInfo.desc}
 
         showLofterToast('正在生成段评...');
 
-        const { proxyUrl, apiKey, model, temperature } = apiConfig;
-        const isGemini = proxyUrl.includes('googleapis');
-        const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.8;
-
         // 获取当前段落已有的段评
         const existingComments = article.paragraphComments?.[paragraphIndex] || [];
 
@@ -2293,42 +2352,7 @@ ${unrepliedUserComments.length > 0 ? `★★★ 最高优先级：必须为上�
 直接输出JSON，不要添加markdown代码块标记。`;
 
         try {
-            let responseData;
-            if (isGemini) {
-                const url = `${proxyUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
-                const res = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: { temperature: requestTemp }
-                    })
-                });
-                const json = await res.json();
-                if (!json.candidates?.[0]?.content?.parts?.[0]) {
-                    throw new Error(json.error?.message || 'API返回格式异常');
-                }
-                responseData = json.candidates[0].content.parts[0].text;
-            } else {
-                const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
-                    },
-                    body: JSON.stringify({
-                        model: model || 'gpt-3.5-turbo',
-                        messages: [{ role: 'user', content: prompt }],
-                        temperature: requestTemp,
-                        stream: false
-                    })
-                });
-                const json = await res.json();
-                if (!json.choices?.[0]?.message) {
-                    throw new Error(json.error?.message || 'API返回格式异常');
-                }
-                responseData = json.choices[0].message.content;
-            }
+            let responseData = await callLofterAI(prompt);
 
             // 移除思维链标签后解析JSON
             responseData = stripThinkingTags(responseData);
@@ -2763,9 +2787,6 @@ ${unrepliedUserComments.length > 0 ? `★★★ 最高优先级：必须为上�
     // AI生成评论函数
     async function generateAIComments(article) {
         const apiConfig = window.state?.apiConfig;
-        const { proxyUrl, apiKey, model, temperature } = apiConfig;
-        const isGemini = proxyUrl.includes('googleapis');
-        const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.8;
 
         // 检查是否有未被回复的用户评论
         const unrepliedUserComments = [];
@@ -2785,42 +2806,7 @@ ${unrepliedUserComments.length > 0 ? `★★★ 最高优先级：必须为上�
         // 构建生成评论的提示词
         const prompt = buildCommentGenerationPrompt(article, unrepliedUserComments);
 
-        let responseData;
-        if (isGemini) {
-            const url = `${proxyUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { temperature: requestTemp }
-                })
-            });
-            const json = await res.json();
-            if (!json.candidates?.[0]?.content?.parts?.[0]) {
-                throw new Error(json.error?.message || 'API返回格式异常');
-            }
-            responseData = json.candidates[0].content.parts[0].text;
-        } else {
-            const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${apiKey}`
-                },
-                body: JSON.stringify({
-                    model: model || 'gpt-3.5-turbo',
-                    messages: [{ role: 'user', content: prompt }],
-                    temperature: requestTemp,
-                    stream: false
-                })
-            });
-            const json = await res.json();
-            if (!json.choices?.[0]?.message) {
-                throw new Error(json.error?.message || 'API返回格式异常');
-            }
-            responseData = json.choices[0].message.content;
-        }
+        let responseData = await callLofterAI(prompt);
 
         // 移除思维链标签后解析返回的JSON
         responseData = stripThinkingTags(responseData);
@@ -4142,47 +4128,7 @@ ${typeInfo.desc}
             const prompt = buildCustomGenerationPrompt(protagonists, supportingChars, workType, selectedStyle, wordCount, plotHint, worldBookContent);
 
             // 调用API
-            const { proxyUrl, apiKey, model, temperature } = apiConfig;
-            const isGemini = proxyUrl.includes('googleapis');
-            const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.8;
-
-            let responseData;
-
-            if (isGemini) {
-                const url = `${proxyUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
-                const res = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: { temperature: requestTemp }
-                    })
-                });
-                const json = await res.json();
-                if (!json.candidates?.[0]?.content?.parts?.[0]) {
-                    throw new Error(json.error?.message || 'API返回格式异常');
-                }
-                responseData = json.candidates[0].content.parts[0].text;
-            } else {
-                const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
-                    },
-                    body: JSON.stringify({
-                        model: model || 'gpt-3.5-turbo',
-                        messages: [{ role: 'user', content: prompt }],
-                        temperature: requestTemp,
-                        stream: false
-                    })
-                });
-                const json = await res.json();
-                if (!json.choices?.[0]?.message) {
-                    throw new Error(json.error?.message || 'API返回格式异常');
-                }
-                responseData = json.choices[0].message.content;
-            }
+            let responseData = await callLofterAI(prompt);
 
             // 移除思维链标签后解析JSON
             responseData = stripThinkingTags(responseData);
@@ -5108,47 +5054,7 @@ ${typeInfo.desc}
             );
 
             // 调用API生成
-            const { proxyUrl, apiKey, model, temperature } = apiConfig;
-            const isGemini = proxyUrl.includes('googleapis');
-            const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.8;
-
-            let responseData;
-
-            if (isGemini) {
-                const url = `${proxyUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
-                const res = await fetch(url, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt }] }],
-                        generationConfig: { temperature: requestTemp }
-                    })
-                });
-                const json = await res.json();
-                if (!json.candidates?.[0]?.content?.parts?.[0]) {
-                    throw new Error(json.error?.message || 'API返回格式异常');
-                }
-                responseData = json.candidates[0].content.parts[0].text;
-            } else {
-                const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Authorization': `Bearer ${apiKey}`
-                    },
-                    body: JSON.stringify({
-                        model: model || 'gpt-3.5-turbo',
-                        messages: [{ role: 'user', content: prompt }],
-                        temperature: requestTemp,
-                        stream: false
-                    })
-                });
-                const json = await res.json();
-                if (!json.choices?.[0]?.message) {
-                    throw new Error(json.error?.message || 'API返回格式异常');
-                }
-                responseData = json.choices[0].message.content;
-            }
+            let responseData = await callLofterAI(prompt);
 
             // 移除思维链标签后解析JSON
             responseData = stripThinkingTags(responseData);

@@ -265,6 +265,7 @@ function createChatListItem(chat) {
                 <div class="chat-list-time">${timeDisplay}</div>
                 <div class="unread-count-wrapper">
                     <span class="unread-count" style="display: none;">0</span>
+                    <span class="error-dot" style="display: none;"></span>
                 </div>
             </div>
         </div>
@@ -283,6 +284,19 @@ function createChatListItem(chat) {
         unreadEl.style.display = 'inline-flex';
     } else {
         unreadEl.style.display = 'none';
+    }
+    // 错误红点标记
+    const errorDotEl = content.querySelector('.error-dot');
+    if (chat.hasError) {
+        errorDotEl.style.display = 'inline-block';
+        // 同时将最后一条消息显示为红色
+        const lastMsgEl = content.querySelector('.last-msg');
+        if (lastMsgEl) {
+            lastMsgEl.style.color = '#ff3b30';
+            lastMsgEl.style.fontStyle = 'normal';
+        }
+    } else {
+        errorDotEl.style.display = 'none';
     }
     const infoEl = content.querySelector('.info');
     if (infoEl) {
@@ -1650,11 +1664,13 @@ window.openChat = async function openChat(chatId) {
     const chat = window.state.chats[chatId];
     if (!chat) return; // 安全检查
 
-    // 将未读数清零
-    if (chat.unreadCount > 0) {
-        chat.unreadCount = 0;
-        await window.db.chats.put(chat); // 别忘了把这个改变同步到数据库
-        // 我们稍后会在渲染列表时重新渲染，所以这里不需要立即重绘列表
+    // 将未读数清零 & 清除错误红点
+    const needSave = chat.unreadCount > 0 || chat.hasError;
+    if (chat.unreadCount > 0) chat.unreadCount = 0;
+    if (chat.hasError) chat.hasError = false;
+    if (needSave) {
+        await window.db.chats.put(chat);
+        renderChatList();
     }
     // 把 openChat 函数挂载到全局 window 对象上
     window.openChat = openChat;
@@ -2162,8 +2178,10 @@ window.triggerAiResponse = async function triggerAiResponse() {
             console.error('线下模式AI响应失败:', error);
             const errorMessage = { role: 'assistant', content: `[出错了: ${error.message}]`, timestamp: Date.now() };
             chat.history.push(errorMessage);
+            chat.hasError = true;
             await window.db.chats.put(chat);
             appendMessage(errorMessage, chat);
+            renderChatList();
         } finally {
             if (chatHeaderTitle && window.state.chats[chatId]) {
                 chatHeaderTitle.style.opacity = 0;
@@ -6665,12 +6683,14 @@ ${contextSummaryForApproval}
             chat.history.push(errorMessage);
         }
 
+        chat.hasError = true;
         await window.db.chats.put(chat);
         window.videoCallState.isAwaitingResponse = false;
 
         if (document.getElementById('chat-interface-screen').classList.contains('active') && window.state.activeChatId === chatId) {
             renderChatInterface(chatId);
         }
+        renderChatList();
     } finally {
         // 在 finally 块中统一隐藏所有类型的提示
         if (chat.isGroup) {
