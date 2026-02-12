@@ -786,7 +786,8 @@ ${typeInfo.desc}
                 body: JSON.stringify({
                     model: model || 'gpt-3.5-turbo',
                     messages: [{ role: 'user', content: prompt }],
-                    temperature: requestTemp
+                    temperature: requestTemp,
+                    stream: false
                 })
             });
             const json = await res.json();
@@ -2318,7 +2319,8 @@ ${unrepliedUserComments.length > 0 ? `★★★ 最高优先级：必须为上�
                     body: JSON.stringify({
                         model: model || 'gpt-3.5-turbo',
                         messages: [{ role: 'user', content: prompt }],
-                        temperature: requestTemp
+                        temperature: requestTemp,
+                        stream: false
                     })
                 });
                 const json = await res.json();
@@ -2809,7 +2811,8 @@ ${unrepliedUserComments.length > 0 ? `★★★ 最高优先级：必须为上�
                 body: JSON.stringify({
                     model: model || 'gpt-3.5-turbo',
                     messages: [{ role: 'user', content: prompt }],
-                    temperature: requestTemp
+                    temperature: requestTemp,
+                    stream: false
                 })
             });
             const json = await res.json();
@@ -4170,7 +4173,8 @@ ${typeInfo.desc}
                     body: JSON.stringify({
                         model: model || 'gpt-3.5-turbo',
                         messages: [{ role: 'user', content: prompt }],
-                        temperature: requestTemp
+                        temperature: requestTemp,
+                        stream: false
                     })
                 });
                 const json = await res.json();
@@ -5135,7 +5139,8 @@ ${typeInfo.desc}
                     body: JSON.stringify({
                         model: model || 'gpt-3.5-turbo',
                         messages: [{ role: 'user', content: prompt }],
-                        temperature: requestTemp
+                        temperature: requestTemp,
+                        stream: false
                     })
                 });
                 const json = await res.json();
