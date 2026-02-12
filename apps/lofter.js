@@ -165,8 +165,9 @@ document.addEventListener('DOMContentLoaded', () => {
      * 集中式AI调用函数：发送请求并返回完整的响应文本
      * 内部使用SSE流式传输保持连接活跃，防止长时间思考的模型（如Claude Opus）导致连接超时
      * 对外接口为非流式——返回收集完毕的完整文本字符串
+     * 包含自动重试机制，应对网络中断
      */
-    async function callLofterAI(prompt) {
+    async function callLofterAI(prompt, maxRetries = 3) {
         const apiConfig = window.state?.apiConfig;
         if (!apiConfig || !apiConfig.proxyUrl || !apiConfig.apiKey) {
             throw new Error('请先在设置中配置API');
@@ -175,29 +176,83 @@ document.addEventListener('DOMContentLoaded', () => {
         const isGemini = proxyUrl.includes('googleapis');
         const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.8;
 
-        if (isGemini) {
-            // Gemini API：使用标准非流式请求（Google Cloud超时足够长）
-            const url = `${proxyUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
-            const res = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    contents: [{ parts: [{ text: prompt }] }],
-                    generationConfig: { temperature: requestTemp }
-                })
-            });
-            if (!res.ok) {
-                const errBody = await res.text().catch(() => '');
-                throw new Error(`Gemini API请求失败 (${res.status}): ${errBody || res.statusText}`);
+        // 超时时间：10分钟（足够长思考模型完成）
+        const TIMEOUT_MS = 10 * 60 * 1000;
+
+        let lastError = null;
+
+        for (let attempt = 1; attempt <= maxRetries; attempt++) {
+            // 每次尝试创建新的 AbortController
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), TIMEOUT_MS);
+
+            try {
+                let result;
+
+                if (isGemini) {
+                    result = await _callGeminiAPI(proxyUrl, apiKey, model, requestTemp, prompt, controller.signal);
+                } else {
+                    result = await _callOpenAICompatibleAPI(proxyUrl, apiKey, model, requestTemp, prompt, controller.signal);
+                }
+
+                clearTimeout(timeoutId);
+                return result;
+
+            } catch (error) {
+                clearTimeout(timeoutId);
+                lastError = error;
+
+                // 判断是否为可重试的网络错误
+                const isNetworkError = error.name === 'TypeError'     // fetch network error
+                    || error.name === 'AbortError'                    // timeout abort
+                    || error.message?.includes('network')
+                    || error.message?.includes('Network')
+                    || error.message?.includes('Failed to fetch')
+                    || error.message?.includes('failed to fetch')
+                    || error.message?.includes('Load failed')
+                    || error.message?.includes('aborted');
+
+                if (isNetworkError && attempt < maxRetries) {
+                    // 等待后重试（递增延迟：3s, 6s）
+                    const delay = attempt * 3000;
+                    console.warn(`AI请求第${attempt}次失败 (${error.message})，${delay / 1000}秒后重试...`);
+                    await new Promise(r => setTimeout(r, delay));
+                    continue;
+                }
+
+                // 非网络错误或已用完重试次数，直接抛出
+                throw error;
             }
-            const json = await res.json();
-            if (!json.candidates?.[0]?.content?.parts?.[0]) {
-                throw new Error(json.error?.message || json.promptFeedback?.blockReason || 'Gemini API返回格式异常');
-            }
-            return json.candidates[0].content.parts[0].text;
         }
 
-        // OpenAI兼容API：使用SSE流式传输保持连接，内部收集完整响应
+        throw lastError;
+    }
+
+    /** Gemini API 调用实现 */
+    async function _callGeminiAPI(proxyUrl, apiKey, model, temperature, prompt, signal) {
+        const url = `${proxyUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
+        const res = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                contents: [{ parts: [{ text: prompt }] }],
+                generationConfig: { temperature }
+            }),
+            signal
+        });
+        if (!res.ok) {
+            const errBody = await res.text().catch(() => '');
+            throw new Error(`Gemini API请求失败 (${res.status}): ${errBody || res.statusText}`);
+        }
+        const json = await res.json();
+        if (!json.candidates?.[0]?.content?.parts?.[0]) {
+            throw new Error(json.error?.message || json.promptFeedback?.blockReason || 'Gemini API返回格式异常');
+        }
+        return json.candidates[0].content.parts[0].text;
+    }
+
+    /** OpenAI兼容API 调用实现（SSE流式传输保持连接） */
+    async function _callOpenAICompatibleAPI(proxyUrl, apiKey, model, temperature, prompt, signal) {
         const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
             method: 'POST',
             headers: {
@@ -207,9 +262,10 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify({
                 model: model || 'gpt-3.5-turbo',
                 messages: [{ role: 'user', content: prompt }],
-                temperature: requestTemp,
+                temperature,
                 stream: true
-            })
+            }),
+            signal
         });
 
         if (!res.ok) {
@@ -234,30 +290,34 @@ document.addEventListener('DOMContentLoaded', () => {
         let fullContent = '';
         let buffer = '';
 
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) break;
+        try {
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
 
-            buffer += decoder.decode(value, { stream: true });
-            const lines = buffer.split('\n');
-            buffer = lines.pop() || '';
+                buffer += decoder.decode(value, { stream: true });
+                const lines = buffer.split('\n');
+                buffer = lines.pop() || '';
 
-            for (const line of lines) {
-                const trimmed = line.trim();
-                if (!trimmed || !trimmed.startsWith('data:')) continue;
-                const data = trimmed.slice(trimmed.startsWith('data: ') ? 6 : 5).trim();
-                if (data === '[DONE]') continue;
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed || !trimmed.startsWith('data:')) continue;
+                    const data = trimmed.slice(trimmed.startsWith('data: ') ? 6 : 5).trim();
+                    if (data === '[DONE]') continue;
 
-                try {
-                    const parsed = JSON.parse(data);
-                    const delta = parsed.choices?.[0]?.delta;
-                    if (delta?.content) {
-                        fullContent += delta.content;
+                    try {
+                        const parsed = JSON.parse(data);
+                        const delta = parsed.choices?.[0]?.delta;
+                        if (delta?.content) {
+                            fullContent += delta.content;
+                        }
+                    } catch (e) {
+                        // 跳过非JSON行
                     }
-                } catch (e) {
-                    // 跳过非JSON行
                 }
             }
+        } finally {
+            reader.releaseLock();
         }
 
         if (!fullContent) {
