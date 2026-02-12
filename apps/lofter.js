@@ -284,44 +284,86 @@ document.addEventListener('DOMContentLoaded', () => {
             return json.choices[0].message.content;
         }
 
-        // SSE流式响应：逐块读取并拼接完整内容
+        // 读取完整的响应体文本
         const reader = res.body.getReader();
         const decoder = new TextDecoder();
-        let fullContent = '';
-        let buffer = '';
+        let rawBody = '';
 
         try {
             while (true) {
                 const { done, value } = await reader.read();
                 if (done) break;
-
-                buffer += decoder.decode(value, { stream: true });
-                const lines = buffer.split('\n');
-                buffer = lines.pop() || '';
-
-                for (const line of lines) {
-                    const trimmed = line.trim();
-                    if (!trimmed || !trimmed.startsWith('data:')) continue;
-                    const data = trimmed.slice(trimmed.startsWith('data: ') ? 6 : 5).trim();
-                    if (data === '[DONE]') continue;
-
-                    try {
-                        const parsed = JSON.parse(data);
-                        const delta = parsed.choices?.[0]?.delta;
-                        if (delta?.content) {
-                            fullContent += delta.content;
-                        }
-                    } catch (e) {
-                        // 跳过非JSON行
-                    }
-                }
+                rawBody += decoder.decode(value, { stream: true });
             }
         } finally {
             reader.releaseLock();
         }
 
-        if (!fullContent) {
+        if (!rawBody.trim()) {
             throw new Error('API返回内容为空');
+        }
+
+        // 尝试策略1：作为完整JSON对象解析（某些代理忽略stream参数，直接返回完整JSON）
+        try {
+            const json = JSON.parse(rawBody.trim());
+            if (json.choices?.[0]?.message?.content) {
+                return json.choices[0].message.content;
+            }
+        } catch (e) {
+            // 不是完整JSON，继续按SSE解析
+        }
+
+        // 策略2：SSE格式解析
+        let fullContent = '';
+        const lines = rawBody.split('\n');
+
+        for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed || !trimmed.startsWith('data:')) continue;
+            const data = trimmed.slice(trimmed.startsWith('data: ') ? 6 : 5).trim();
+            if (data === '[DONE]') continue;
+
+            try {
+                const parsed = JSON.parse(data);
+                const choice = parsed.choices?.[0];
+                if (!choice) continue;
+
+                // 提取内容：兼容多种格式
+                // 标准OpenAI流式：delta.content
+                // 某些代理最终chunk：message.content
+                // 思考模型变体：delta.text
+                const content = choice.delta?.content
+                    || choice.message?.content
+                    || choice.delta?.text
+                    || null;
+
+                if (content) {
+                    fullContent += content;
+                }
+            } catch (e) {
+                // 跳过非JSON行
+            }
+        }
+
+        if (!fullContent) {
+            // 策略3：最后尝试从原始响应中提取任何可能的JSON内容
+            // 某些代理可能返回非标准格式
+            console.warn('SSE解析未提取到内容，尝试从原始响应提取。原始响应前200字符:', rawBody.substring(0, 200));
+
+            // 尝试提取最后一个包含 message.content 的JSON
+            const jsonMatches = rawBody.match(/\{[^{}]*"content"\s*:\s*"[^"]*"[^{}]*\}/g)
+                || rawBody.match(/\{[\s\S]*?"choices"[\s\S]*?\}/g);
+            if (jsonMatches) {
+                for (let i = jsonMatches.length - 1; i >= 0; i--) {
+                    try {
+                        const obj = JSON.parse(jsonMatches[i]);
+                        const c = obj.choices?.[0]?.message?.content || obj.choices?.[0]?.delta?.content;
+                        if (c) return c;
+                    } catch (e) { /* continue */ }
+                }
+            }
+
+            throw new Error('API返回了数据但无法提取内容，请检查API代理是否兼容OpenAI格式');
         }
 
         return fullContent;
