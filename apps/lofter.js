@@ -83,6 +83,85 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
+     * 修复并解析AI返回的JSON字符串
+     * AI（特别是Claude Opus）经常在JSON字符串值中输出未转义的控制字符（换行、制表符等），
+     * 导致标准 JSON.parse 失败。此函数会先尝试直接解析，失败后自动修复再解析。
+     */
+    function repairAndParseJSON(text) {
+        // 先提取JSON对象
+        let jsonStr = text;
+        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            jsonStr = jsonMatch[0];
+        }
+
+        // 第一次尝试：直接解析
+        try {
+            return JSON.parse(jsonStr);
+        } catch (e) {
+            // 解析失败，进行修复
+        }
+
+        // 修复策略：遍历字符串，在JSON字符串值内部将控制字符转义
+        let repaired = '';
+        let inString = false;
+        let escaped = false;
+
+        for (let i = 0; i < jsonStr.length; i++) {
+            const ch = jsonStr[i];
+
+            if (escaped) {
+                repaired += ch;
+                escaped = false;
+                continue;
+            }
+
+            if (ch === '\\' && inString) {
+                repaired += ch;
+                escaped = true;
+                continue;
+            }
+
+            if (ch === '"') {
+                inString = !inString;
+                repaired += ch;
+                continue;
+            }
+
+            if (inString) {
+                // 在字符串值内部，转义控制字符
+                const code = ch.charCodeAt(0);
+                if (code === 10) {         // \n
+                    repaired += '\\n';
+                } else if (code === 13) {  // \r
+                    repaired += '\\r';
+                } else if (code === 9) {   // \t
+                    repaired += '\\t';
+                } else if (code === 8) {   // \b
+                    repaired += '\\b';
+                } else if (code === 12) {  // \f
+                    repaired += '\\f';
+                } else if (code < 32) {    // 其他控制字符
+                    repaired += '\\u' + code.toString(16).padStart(4, '0');
+                } else {
+                    repaired += ch;
+                }
+            } else {
+                repaired += ch;
+            }
+        }
+
+        // 第二次尝试
+        try {
+            return JSON.parse(repaired);
+        } catch (e2) {
+            // 最后兜底：如果仍然失败，抛出原始错误信息和部分内容便于调试
+            console.error('JSON修复后仍无法解析，原始内容前500字符:', jsonStr.substring(0, 500));
+            throw new Error('AI返回的JSON格式无法解析，请重试。错误: ' + e2.message);
+        }
+    }
+
+    /**
      * 集中式AI调用函数：发送请求并返回完整的响应文本
      * 内部使用SSE流式传输保持连接活跃，防止长时间思考的模型（如Claude Opus）导致连接超时
      * 对外接口为非流式——返回收集完毕的完整文本字符串
@@ -862,13 +941,7 @@ ${typeInfo.desc}
 
         // 移除思维链标签后解析JSON
         responseData = stripThinkingTags(responseData);
-        let cleanJson = responseData;
-        const jsonMatch = responseData.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            cleanJson = jsonMatch[0];
-        }
-
-        return JSON.parse(cleanJson);
+        return repairAndParseJSON(responseData);
     }
 
     // 调用AI生成作品（分别生成每个作品）
@@ -2358,13 +2431,7 @@ ${unrepliedUserComments.length > 0 ? `★★★ 最高优先级：必须为上�
             responseData = stripThinkingTags(responseData);
             console.log('AI段评生成结果:', responseData);
 
-            let cleanJson = responseData;
-            const jsonMatch = responseData.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                cleanJson = jsonMatch[0];
-            }
-
-            const result = JSON.parse(cleanJson);
+            const result = repairAndParseJSON(responseData);
 
             // 添加生成的段评
             let articles = await getLofterArticles();
@@ -2810,13 +2877,7 @@ ${unrepliedUserComments.length > 0 ? `★★★ 最高优先级：必须为上�
 
         // 移除思维链标签后解析返回的JSON
         responseData = stripThinkingTags(responseData);
-        let cleanJson = responseData;
-        const jsonMatch = responseData.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-            cleanJson = jsonMatch[0];
-        }
-
-        const result = JSON.parse(cleanJson);
+        const result = repairAndParseJSON(responseData);
         const now = Date.now();
         const commentAvatars = [
             'https://api.dicebear.com/7.x/notionists/svg?seed=reader1',
@@ -4132,13 +4193,7 @@ ${typeInfo.desc}
 
             // 移除思维链标签后解析JSON
             responseData = stripThinkingTags(responseData);
-            let cleanJson = responseData;
-            const jsonMatch = responseData.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                cleanJson = jsonMatch[0];
-            }
-
-            const work = JSON.parse(cleanJson);
+            const work = repairAndParseJSON(responseData);
             const now = Date.now();
             const authorId = 'author_' + generateId();
 
@@ -5058,13 +5113,7 @@ ${typeInfo.desc}
 
             // 移除思维链标签后解析JSON
             responseData = stripThinkingTags(responseData);
-            let cleanJson = responseData;
-            const jsonMatch = responseData.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                cleanJson = jsonMatch[0];
-            }
-
-            const work = JSON.parse(cleanJson);
+            const work = repairAndParseJSON(responseData);
             const now = Date.now();
 
             // 处理AI生成的评论
