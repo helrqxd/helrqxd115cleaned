@@ -163,9 +163,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * 集中式AI调用函数：发送请求并返回完整的响应文本
-     * 内部使用SSE流式传输保持连接活跃，防止长时间思考的模型（如Claude Opus）导致连接超时
-     * 对外接口为非流式——返回收集完毕的完整文本字符串
-     * 包含自动重试机制，应对网络中断
+     * 使用非流式请求（不传 stream 参数），与其他模块保持一致。
+     * 包含自动重试机制（最多3次，递增延迟），应对网络中断。
+     * 10分钟 AbortController 超时保护，防止无限等待。
      */
     async function callLofterAI(prompt, maxRetries = 3) {
         const apiConfig = window.state?.apiConfig;
@@ -251,7 +251,12 @@ document.addEventListener('DOMContentLoaded', () => {
         return json.candidates[0].content.parts[0].text;
     }
 
-    /** OpenAI兼容API 调用实现（SSE流式传输保持连接） */
+    /**
+     * OpenAI兼容API 调用实现（非流式）
+     * 不传 stream 参数（默认 false），与 cphone / xhs / weibo 等模块保持一致。
+     * 避免 stream:true 导致代理将连接视为SSE流，在Claude Opus长时间思考期间
+     * 因无数据流过触发代理空闲超时（~2分钟）而断连（ERR_EMPTY_RESPONSE）。
+     */
     async function _callOpenAICompatibleAPI(proxyUrl, apiKey, model, temperature, prompt, signal) {
         const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
             method: 'POST',
@@ -262,8 +267,7 @@ document.addEventListener('DOMContentLoaded', () => {
             body: JSON.stringify({
                 model: model || 'gpt-3.5-turbo',
                 messages: [{ role: 'user', content: prompt }],
-                temperature,
-                stream: true
+                temperature
             }),
             signal
         });
@@ -273,100 +277,11 @@ document.addEventListener('DOMContentLoaded', () => {
             throw new Error(`API请求失败 (${res.status}): ${errBody || res.statusText}`);
         }
 
-        const contentType = res.headers.get('content-type') || '';
-
-        // 兼容：如果服务端返回了非流式JSON响应，直接解析
-        if (contentType.includes('application/json')) {
-            const json = await res.json();
-            if (!json.choices?.[0]?.message) {
-                throw new Error(json.error?.message || 'API返回格式异常');
-            }
-            return json.choices[0].message.content;
+        const json = await res.json();
+        if (!json.choices?.[0]?.message) {
+            throw new Error(json.error?.message || 'API返回格式异常');
         }
-
-        // 读取完整的响应体文本
-        const reader = res.body.getReader();
-        const decoder = new TextDecoder();
-        let rawBody = '';
-
-        try {
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
-                rawBody += decoder.decode(value, { stream: true });
-            }
-        } finally {
-            reader.releaseLock();
-        }
-
-        if (!rawBody.trim()) {
-            throw new Error('API返回内容为空');
-        }
-
-        // 尝试策略1：作为完整JSON对象解析（某些代理忽略stream参数，直接返回完整JSON）
-        try {
-            const json = JSON.parse(rawBody.trim());
-            if (json.choices?.[0]?.message?.content) {
-                return json.choices[0].message.content;
-            }
-        } catch (e) {
-            // 不是完整JSON，继续按SSE解析
-        }
-
-        // 策略2：SSE格式解析
-        let fullContent = '';
-        const lines = rawBody.split('\n');
-
-        for (const line of lines) {
-            const trimmed = line.trim();
-            if (!trimmed || !trimmed.startsWith('data:')) continue;
-            const data = trimmed.slice(trimmed.startsWith('data: ') ? 6 : 5).trim();
-            if (data === '[DONE]') continue;
-
-            try {
-                const parsed = JSON.parse(data);
-                const choice = parsed.choices?.[0];
-                if (!choice) continue;
-
-                // 提取内容：兼容多种格式
-                // 标准OpenAI流式：delta.content
-                // 某些代理最终chunk：message.content
-                // 思考模型变体：delta.text
-                const content = choice.delta?.content
-                    || choice.message?.content
-                    || choice.delta?.text
-                    || null;
-
-                if (content) {
-                    fullContent += content;
-                }
-            } catch (e) {
-                // 跳过非JSON行
-            }
-        }
-
-        if (!fullContent) {
-            // 策略3：最后尝试从原始响应中提取任何可能的JSON内容
-            // 某些代理可能返回非标准格式
-            console.warn('SSE解析未提取到内容，尝试从原始响应提取。原始响应前200字符:', rawBody.substring(0, 200));
-
-            // 尝试提取最后一个包含 message.content 的JSON
-            const jsonMatches = rawBody.match(/\{[^{}]*"content"\s*:\s*"[^"]*"[^{}]*\}/g)
-                || rawBody.match(/\{[\s\S]*?"choices"[\s\S]*?\}/g);
-            if (jsonMatches) {
-                for (let i = jsonMatches.length - 1; i >= 0; i--) {
-                    try {
-                        const obj = JSON.parse(jsonMatches[i]);
-                        const c = obj.choices?.[0]?.message?.content || obj.choices?.[0]?.delta?.content;
-                        if (c) return c;
-                    } catch (e) { /* continue */ }
-                }
-            }
-
-            throw new Error('API返回了数据但无法提取内容，请检查API代理是否兼容OpenAI格式');
-        }
-
-        return fullContent;
+        return json.choices[0].message.content;
     }
 
     // 可选的作品类型配置（统一定义，自定义生成和自由生成共用）
