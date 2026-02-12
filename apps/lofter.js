@@ -84,13 +84,21 @@ document.addEventListener('DOMContentLoaded', () => {
 
     /**
      * 修复并解析AI返回的JSON字符串
-     * AI（特别是Claude Opus）经常在JSON字符串值中输出未转义的控制字符（换行、制表符等），
+     * AI（特别是Claude Opus）经常在JSON字符串值中输出：
+     *  1. 未转义的控制字符（换行、制表符等）
+     *  2. 未转义的双引号（如对话中的 "你好"）
+     *  3. 尾部逗号（如 {"a":1,}）
      * 导致标准 JSON.parse 失败。此函数会先尝试直接解析，失败后自动修复再解析。
      */
     function repairAndParseJSON(text) {
-        // 先提取JSON对象
-        let jsonStr = text;
-        const jsonMatch = text.match(/\{[\s\S]*\}/);
+        // 先去除可能的 markdown 代码块标记
+
+        console.log('Repairing JSON:', text);
+
+        let jsonStr = text.replace(/```(?:json)?\s*/gi, '').replace(/```\s*$/gi, '').trim();
+
+        // 提取JSON对象
+        const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
             jsonStr = jsonMatch[0];
         }
@@ -102,7 +110,7 @@ document.addEventListener('DOMContentLoaded', () => {
             // 解析失败，进行修复
         }
 
-        // 修复策略：遍历字符串，在JSON字符串值内部将控制字符转义
+        // 修复策略：遍历字符串，修复控制字符 + 未转义的双引号
         let repaired = '';
         let inString = false;
         let escaped = false;
@@ -123,8 +131,28 @@ document.addEventListener('DOMContentLoaded', () => {
             }
 
             if (ch === '"') {
-                inString = !inString;
-                repaired += ch;
+                if (!inString) {
+                    // 不在字符串内 → 开启字符串
+                    inString = true;
+                    repaired += ch;
+                } else {
+                    // 在字符串内遇到引号 → 判断是结构性闭合引号还是内容中的引号
+                    // 向后看第一个非空白字符，如果是 JSON 结构符号（, } ] :）则认为是闭合引号
+                    let j = i + 1;
+                    while (j < jsonStr.length && (jsonStr[j] === ' ' || jsonStr[j] === '\t' || jsonStr[j] === '\r' || jsonStr[j] === '\n')) {
+                        j++;
+                    }
+                    const nextNonWs = j < jsonStr.length ? jsonStr[j] : '';
+
+                    if (nextNonWs === ',' || nextNonWs === '}' || nextNonWs === ']' || nextNonWs === ':' || nextNonWs === '') {
+                        // 看起来是真正的闭合引号
+                        inString = false;
+                        repaired += ch;
+                    } else {
+                        // 字符串内部的未转义引号 → 转义它
+                        repaired += '\\"';
+                    }
+                }
                 continue;
             }
 
@@ -155,9 +183,17 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             return JSON.parse(repaired);
         } catch (e2) {
+            // 解析失败，进行更激进的修复
+        }
+
+        // 第三次尝试：移除尾部逗号后再解析
+        try {
+            const noTrailing = repaired.replace(/,\s*([}\]])/g, '$1');
+            return JSON.parse(noTrailing);
+        } catch (e3) {
             // 最后兜底：如果仍然失败，抛出原始错误信息和部分内容便于调试
             console.error('JSON修复后仍无法解析，原始内容前500字符:', jsonStr.substring(0, 500));
-            throw new Error('AI返回的JSON格式无法解析，请重试。错误: ' + e2.message);
+            throw new Error('AI返回的JSON格式无法解析，请重试。错误: ' + e3.message);
         }
     }
 
