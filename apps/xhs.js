@@ -2064,12 +2064,72 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         if (followNotes.length === 0) {
+            followFeed.classList.remove('xhs-waterfall');
+            followFeed.classList.add('xhs-grid-empty-container');
+            followFeed.style.cssText = '';
             followFeed.innerHTML = '<div class="xhs-empty-state"><p>关注的人还没有发布新内容~<br>点击刷新按钮生成新笔记</p></div>';
+            if (followFeed.parentElement) followFeed.parentElement.classList.add('xhs-no-scroll');
             return;
         }
+        if (followFeed.parentElement) followFeed.parentElement.classList.remove('xhs-no-scroll');
 
-        // 渲染笔记列表
-        renderNotesToFeed(followNotes, followFeed);
+        // 使用与发现页相同的瀑布流渲染
+        renderWaterfall(followFeed, followNotes, (note) => {
+            const card = document.createElement('div');
+            card.className = 'xhs-card';
+            card.dataset.noteId = note.id;
+
+            // 绑定长按和点击事件
+            bindLongPress(
+                card,
+                // 长按：删除
+                () => {
+                    showXhsConfirm("确定删除这条笔记吗？", async () => {
+                        await deleteXhsNote(note.id);
+                    });
+                },
+                // 点击：打开详情
+                () => {
+                    openXhsNoteDetail(note);
+                }
+            );
+
+            const realCommentCount = note.comments ? note.comments.length : 0;
+            const likeCount = note.stats && note.stats.likes ? note.stats.likes : 0;
+
+            // 检查是否已点赞
+            const s = window.state.xhsSettings;
+            const isLiked = s && s.likedNoteIds && s.likedNoteIds.includes(note.id);
+            const heartFill = isLiked ? '#ff2442' : 'none';
+            const heartStroke = isLiked ? '#ff2442' : '#666';
+
+            // 新内容标记
+            const newMarkerHtml = note.isNew ? '<div class="xhs-new-marker">NEW</div>' : '';
+
+            // 兼容 imageUrl 和 images[0] 两种字段
+            const coverImage = note.imageUrl || (note.images && note.images[0]) || '';
+
+            card.innerHTML = `
+                <div class="xhs-card-img-wrap xhs-card-img-wrap-ratio">
+                    <img src="${coverImage}" class="xhs-card-img xhs-card-img-abs" loading="lazy">
+                    ${newMarkerHtml}
+                </div>
+                <div class="xhs-card-footer">
+                    <div class="xhs-card-title">${note.title}</div>
+                    <div class="xhs-card-user">
+                        <div class="xhs-user-info-mini">
+                            <img src="${note.authorAvatar || 'https://api.dicebear.com/7.x/notionists/svg?seed=' + encodeURIComponent(note.authorName)}" class="xhs-avatar-mini">
+                            <span>${note.authorName}</span>
+                        </div>
+                        <div class="xhs-like-wrap">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="${heartFill}" stroke="${heartStroke}" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg>
+                            <span>${likeCount}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            return card;
+        });
     }
 
     // 为已关注角色生成笔记
@@ -2112,58 +2172,60 @@ document.addEventListener('DOMContentLoaded', () => {
                 };
             });
 
-            // 构建记忆互通的聊天记录上下文（对不同角色的记忆互通进行查重）
+            // 构建记忆互通的聊天记录上下文（使用与发现页 buildXhsGenerationPrompt 相同的逻辑）
             let memoryContext = "";
             const addedMemoryIds = new Set(); // 用于去重：存储已添加的聊天ID
 
-            for (const charInfo of charactersInfo) {
-                if (!charInfo.chatData) continue;
-                const chat = charInfo.chatData;
+            if (window.state.xhsSettings?.enableChatMemory) {
+                for (const charInfo of charactersInfo) {
+                    if (!charInfo.chatData) continue;
+                    const chat = charInfo.chatData;
 
-                // 获取角色设置的聊天记录参数
-                const ownChatLimit = chat.settings?.maxMemory || 10; // 单聊记录条数
-                const linkedChatLimit = chat.settings?.linkMemoryDepth || 5; // 记忆互通记录条数
+                    // 获取角色设置的聊天记录参数（与发现页一致使用 maxMemory 默认20）
+                    const ownChatLimit = chat.settings?.maxMemory || 20;
+                    const linkedChatLimit = chat.settings?.linkMemoryDepth || 5;
 
-                // 角色自己的聊天记录（优先添加，使用角色设置的maxMemory参数）
-                if (chat.messages?.length > 0 && !addedMemoryIds.has(chat.id)) {
-                    addedMemoryIds.add(chat.id);
-                    const recentMessages = chat.messages.slice(-ownChatLimit);
-                    const contextText = recentMessages.map(m =>
-                        `${m.sender === 'user' ? '用户' : chat.name}: ${m.text || ''}`
-                    ).join('\n');
-                    memoryContext += `\n【${chat.name}的近期聊天】:\n${contextText}\n`;
-                }
+                    // 角色自己的聊天记录（使用 chat.history，与发现页一致）
+                    if (chat.history && chat.history.length > 0 && !addedMemoryIds.has(chat.id)) {
+                        addedMemoryIds.add(chat.id);
+                        const recentMsgs = chat.history.slice(-ownChatLimit);
+                        const formattedMsgs = recentMsgs.map(m =>
+                            `${m.role === 'user' ? '用户' : chat.name}: ${m.content}`
+                        ).join('\n');
+                        memoryContext += `\n【${chat.name}的近期聊天】:\n${formattedMsgs}\n`;
+                    }
 
-                // 检查记忆互通（查重：如果已被其他角色添加过则跳过，使用linkMemoryDepth参数）
-                if (chat.settings?.memoryLinks) {
-                    for (const link of chat.settings.memoryLinks) {
-                        if (link.enabled && !addedMemoryIds.has(link.chatId)) {
-                            const linkedChat = chatsMap[link.chatId];
-                            if (linkedChat && linkedChat.messages?.length > 0) {
-                                addedMemoryIds.add(link.chatId);
-                                const recentMessages = linkedChat.messages.slice(-linkedChatLimit);
-                                const contextText = recentMessages.map(m =>
-                                    `${m.sender === 'user' ? '用户' : linkedChat.name}: ${m.text || ''}`
-                                ).join('\n');
-                                memoryContext += `\n【${charInfo.name}关联的${linkedChat.name}聊天记录】:\n${contextText}\n`;
+                    // 检查 linkedMemories（与发现页 buildXhsGenerationPrompt 一致的记忆互通格式）
+                    if (chat.settings?.linkedMemories && Array.isArray(chat.settings.linkedMemories)) {
+                        for (const link of chat.settings.linkedMemories) {
+                            const linkedChatId = link.chatId;
+                            if (!addedMemoryIds.has(linkedChatId)) {
+                                const linkedChat = chatsMap[linkedChatId];
+                                if (linkedChat && linkedChat.history && linkedChat.history.length > 0) {
+                                    addedMemoryIds.add(linkedChatId);
+                                    const lMsgs = linkedChat.history.slice(-linkedChatLimit);
+                                    const formattedMsgs = lMsgs.map(m =>
+                                        `${m.role === 'user' ? '用户' : linkedChat.name}: ${m.content}`
+                                    ).join('\n');
+                                    memoryContext += `\n【${charInfo.name}关联的${linkedChat.name}聊天记录】:\n${formattedMsgs}\n`;
+                                }
                             }
                         }
                     }
-                }
 
-                // 也检查linkedMemories字段（另一种记忆互通格式，使用linkMemoryDepth参数）
-                if (chat.settings?.linkedMemories && Array.isArray(chat.settings.linkedMemories)) {
-                    for (const link of chat.settings.linkedMemories) {
-                        const linkedChatId = link.chatId;
-                        if (!addedMemoryIds.has(linkedChatId)) {
-                            const linkedChat = chatsMap[linkedChatId];
-                            if (linkedChat && linkedChat.messages?.length > 0) {
-                                addedMemoryIds.add(linkedChatId);
-                                const recentMessages = linkedChat.messages.slice(-linkedChatLimit);
-                                const contextText = recentMessages.map(m =>
-                                    `${m.sender === 'user' ? '用户' : linkedChat.name}: ${m.text || ''}`
-                                ).join('\n');
-                                memoryContext += `\n【${charInfo.name}关联的${linkedChat.name}聊天记录】:\n${contextText}\n`;
+                    // 也检查 memoryLinks 字段（另一种记忆互通格式）
+                    if (chat.settings?.memoryLinks) {
+                        for (const link of chat.settings.memoryLinks) {
+                            if (link.enabled && !addedMemoryIds.has(link.chatId)) {
+                                const linkedChat = chatsMap[link.chatId];
+                                if (linkedChat && linkedChat.history && linkedChat.history.length > 0) {
+                                    addedMemoryIds.add(link.chatId);
+                                    const lMsgs = linkedChat.history.slice(-linkedChatLimit);
+                                    const formattedMsgs = lMsgs.map(m =>
+                                        `${m.role === 'user' ? '用户' : linkedChat.name}: ${m.content}`
+                                    ).join('\n');
+                                    memoryContext += `\n【${charInfo.name}关联的${linkedChat.name}聊天记录】:\n${formattedMsgs}\n`;
+                                }
                             }
                         }
                     }
