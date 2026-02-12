@@ -76,6 +76,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // 默认头像
     const defaultAvatar = 'https://files.catbox.moe/q6z5fc.jpeg';
 
+    // 工具函数：移除AI响应中的思维链标签（如 <think>...</think>）
+    function stripThinkingTags(text) {
+        if (!text) return text;
+        return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    }
+
     // 可选的作品类型配置（统一定义，自定义生成和自由生成共用）
     const WORK_TYPE_CONFIG = {
         // 'image': { name: '同人图/漫画', desc: '详细描述一幅同人插画或漫画的画面内容，包括构图、人物神态、动作、场景氛围等' },
@@ -790,7 +796,8 @@ ${typeInfo.desc}
             responseData = json.choices[0].message.content;
         }
 
-        // 解析JSON
+        // 移除思维链标签（如 <think>...</think>）后解析JSON
+        responseData = stripThinkingTags(responseData);
         let cleanJson = responseData;
         const jsonMatch = responseData.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
@@ -2321,9 +2328,10 @@ ${unrepliedUserComments.length > 0 ? `★★★ 最高优先级：必须为上�
                 responseData = json.choices[0].message.content;
             }
 
+            // 移除思维链标签后解析JSON
+            responseData = stripThinkingTags(responseData);
             console.log('AI段评生成结果:', responseData);
 
-            // 解析JSON
             let cleanJson = responseData;
             const jsonMatch = responseData.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
@@ -2811,7 +2819,8 @@ ${unrepliedUserComments.length > 0 ? `★★★ 最高优先级：必须为上�
             responseData = json.choices[0].message.content;
         }
 
-        // 解析返回的JSON
+        // 移除思维链标签后解析返回的JSON
+        responseData = stripThinkingTags(responseData);
         let cleanJson = responseData;
         const jsonMatch = responseData.match(/\{[\s\S]*\}/);
         if (jsonMatch) {
@@ -4171,7 +4180,8 @@ ${typeInfo.desc}
                 responseData = json.choices[0].message.content;
             }
 
-            // 解析JSON
+            // 移除思维链标签后解析JSON
+            responseData = stripThinkingTags(responseData);
             let cleanJson = responseData;
             const jsonMatch = responseData.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
@@ -5135,7 +5145,8 @@ ${typeInfo.desc}
                 responseData = json.choices[0].message.content;
             }
 
-            // 解析JSON
+            // 移除思维链标签后解析JSON
+            responseData = stripThinkingTags(responseData);
             let cleanJson = responseData;
             const jsonMatch = responseData.match(/\{[\s\S]*\}/);
             if (jsonMatch) {
