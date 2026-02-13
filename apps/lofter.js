@@ -239,14 +239,16 @@ document.addEventListener('DOMContentLoaded', () => {
                 lastError = error;
 
                 // 判断是否为可重试的网络错误
-                const isNetworkError = error.name === 'TypeError'     // fetch network error
+                const isNetworkError = error.name === 'TypeError'     // fetch / XHR network error
                     || error.name === 'AbortError'                    // timeout abort
+                    || error.name === 'TimeoutError'                  // XHR timeout
                     || error.message?.includes('network')
                     || error.message?.includes('Network')
                     || error.message?.includes('Failed to fetch')
                     || error.message?.includes('failed to fetch')
                     || error.message?.includes('Load failed')
-                    || error.message?.includes('aborted');
+                    || error.message?.includes('aborted')
+                    || error.message?.includes('请求超时');
 
                 if (isNetworkError && attempt < maxRetries) {
                     // 等待后重试（递增延迟：3s, 6s）
@@ -288,36 +290,93 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     /**
-     * OpenAI兼容API 调用实现（非流式）
-     * 不传 stream 参数（默认 false），与 cphone / xhs / weibo 等模块保持一致。
-     * 避免 stream:true 导致代理将连接视为SSE流，在Claude Opus长时间思考期间
-     * 因无数据流过触发代理空闲超时（~2分钟）而断连（ERR_EMPTY_RESPONSE）。
+     * OpenAI兼容API 调用实现（非流式，使用 XMLHttpRequest）
+     *
+     * 使用 XMLHttpRequest 代替 fetch，解决 Chrome 浏览器在等待
+     * Claude Opus 等长时间思考模型响应时，fetch 内部因长时间无数据流过
+     * 而中止 AbortSignal 导致 "signal is aborted without reason" 错误的问题。
+     *
+     * 原理：Chrome 的 fetch() 在 HTTP 连接长时间空闲（~2分钟无数据）时，
+     * 会通过内部机制中止 AbortSignal，即使用户设置了更长的超时也无法阻止。
+     * XMLHttpRequest 拥有独立的超时机制（xhr.timeout 属性），不受此行为影响，
+     * 更适合需要长时间等待响应的非流式请求场景。
      */
     async function _callOpenAICompatibleAPI(proxyUrl, apiKey, model, temperature, prompt, signal) {
-        const res = await fetch(`${proxyUrl}/v1/chat/completions`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Authorization': `Bearer ${apiKey}`
-            },
-            body: JSON.stringify({
+        return new Promise((resolve, reject) => {
+            let settled = false;
+            const settle = (fn) => {
+                if (!settled) {
+                    settled = true;
+                    fn();
+                }
+            };
+
+            const xhr = new XMLHttpRequest();
+            xhr.open('POST', `${proxyUrl}/v1/chat/completions`, true);
+            xhr.setRequestHeader('Content-Type', 'application/json');
+            xhr.setRequestHeader('Authorization', `Bearer ${apiKey}`);
+
+            // XHR 自有超时：10分钟，足够 Claude Opus 等思考模型完成响应
+            xhr.timeout = 10 * 60 * 1000;
+
+            xhr.onload = function () {
+                settle(() => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        try {
+                            const json = JSON.parse(xhr.responseText);
+                            if (!json.choices?.[0]?.message) {
+                                reject(new Error(json.error?.message || 'API返回格式异常'));
+                                return;
+                            }
+                            resolve(json.choices[0].message.content);
+                        } catch (e) {
+                            reject(new Error(`API返回JSON解析失败: ${e.message}\n响应前200字符: ${(xhr.responseText || '').substring(0, 200)}`));
+                        }
+                    } else {
+                        reject(new Error(`API请求失败 (${xhr.status}): ${xhr.responseText || xhr.statusText}`));
+                    }
+                });
+            };
+
+            xhr.onerror = function () {
+                settle(() => {
+                    const err = new Error('网络请求失败，请检查网络连接');
+                    err.name = 'TypeError'; // 与 fetch 的网络错误类型保持一致，确保触发重试
+                    reject(err);
+                });
+            };
+
+            xhr.ontimeout = function () {
+                settle(() => {
+                    const err = new Error('API请求超时（10分钟）');
+                    err.name = 'TimeoutError';
+                    reject(err);
+                });
+            };
+
+            xhr.onabort = function () {
+                settle(() => {
+                    const err = new Error('请求已被取消');
+                    err.name = 'AbortError';
+                    reject(err);
+                });
+            };
+
+            // 支持外部 AbortSignal 取消（来自 callLofterAI 的超时控制器）
+            if (signal) {
+                if (signal.aborted) {
+                    reject(new Error('请求已被取消'));
+                    return;
+                }
+                signal.addEventListener('abort', () => xhr.abort(), { once: true });
+            }
+
+            xhr.send(JSON.stringify({
                 model: model || 'gpt-3.5-turbo',
                 messages: [{ role: 'user', content: prompt }],
                 temperature
-            }),
-            signal
+            }));
         });
-
-        if (!res.ok) {
-            const errBody = await res.text().catch(() => '');
-            throw new Error(`API请求失败 (${res.status}): ${errBody || res.statusText}`);
-        }
-
-        const json = await res.json();
-        if (!json.choices?.[0]?.message) {
-            throw new Error(json.error?.message || 'API返回格式异常');
-        }
-        return json.choices[0].message.content;
     }
 
     // 可选的作品类型配置（统一定义，自定义生成和自由生成共用）
