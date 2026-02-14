@@ -1367,7 +1367,7 @@ ${jsonFormat}
                 /^```json\s*|```$/g,
                 '',
             );
-            const aiAction = JSON.parse(content);
+            const aiAction = (window.repairAndParseJSON || JSON.parse)(content);
 
             if (action === 'witch_action') return aiAction;
             if (aiAction.action === 'vote') return aiAction.targetId;
@@ -1611,7 +1611,7 @@ ${jsonFormat}
                 /^```json\s*|```$/g,
                 '',
             );
-            return JSON.parse(content);
+            return (window.repairAndParseJSON || JSON.parse)(content);
         } catch (error) {
             console.error('AI出题失败:', error);
             return { riddle: null, answer: null };
@@ -2044,7 +2044,7 @@ ${gameLogText}
                 );
 
                 // 如果成功，解析并返回结果，结束函数
-                return JSON.parse(content);
+                return (window.repairAndParseJSON || JSON.parse)(content);
             } catch (error) {
                 console.error(`海龟汤AI行动失败 (第 ${attempt} 次尝试):`, error.message);
 
@@ -3085,7 +3085,7 @@ ${extraContext}
                 '',
             );
 
-            const aiAction = JSON.parse(content);
+            const aiAction = (window.repairAndParseJSON || JSON.parse)(content);
 
             if (aiAction.action === 'speak') return aiAction.speech;
             if (aiAction.action === 'vote') return aiAction.targetId;
@@ -3920,7 +3920,7 @@ ${formattedLog}
                 .replace(/^```json\s*|```$/g, '')
                 .trim();
 
-            const generatedScript = JSON.parse(rawContent);
+            const generatedScript = (window.repairAndParseJSON || JSON.parse)(rawContent);
 
             if (
                 !generatedScript.name ||
@@ -4414,7 +4414,7 @@ ${formattedLog}
                     /^```json\s*|```$/g,
                     '',
                 );
-                return JSON.parse(content); // **成功，直接返回结果，跳出循环**
+                return (window.repairAndParseJSON || JSON.parse)(content); // **成功，直接返回结果，跳出循环**
             } catch (error) {
                 console.error(`“你说我猜”AI行动[${actionType}]失败 (第 ${attempt}/${maxRetries} 次尝试):`, error.message);
 
@@ -5260,7 +5260,7 @@ ${eventPrompt}
                 /^```json\s*|```$/g,
                 '',
             );
-            const aiResponse = JSON.parse(content);
+            const aiResponse = (window.repairAndParseJSON || JSON.parse)(content);
             // 如果是重roll请求，直接返回新的发言内容
             if (eventType === 'reroll_comment') {
                 return aiResponse.speech || '嗯...好吧。';
@@ -6594,7 +6594,7 @@ ${jsonFormat}
                 /^```json\s*|```$/g,
                 '',
             );
-            const aiAction = JSON.parse(content);
+            const aiAction = (window.repairAndParseJSON || JSON.parse)(content);
 
             // 根据不同的行动类型，返回不同的结果
             if (actionType === 'describe' || actionType === 'tie_speak') {
@@ -6861,7 +6861,7 @@ ${jsonFormat}
             const rawContent = (isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content)
                 .replace(/^```json\s*|```$/g, '')
                 .trim();
-            const wordPair = JSON.parse(rawContent);
+            const wordPair = (window.repairAndParseJSON || JSON.parse)(rawContent);
 
             if (wordPair.civilianWord && wordPair.undercoverWord) {
                 return { civilian: wordPair.civilianWord, undercover: wordPair.undercoverWord };

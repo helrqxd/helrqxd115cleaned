@@ -1936,7 +1936,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
                 if (firstBrace !== -1 && lastBrace > firstBrace) {
                     sanitizedContent = sanitizedContent.substring(firstBrace, lastBrace + 1);
                 }
-                const fullResponse = JSON.parse(sanitizedContent);
+                const fullResponse = (window.repairAndParseJSON || JSON.parse)(sanitizedContent);
 
                 if (fullResponse.chatResponse && Array.isArray(fullResponse.chatResponse)) {
                     messagesArray = fullResponse.chatResponse;
@@ -2426,7 +2426,9 @@ window.triggerAiResponse = async function triggerAiResponse() {
                     .replace(/^```json\s*/, '')
                     .replace(/```$/, '')
                     .trim();
-                const decisionObj = JSON.parse(rawContent);
+                const robustParse = window.repairAndParseJSON || JSON.parse;
+                const decisionObj = robustParse(rawContent);
+                if (!decisionObj) throw new Error('JSON解析失败');
 
                 // 4. 根据AI的决策和理由，更新状态并发送消息
                 if (decisionObj.decision === 'accept') {
@@ -3748,7 +3750,10 @@ ${contextSummaryForApproval}
                 sanitizedContent = sanitizedContent.substring(firstBrace, lastBrace + 1);
             }
 
-            const fullResponse = JSON.parse(sanitizedContent);
+            // 使用健壮的JSON解析器（处理未转义引号、控制字符等）
+            const robustParse = window.repairAndParseJSON || JSON.parse;
+            const fullResponse = robustParse(sanitizedContent);
+            if (!fullResponse) throw new Error('健壮解析器返回 null');
 
             // 现在我们可以安全地解析净化后的内容了
             if (fullResponse.chatResponse && Array.isArray(fullResponse.chatResponse)) {
@@ -3803,6 +3808,9 @@ ${contextSummaryForApproval}
         let newMessagesToRender = [];
 
         let notificationShown = false;
+
+        // 保存原始输出标记，用于编辑原始输出功能
+        let isFirstAiMessageOfTurn = true;
 
         for (const msgData of messagesArray) {
             if (!msgData || typeof msgData !== 'object') {
@@ -6591,6 +6599,11 @@ ${contextSummaryForApproval}
 
             // 将渲染逻辑移出循环
             if (aiMessage) {
+                // 在chat对象上保存本轮AI原始输出（仅记录一次）
+                if (isFirstAiMessageOfTurn) {
+                    chat._lastRawAiOutput = aiResponseContent;
+                    isFirstAiMessageOfTurn = false;
+                }
                 // 1. 将新消息存入历史记录
                 chat.history.push(aiMessage);
 

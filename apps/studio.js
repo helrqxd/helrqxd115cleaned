@@ -172,7 +172,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // 3. 解析AI返回的JSON数据
             const sanitizedText = responseText.replace(/^```json\s*|```$/g, '').trim();
-            const parsedData = JSON.parse(sanitizedText);
+            const parsedData = (window.repairAndParseJSON || JSON.parse)(sanitizedText);
 
             // 4. 将生成的内容填充回输入框 (只填充原本为空的)
             if (!existingData.name && parsedData.name) {
@@ -1103,7 +1103,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
             // ★★★ 核心修改：尝试解析AI的回复，判断是否为结束信号 ★★★
             try {
-                const parsedResponse = JSON.parse(responseText);
+                const parsedResponse = (window.repairAndParseJSON || JSON.parse)(responseText);
                 if (parsedResponse.isEnd === true && parsedResponse.narration) {
                     // AI确认结局已达成
                     const finalNarration = { role: 'system', content: `【结局】\n${parsedResponse.narration}` };

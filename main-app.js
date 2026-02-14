@@ -1905,12 +1905,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         trimmedContent = trimmedContent.trim();
 
         let initialResult = null;
+        // 获取健壮解析器引用（由 functions.js 暴露）
+        const robustParse = window.repairAndParseJSON || JSON.parse;
 
         // 方案1：【最优先】尝试作为标准的、单一的JSON数组解析
         // 这是最理想、最高效的情况
         if (trimmedContent.startsWith('[') && trimmedContent.endsWith(']')) {
             try {
-                const parsed = JSON.parse(trimmedContent);
+                const parsed = robustParse(trimmedContent);
                 if (Array.isArray(parsed)) {
                     console.log('解析成功：标准JSON数组格式。');
                     initialResult = parsed;
@@ -1933,8 +1935,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 for (const match of jsonMatches) {
                     try {
                         // 尝试解析每一个被我们“揪”出来的JSON字符串
-                        const parsedObject = JSON.parse(match);
-                        results.push(parsedObject);
+                        const parsedObject = robustParse(match);
+                        if (parsedObject) results.push(parsedObject);
                     } catch (e) {
                         // 如果某个片段不是有效的JSON，就忽略它，继续处理下一个
                         console.warn('跳过一个无效的JSON片段:', match);

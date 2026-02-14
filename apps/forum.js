@@ -567,7 +567,7 @@ ${Object.values(state.chats)
             const data = await response.json();
             const rawContent = isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content;
             const cleanedContent = rawContent.replace(/^```json\s*|```$/g, '').trim();
-            const newCommentsData = JSON.parse(cleanedContent);
+            const newCommentsData = (window.repairAndParseJSON || JSON.parse)(cleanedContent);
             if (Array.isArray(newCommentsData) && newCommentsData.length > 0) {
                 const commentsToAdd = newCommentsData.map((comment, index) => ({
                     postId: postIdToCommentOn,
@@ -830,7 +830,7 @@ ${worldviewContext}
             const data = await response.json();
             const rawContent = isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content;
             const cleanedContent = rawContent.replace(/^```json\s*|```$/g, '').trim();
-            const newPostsData = JSON.parse(cleanedContent);
+            const newPostsData = (window.repairAndParseJSON || JSON.parse)(cleanedContent);
 
             if (Array.isArray(newPostsData) && newPostsData.length > 0) {
                 let totalPosts = 0;
@@ -1010,7 +1010,7 @@ ${lengthInstruction}
             let stories = [];
             try {
                 const cleanedContent = rawContent.replace(/^```json\s*|```$/g, '').trim();
-                stories = JSON.parse(cleanedContent);
+                stories = (window.repairAndParseJSON || JSON.parse)(cleanedContent);
                 if (!Array.isArray(stories)) throw new Error('AI未返回数组格式。');
             } catch (e) {
                 console.error('JSON解析失败！', e);
@@ -1134,7 +1134,7 @@ ${contextInstructions || '- 自由发挥，但保持连载节奏，注意人物�
             let parsed;
             try {
                 const cleanedContent = rawContent.replace(/^```json\s*|```$/g, '').trim();
-                parsed = JSON.parse(cleanedContent);
+                parsed = (window.repairAndParseJSON || JSON.parse)(cleanedContent);
             } catch (e) {
                 console.error('解析长篇连载返回数据失败', e);
                 throw new Error('AI返回了无效的JSON格式。');
@@ -1887,7 +1887,7 @@ ${JSON.stringify(publicFigures, null, 2)}
             const data = await response.json();
             const rawContent = isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content;
             const cleanedContent = rawContent.replace(/^```json\s*|```$/g, '').trim();
-            const newPostsData = JSON.parse(cleanedContent);
+            const newPostsData = (window.repairAndParseJSON || JSON.parse)(cleanedContent);
 
             if (Array.isArray(newPostsData) && newPostsData.length > 0) {
                 let totalPosts = 0;
@@ -2010,7 +2010,7 @@ ${JSON.stringify(publicFigures, null, 2)}
             const data = await response.json();
             const rawContent = isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content;
             const cleanedContent = rawContent.replace(/^```json\s*|```$/g, '').trim();
-            const postData = JSON.parse(cleanedContent);
+            const postData = (window.repairAndParseJSON || JSON.parse)(cleanedContent);
 
             if (postData.title && postData.content) {
 
@@ -2278,7 +2278,7 @@ ${lastChapter.content || ''}
             let parsed;
             try {
                 const cleanedContent = rawContent.replace(/^```json\s*|```$/g, '').trim();
-                parsed = JSON.parse(cleanedContent);
+                parsed = (window.repairAndParseJSON || JSON.parse)(cleanedContent);
             } catch (e) {
                 console.error('解析追更返回数据失败', e);
                 throw new Error('AI返回了无效的JSON格式。');

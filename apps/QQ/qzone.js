@@ -651,10 +651,12 @@ async function generateNpcCommentsForPost(post, npcsToComment, ownerChar = null)
         const aiResponseContent = (isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content).replace(/^```json\s*|```$/g, '').trim();
 
         let newComments;
+        const robustParse = window.repairAndParseJSON || JSON.parse;
         if (aiResponseContent.includes('"chatResponse"')) {
-            newComments = JSON.parse(aiResponseContent).chatResponse;
+            const parsed = robustParse(aiResponseContent);
+            newComments = parsed ? parsed.chatResponse : null;
         } else {
-            newComments = JSON.parse(aiResponseContent);
+            newComments = robustParse(aiResponseContent);
         }
 
         if (Array.isArray(newComments) && newComments.length > 0) {

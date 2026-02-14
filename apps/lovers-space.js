@@ -903,7 +903,7 @@ async function handleGenerateDailyActivity(chat) {
             .replace(/^```json\s*|```$/g, "")
             .trim();
         console.log("【AI每日足迹 - 原始输出】:", rawContent);
-        const generatedActivities = JSON.parse(rawContent);
+        const generatedActivities = (window.repairAndParseJSON || JSON.parse)(rawContent);
 
         if (Array.isArray(generatedActivities)) {
             const today = new Date();
@@ -3232,7 +3232,7 @@ async function triggerPomodoroBreakResponse(userText) {
 
         let messagesArray = [];
         try {
-            messagesArray = JSON.parse(aiRawContent);
+            messagesArray = (window.repairAndParseJSON || JSON.parse)(aiRawContent);
             if (!Array.isArray(messagesArray)) {
                 messagesArray = [messagesArray];
             }
@@ -3597,7 +3597,7 @@ async function triggerPomodoroAIResponse(triggerType) {
         )
             .replace(/^```json\s*|```$/g, "")
             .trim();
-        const responseObj = JSON.parse(rawContent);
+        const responseObj = (window.repairAndParseJSON || JSON.parse)(rawContent);
 
         if (responseObj.type === "pomodoro_talk" && responseObj.content) {
             const logEntry = { timestamp: Date.now(), content: responseObj.content };

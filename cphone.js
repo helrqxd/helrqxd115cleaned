@@ -781,7 +781,7 @@ async function generateCharacterPhoneDataSegment(
                 : data.choices[0].message.content
         ).replace(/^```json\s*|```$/g, "");
 
-        const newData = JSON.parse(aiResponseContent);
+        const newData = (window.repairAndParseJSON || JSON.parse)(aiResponseContent);
 
         let phoneData = chat.characterPhoneData;
         phoneData.lastGenerated = Date.now();
@@ -1257,7 +1257,7 @@ async function generateCharacterPhoneData() {
 
         let newData;
         try {
-            newData = JSON.parse(aiResponseContent);
+            newData = (window.repairAndParseJSON || JSON.parse)(aiResponseContent);
         } catch (e) {
             throw new Error(
                 `AI返回的不是有效的JSON格式，无法解析。\n原始返回内容:\n${aiResponseContent}`

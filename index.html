@@ -1921,6 +1921,14 @@
 							</svg>
 						</button>
 
+						<!-- "编辑原始输出"按钮 -->
+						<button id="edit-raw-output-btn" class="chat-action-icon-btn action-button" title="编辑AI原始输出">
+							<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+								<path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+							</svg>
+						</button>
+
 						<button id="quick-reply-btn" class="chat-action-icon-btn action-button" title="快捷回复">
 							<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<!-- 气泡轮廓 -->
@@ -4387,6 +4395,22 @@
 					<button id="edit-post-btn">编辑动态</button>
 					<button id="copy-post-btn">复制内容</button>
 					<button id="cancel-post-action-btn">取消</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- AI原始输出编辑器模态框 -->
+		<div id="raw-output-editor-modal" class="modal">
+			<div class="modal-content" style="width: 95%; max-width: 500px; height: 80vh; display: flex; flex-direction: column">
+				<div class="modal-header" style="display: flex; align-items: center; justify-content: space-between; padding: 12px 16px; border-bottom: 1px solid #eee">
+					<h3 style="margin: 0; font-size: 16px">编辑AI原始输出</h3>
+					<button id="close-raw-output-editor-btn" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #999">&times;</button>
+				</div>
+				<div style="padding: 8px 16px; font-size: 12px; color: #888; background: #f9f9f9; border-bottom: 1px solid #eee">修改下方JSON内容后点击"应用修改"，将按修改后的内容重新渲染本轮回复。</div>
+				<textarea id="raw-output-textarea" style="flex: 1; margin: 12px 16px; padding: 12px; border: 1px solid #ddd; border-radius: 8px; font-family: 'Courier New', monospace; font-size: 13px; resize: none; line-height: 1.5; background: #fafafa"></textarea>
+				<div style="display: flex; gap: 10px; padding: 12px 16px; border-top: 1px solid #eee">
+					<button id="cancel-raw-output-edit-btn" style="flex: 1; padding: 10px; border: 1px solid #ddd; border-radius: 8px; background: #f5f5f5; cursor: pointer; font-size: 14px">取消</button>
+					<button id="apply-raw-output-edit-btn" style="flex: 1; padding: 10px; border: none; border-radius: 8px; background: var(--accent-color, #1aad19); color: white; cursor: pointer; font-size: 14px; font-weight: bold">应用修改</button>
 				</div>
 			</div>
 		</div>

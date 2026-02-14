@@ -94,7 +94,7 @@ async function refreshDatingScenes() {
         const data = await response.json();
         const rawContent = isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content;
         const cleanedContent = rawContent.replace(/^```json\s*|```$/g, '').trim();
-        const newScenes = JSON.parse(cleanedContent);
+        const newScenes = (window.repairAndParseJSON || JSON.parse)(cleanedContent);
 
         if (Array.isArray(newScenes)) {
             // 核心修改：只添加uid和空的imageUrl，不再立即生成图片
@@ -1059,7 +1059,7 @@ ${recentChatHistory}
         const rawContent = (isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content)
             .replace(/^```json\s*|```$/g, '')
             .trim();
-        const gameData = JSON.parse(rawContent);
+        const gameData = (window.repairAndParseJSON || JSON.parse)(rawContent);
 
         // 处理AI返回的游戏数据
         if (gameData.story && Array.isArray(gameData.choices)) {
@@ -1249,7 +1249,7 @@ async function triggerNsfwScene(userAction = '故事自然发展') {
         const rawContent = (isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content)
             .replace(/^```json\s*|```$/g, '')
             .trim();
-        const gameData = JSON.parse(rawContent);
+        const gameData = (window.repairAndParseJSON || JSON.parse)(rawContent);
 
         if (gameData.story && Array.isArray(gameData.choices)) {
             // 数值更新逻辑

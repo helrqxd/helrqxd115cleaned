@@ -628,6 +628,7 @@ async function triggerInactiveAiAction(chatId) {
         console.log(`【后台角色实时活动 - AI 原始输出】\n角色 "${chat.name}" 的原始回复:\n`, aiResponseContent);
 
         const responseArray = parseAiResponse(aiResponseContent);
+        chat._lastRawAiOutput = aiResponseContent; // 保存后台活动的AI原始输出
         console.log('解析后的 Action 列表:', responseArray); // Debug log
 
         // [Fix] 引入 lastUsedTimestamp 以确保批量生成的 timestamp 绝对不重复
@@ -963,8 +964,10 @@ async function triggerAiFriendApplication(chatId) {
         // 2. 移除所有换行符和多余的空格，确保是一个干净的JSON字符串
         const cleanedContent = rawContent.trim();
 
-        // 3. 使用净化后的内容进行解析
-        const responseObj = JSON.parse(cleanedContent);
+        // 3. 使用健壮解析器进行解析
+        const robustParse = window.repairAndParseJSON || JSON.parse;
+        const responseObj = robustParse(cleanedContent);
+        if (!responseObj) throw new Error('JSON解析失败');
 
         if (responseObj.decision === 'apply' && responseObj.reason) {
             chat.relationship.status = 'pending_user_approval';
@@ -1233,6 +1236,7 @@ async function triggerGroupAiAction(chatId) {
 
         const messagesArray = parseAiResponse(aiResponseContent);
         console.log(`【后台群聊互动 - AI 原始输出】\n群聊 "${chat.name}" 的原始回复:\n`, aiResponseContent);
+        chat._lastRawAiOutput = aiResponseContent; // 保存群聊后台活动的AI原始输出
 
         if (Array.isArray(messagesArray) && messagesArray.length > 0) {
             let messageTimestamp = Date.now();

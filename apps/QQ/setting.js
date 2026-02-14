@@ -762,7 +762,8 @@ window.initQQSettings = function (dependencies) {
 
             const data = await response.json();
             const rawContent = (isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content).replace(/^```json\s*|```$/g, '').trim();
-            const newMembersData = JSON.parse(rawContent);
+            const robustParse = window.repairAndParseJSON || JSON.parse;
+            const newMembersData = robustParse(rawContent);
 
             if (Array.isArray(newMembersData) && newMembersData.length > 0) {
                 const addedNames = [];

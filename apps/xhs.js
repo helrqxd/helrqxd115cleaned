@@ -96,6 +96,127 @@ document.addEventListener('DOMContentLoaded', () => {
         2. 工具函数：时间格式化 & 长按 & 弹窗
        ========================================= */
 
+    // 工具函数：移除AI响应中的思维链标签（如 <think>...</think>）
+    function stripThinkingTags(text) {
+        if (!text) return text;
+        return text.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    }
+
+    /**
+     * 修复并解析AI返回的JSON字符串
+     * AI（特别是Claude Opus）经常在JSON字符串值中输出：
+     *  1. 未转义的控制字符（换行、制表符等）
+     *  2. 未转义的双引号（如对话中的 "你好"）
+     *  3. 尾部逗号（如 {"a":1,}）
+     * 导致标准 JSON.parse 失败。此函数会先尝试直接解析，失败后自动修复再解析。
+     */
+    function repairAndParseJSON(text) {
+        // 先去除可能的思维链标签
+        text = stripThinkingTags(text);
+
+        // 去除可能的 markdown 代码块标记
+        let jsonStr = text.replace(/```(?:json)?\s*/gi, '').replace(/```\s*$/gi, '').trim();
+
+        // 提取JSON对象
+        const jsonMatch = jsonStr.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+            jsonStr = jsonMatch[0];
+        }
+
+        // 第一次尝试：直接解析
+        try {
+            return JSON.parse(jsonStr);
+        } catch (e) {
+            // 解析失败，进行修复
+        }
+
+        // 修复策略：遍历字符串，修复控制字符 + 未转义的双引号
+        let repaired = '';
+        let inString = false;
+        let escaped = false;
+
+        for (let i = 0; i < jsonStr.length; i++) {
+            const ch = jsonStr[i];
+
+            if (escaped) {
+                repaired += ch;
+                escaped = false;
+                continue;
+            }
+
+            if (ch === '\\' && inString) {
+                repaired += ch;
+                escaped = true;
+                continue;
+            }
+
+            if (ch === '"') {
+                if (!inString) {
+                    // 不在字符串内 → 开启字符串
+                    inString = true;
+                    repaired += ch;
+                } else {
+                    // 在字符串内遇到引号 → 判断是结构性闭合引号还是内容中的引号
+                    // 向后看第一个非空白字符，如果是 JSON 结构符号（, } ] :）则认为是闭合引号
+                    let j = i + 1;
+                    while (j < jsonStr.length && (jsonStr[j] === ' ' || jsonStr[j] === '\t' || jsonStr[j] === '\r' || jsonStr[j] === '\n')) {
+                        j++;
+                    }
+                    const nextNonWs = j < jsonStr.length ? jsonStr[j] : '';
+
+                    if (nextNonWs === ',' || nextNonWs === '}' || nextNonWs === ']' || nextNonWs === ':' || nextNonWs === '') {
+                        // 看起来是真正的闭合引号
+                        inString = false;
+                        repaired += ch;
+                    } else {
+                        // 字符串内部的未转义引号 → 转义它
+                        repaired += '\\"';
+                    }
+                }
+                continue;
+            }
+
+            if (inString) {
+                // 在字符串值内部，转义控制字符
+                const code = ch.charCodeAt(0);
+                if (code === 10) {         // \n
+                    repaired += '\\n';
+                } else if (code === 13) {  // \r
+                    repaired += '\\r';
+                } else if (code === 9) {   // \t
+                    repaired += '\\t';
+                } else if (code === 8) {   // \b
+                    repaired += '\\b';
+                } else if (code === 12) {  // \f
+                    repaired += '\\f';
+                } else if (code < 32) {    // 其他控制字符
+                    repaired += '\\u' + code.toString(16).padStart(4, '0');
+                } else {
+                    repaired += ch;
+                }
+            } else {
+                repaired += ch;
+            }
+        }
+
+        // 第二次尝试
+        try {
+            return JSON.parse(repaired);
+        } catch (e2) {
+            // 解析失败，进行更激进的修复
+        }
+
+        // 第三次尝试：移除尾部逗号后再解析
+        try {
+            const noTrailing = repaired.replace(/,\s*([}\]])/g, '$1');
+            return JSON.parse(noTrailing);
+        } catch (e3) {
+            // 最后兜底
+            console.error('[XHS] JSON修复后仍无法解析，原始内容前500字符:', jsonStr.substring(0, 500));
+            throw new Error('AI返回的JSON格式无法解析，请重试。错误: ' + e3.message);
+        }
+    }
+
     // 将时间戳格式化为 "MM-DD HH:mm"
     function formatXhsDate(ts) {
         if (!ts) return '';
@@ -1749,21 +1870,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
             console.log("[XHS] Raw AI Response:", responseData);
 
-            // 更稳健的 JSON 提取逻辑
-            let cleanJson = responseData;
-            const jsonMatch = responseData.match(/\{[\s\S]*\}/);
-            if (jsonMatch) {
-                cleanJson = jsonMatch[0];
-            } else {
-                cleanJson = responseData.replace(/```json/g, '').replace(/```/g, '').trim();
-            }
-
+            // 使用 repairAndParseJSON 健壮解析AI返回的JSON
             let result;
             try {
-                result = JSON.parse(cleanJson);
+                result = repairAndParseJSON(responseData);
             } catch (err) {
                 console.error("[XHS] JSON Parse Error:", err);
-                console.error("[XHS] Cleaned JSON:", cleanJson);
+                console.error("[XHS] Raw responseData:", responseData);
                 throw new Error("AI 返回的数据格式不正确");
             }
 
@@ -1943,16 +2056,11 @@ document.addEventListener('DOMContentLoaded', () => {
                 responseData = json.choices[0].message.content;
             }
 
-            let cleanJson = responseData;
-            const jsonMatch = responseData.match(/\{[\s\S]*\}/);
-            if (jsonMatch) cleanJson = jsonMatch[0];
-            else cleanJson = responseData.replace(/```json/g, '').replace(/```/g, '').trim();
-
             let result;
             try {
-                result = JSON.parse(cleanJson);
+                result = repairAndParseJSON(responseData);
             } catch (err) {
-                console.error("Search JSON Parse Error", err);
+                console.error("[XHS] Search JSON Parse Error", err);
                 return false;
             }
 
@@ -2337,13 +2445,8 @@ ${memoryContext ? `【角色记忆与近期经历（帮助理解角色关系和�
                 responseData = json.choices[0].message.content;
             }
 
-            // 解析响应
-            let cleanJson = responseData;
-            const jsonMatch = responseData.match(/\{[\s\S]*\}/);
-            if (jsonMatch) cleanJson = jsonMatch[0];
-            else cleanJson = responseData.replace(/```json/g, '').replace(/```/g, '').trim();
-
-            const result = JSON.parse(cleanJson);
+            // 使用 repairAndParseJSON 健壮解析AI返回的JSON
+            const result = repairAndParseJSON(responseData);
 
             if (result && result.notes && Array.isArray(result.notes)) {
                 const now = Date.now();
@@ -3456,13 +3559,8 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
                     responseData = json.choices[0].message.content;
                 }
 
-                // 解析响应
-                let cleanJson = responseData;
-                const jsonMatch = responseData.match(/\{[\s\S]*\}/);
-                if (jsonMatch) cleanJson = jsonMatch[0];
-                else cleanJson = responseData.replace(/```json/g, '').replace(/```/g, '').trim();
-
-                const result = JSON.parse(cleanJson);
+                // 使用 repairAndParseJSON 健壮解析AI返回的JSON
+                const result = repairAndParseJSON(responseData);
 
                 if (result && result.comments && Array.isArray(result.comments)) {
                     const now = Date.now();
@@ -5817,12 +5915,8 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
                 responseData = json.choices[0].message.content;
             }
 
-            let cleanJson = responseData;
-            const jsonMatch = responseData.match(/\{[\s\S]*\}/);
-            if (jsonMatch) cleanJson = jsonMatch[0];
-            else cleanJson = responseData.replace(/```json/g, '').replace(/```/g, '').trim();
-
-            const result = JSON.parse(cleanJson);
+            // 使用 repairAndParseJSON 健壮解析AI返回的JSON
+            const result = repairAndParseJSON(responseData);
 
             // 构建完整的profile数据 - likesCount使用实际笔记统计数据
             const profileData = {

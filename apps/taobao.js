@@ -941,7 +941,7 @@ async function handleGenerateFoodsAI() {
         const rawContent = isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content;
         let newFoods;
         try {
-            newFoods = JSON.parse(rawContent.replace(/^```json\s*|```$/g, '').trim());
+            newFoods = (window.repairAndParseJSON || JSON.parse)(rawContent.replace(/^```json\s*|```$/g, '').trim());
         } catch (e) {
             throw new Error('AI返回的JSON格式不正确。');
         }
@@ -1030,7 +1030,7 @@ async function handleSearchFoodsAI() {
         const rawContent = isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content;
         let foundFoods;
         try {
-            foundFoods = JSON.parse(rawContent.replace(/^```json\s*|```$/g, '').trim());
+            foundFoods = (window.repairAndParseJSON || JSON.parse)(rawContent.replace(/^```json\s*|```$/g, '').trim());
         } catch (e) {
             throw new Error('AI返回的JSON格式不正确。');
         }
@@ -1568,7 +1568,7 @@ async function generateProductReviews(productId) {
         const data = await response.json();
         const rawContent = isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content;
         const cleanedContent = rawContent.replace(/^```json\s*|```$/g, '').trim();
-        const newReviews = JSON.parse(cleanedContent);
+        const newReviews = (window.repairAndParseJSON || JSON.parse)(cleanedContent);
 
         if (Array.isArray(newReviews) && newReviews.length > 0) {
             // 将AI生成的评价保存到商品数据中
@@ -1967,7 +1967,7 @@ async function handleSearchProductsAI() {
         const data = await response.json();
         const rawContent = isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content;
         const cleanedContent = rawContent.replace(/^```json\s*|```$/g, '').trim();
-        const newProducts = JSON.parse(cleanedContent);
+        const newProducts = (window.repairAndParseJSON || JSON.parse)(cleanedContent);
 
         if (Array.isArray(newProducts) && newProducts.length > 0) {
             displayAiGeneratedProducts(newProducts, `AI为你找到了关于“${searchTerm}”的宝贝`);
@@ -2131,7 +2131,7 @@ async function handleGenerateProductsAI() {
         const data = await response.json();
         const rawContent = isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content;
         const cleanedContent = rawContent.replace(/^```json\s*|```$/g, '').trim();
-        const newProducts = JSON.parse(cleanedContent);
+        const newProducts = (window.repairAndParseJSON || JSON.parse)(cleanedContent);
 
         if (Array.isArray(newProducts) && newProducts.length > 0) {
             displayAiGeneratedProducts(newProducts, 'AI随机生成了以下宝贝');

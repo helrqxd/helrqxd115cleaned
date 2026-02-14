@@ -1104,7 +1104,350 @@ function initQQChatExtensions() {
         rerollBtn.removeEventListener('click', handleRerollClick);
         rerollBtn.addEventListener('click', handleRerollClick);
     }
+
+    // 绑定"编辑原始输出"按钮
+    const editRawBtn = document.getElementById('edit-raw-output-btn');
+    if (editRawBtn) {
+        editRawBtn.removeEventListener('click', handleEditRawOutputClick);
+        editRawBtn.addEventListener('click', handleEditRawOutputClick);
+    }
+
+    // 绑定原始输出编辑器弹窗按钮
+    const closeBtn = document.getElementById('close-raw-output-editor-btn');
+    const cancelBtn = document.getElementById('cancel-raw-output-edit-btn');
+    const applyBtn = document.getElementById('apply-raw-output-edit-btn');
+
+    if (closeBtn) closeBtn.addEventListener('click', closeRawOutputEditorModal);
+    if (cancelBtn) cancelBtn.addEventListener('click', closeRawOutputEditorModal);
+    if (applyBtn) applyBtn.addEventListener('click', applyRawOutputEdit);
 }
+
+// ===================================
+// 编辑AI原始输出 (Edit Raw AI Output) Feature
+// ===================================
+
+/**
+ * 健壮的JSON解析器 — 参考 lofter.js 的 repairAndParseJSON
+ * 处理控制字符、未转义的双引号、尾部逗号等AI常见输出问题
+ */
+function repairAndParseJSON_raw(text) {
+    let jsonStr = text.replace(/```(?:json)?\s*/gi, '').replace(/```\s*$/gi, '').trim();
+
+    // 提取JSON对象或JSON数组
+    const objMatch = jsonStr.match(/\{[\s\S]*\}/);
+    const arrMatch = jsonStr.match(/\[[\s\S]*\]/);
+    if (objMatch && arrMatch) {
+        // 取最先出现的那个
+        jsonStr = objMatch.index <= arrMatch.index ? objMatch[0] : arrMatch[0];
+    } else if (objMatch) {
+        jsonStr = objMatch[0];
+    } else if (arrMatch) {
+        jsonStr = arrMatch[0];
+    }
+
+    // 第一次尝试：直接解析
+    try {
+        return JSON.parse(jsonStr);
+    } catch (e) {
+        // 解析失败，进行修复
+    }
+
+    // 修复策略：遍历字符串，修复控制字符 + 未转义的双引号
+    let repaired = '';
+    let inString = false;
+    let escaped = false;
+
+    for (let i = 0; i < jsonStr.length; i++) {
+        const ch = jsonStr[i];
+
+        if (escaped) {
+            repaired += ch;
+            escaped = false;
+            continue;
+        }
+
+        if (ch === '\\' && inString) {
+            repaired += ch;
+            escaped = true;
+            continue;
+        }
+
+        if (ch === '"') {
+            if (!inString) {
+                inString = true;
+                repaired += ch;
+            } else {
+                // 在字符串内遇到引号 → 判断是结构性闭合引号还是内容中的引号
+                let j = i + 1;
+                while (j < jsonStr.length && (jsonStr[j] === ' ' || jsonStr[j] === '\t' || jsonStr[j] === '\r' || jsonStr[j] === '\n')) {
+                    j++;
+                }
+                const nextNonWs = j < jsonStr.length ? jsonStr[j] : '';
+
+                if (nextNonWs === ',' || nextNonWs === '}' || nextNonWs === ']' || nextNonWs === ':' || nextNonWs === '') {
+                    inString = false;
+                    repaired += ch;
+                } else {
+                    repaired += '\\"';
+                }
+            }
+            continue;
+        }
+
+        if (inString) {
+            const code = ch.charCodeAt(0);
+            if (code === 10) {
+                repaired += '\\n';
+            } else if (code === 13) {
+                repaired += '\\r';
+            } else if (code === 9) {
+                repaired += '\\t';
+            } else if (code === 8) {
+                repaired += '\\b';
+            } else if (code === 12) {
+                repaired += '\\f';
+            } else if (code < 32) {
+                repaired += '\\u' + code.toString(16).padStart(4, '0');
+            } else {
+                repaired += ch;
+            }
+        } else {
+            repaired += ch;
+        }
+    }
+
+    // 第二次尝试
+    try {
+        return JSON.parse(repaired);
+    } catch (e2) {
+        // 继续修复
+    }
+
+    // 第三次尝试：移除尾部逗号后再解析
+    try {
+        const noTrailing = repaired.replace(/,\s*([}\]])/g, '$1');
+        return JSON.parse(noTrailing);
+    } catch (e3) {
+        console.error('JSON修复后仍无法解析，原始内容前500字符:', jsonStr.substring(0, 500));
+        return null;
+    }
+}
+// 暴露到全局，供 main-app.js / chat.js / background.js 使用
+window.repairAndParseJSON = repairAndParseJSON_raw;
+
+/**
+ * 打开原始输出编辑器
+ */
+function handleEditRawOutputClick() {
+    if (!state.activeChatId) return;
+    const chat = state.chats[state.activeChatId];
+    if (!chat) return;
+
+    // 找到最后一轮AI消息
+    const lastAiTurnMessages = findLastAiTurnMessages(chat.history);
+    if (lastAiTurnMessages.length === 0) {
+        alert('请在AI回复后使用此功能。');
+        return;
+    }
+
+    // 从chat对象上读取原始输出
+    const rawOutput = chat._lastRawAiOutput;
+    if (!rawOutput) {
+        alert('未找到本轮回复的AI原始输出。\n（仅支持本次会话中产生的回复，历史记录中的旧消息可能不包含原始输出。）');
+        return;
+    }
+
+    // 尝试用健壮的解析器格式化JSON以便于阅读
+    let displayText = rawOutput;
+    try {
+        const parsed = repairAndParseJSON_raw(rawOutput);
+        if (parsed) {
+            displayText = JSON.stringify(parsed, null, 2);
+        }
+    } catch (e) {
+        // 如果解析失败，直接显示原始文本
+        displayText = rawOutput;
+    }
+
+    const textarea = document.getElementById('raw-output-textarea');
+    textarea.value = displayText;
+    document.getElementById('raw-output-editor-modal').classList.add('visible');
+}
+
+/**
+ * 关闭原始输出编辑器
+ */
+function closeRawOutputEditorModal() {
+    document.getElementById('raw-output-editor-modal').classList.remove('visible');
+}
+
+/**
+ * 应用编辑后的原始输出
+ */
+async function applyRawOutputEdit() {
+    if (!state.activeChatId) return;
+    const chat = state.chats[state.activeChatId];
+    if (!chat) return;
+
+    const editedContent = document.getElementById('raw-output-textarea').value.trim();
+    if (!editedContent) {
+        alert('内容不能为空。');
+        return;
+    }
+
+    // 1. 找到本轮AI消息并删除
+    const lastAiTurnMessages = findLastAiTurnMessages(chat.history);
+    if (lastAiTurnMessages.length === 0) {
+        alert('未找到需要替换的AI消息。');
+        return;
+    }
+
+    const timestampsToRemove = new Set(lastAiTurnMessages.map((m) => m.timestamp));
+    chat.history = chat.history.filter((msg) => !timestampsToRemove.has(msg.timestamp));
+
+    // 2. 解析编辑后的内容（使用健壮的JSON解析器）
+    let messagesArray = [];
+    let innerVoiceData = null;
+
+    try {
+        const fullResponse = repairAndParseJSON_raw(editedContent);
+
+        if (fullResponse) {
+            if (fullResponse.chatResponse && Array.isArray(fullResponse.chatResponse)) {
+                messagesArray = fullResponse.chatResponse;
+            }
+            if (fullResponse.innerVoice && typeof fullResponse.innerVoice === 'object') {
+                innerVoiceData = fullResponse.innerVoice;
+            }
+
+            // 兼容旧格式
+            if (!innerVoiceData && fullResponse.thoughts && fullResponse.behavior) {
+                innerVoiceData = fullResponse;
+            }
+
+            if (messagesArray.length === 0 && !innerVoiceData) {
+                messagesArray = window.parseAiResponse(editedContent);
+            }
+        } else {
+            messagesArray = window.parseAiResponse(editedContent);
+        }
+    } catch (e) {
+        messagesArray = window.parseAiResponse(editedContent);
+    }
+
+    // 3. 处理心声
+    if (innerVoiceData) {
+        const newInnerVoice = { ...innerVoiceData };
+        newInnerVoice.timestamp = Date.now();
+        chat.latestInnerVoice = newInnerVoice;
+        if (!chat.innerVoiceHistory) chat.innerVoiceHistory = [];
+        chat.latestInnerVoice.clothing = chat.latestInnerVoice.clothing || '...';
+        chat.latestInnerVoice.behavior = chat.latestInnerVoice.behavior || '...';
+        chat.latestInnerVoice.thoughts = chat.latestInnerVoice.thoughts || '...';
+        chat.latestInnerVoice.naughtyThoughts = chat.latestInnerVoice.naughtyThoughts || '...';
+        chat.innerVoiceHistory.push(newInnerVoice);
+    }
+
+    // 4. 构建新的消息对象
+    let messageTimestamp = Date.now();
+
+    for (const msgData of messagesArray) {
+        if (!msgData || typeof msgData !== 'object') continue;
+
+        // 自动补全 type
+        if (!msgData.type) {
+            if (chat.isGroup && msgData.name && msgData.message) {
+                msgData.type = 'text';
+            } else if (msgData.content) {
+                msgData.type = 'text';
+            } else {
+                continue;
+            }
+        }
+
+        // 跳过非聊天消息类型（如 innervoice 已处理）
+        if (msgData.type === 'innervoice') continue;
+
+        let aiMessage = null;
+        const currentTimestamp = messageTimestamp++;
+        const baseMessage = {
+            role: 'assistant',
+            senderName: msgData.name || chat.name,
+            timestamp: currentTimestamp,
+        };
+
+        switch (msgData.type) {
+            case 'text':
+                aiMessage = { ...baseMessage, content: String(msgData.content || msgData.message || '') };
+                break;
+
+            case 'sticker': {
+                const stickerName = msgData.sticker_name;
+                const allStickers = [...(window.state.charStickers || []), ...(chat.settings.stickerLibrary || [])];
+                const foundSticker = allStickers.find((s) => s.name === stickerName);
+                if (foundSticker) {
+                    aiMessage = { ...baseMessage, type: 'sticker', content: foundSticker.url, meaning: foundSticker.name };
+                } else {
+                    // 找不到表情则作为纯文本显示
+                    aiMessage = { ...baseMessage, content: `[表情: ${stickerName}]` };
+                }
+                break;
+            }
+
+            case 'ai_image':
+                aiMessage = { ...baseMessage, type: 'ai_image', description: msgData.description || msgData.content, content: msgData.description || msgData.content };
+                break;
+
+            case 'voice_message':
+                aiMessage = { ...baseMessage, type: 'voice_message', content: String(msgData.content || '') };
+                break;
+
+            case 'narrative':
+                aiMessage = { ...baseMessage, type: 'narrative', content: String(msgData.content || '') };
+                break;
+
+            case 'transfer':
+                aiMessage = {
+                    ...baseMessage,
+                    type: 'transfer',
+                    amount: msgData.amount || 0,
+                    note: msgData.note || '',
+                    receiverName: msgData.receiver || '我',
+                    status: 'pending',
+                };
+                break;
+
+            default:
+                // 默认作为文本处理
+                if (msgData.content || msgData.message) {
+                    aiMessage = { ...baseMessage, content: String(msgData.content || msgData.message || '') };
+                }
+                break;
+        }
+
+        if (aiMessage) {
+            chat.history.push(aiMessage);
+        }
+    }
+
+    // 5. 保存编辑后的原始输出到chat对象并刷新
+    chat._lastRawAiOutput = editedContent;
+    await db.chats.put(chat);
+    closeRawOutputEditorModal();
+
+    if (typeof window.renderChatInterface === 'function') {
+        window.renderChatInterface(state.activeChatId);
+    } else if (typeof renderChatInterface === 'function') {
+        renderChatInterface(state.activeChatId);
+    }
+
+    console.log('[编辑原始输出] 已成功应用修改并重新渲染。');
+}
+
+// Expose to window for external access
+window.handleEditRawOutputClick = handleEditRawOutputClick;
+window.closeRawOutputEditorModal = closeRawOutputEditorModal;
+window.applyRawOutputEdit = applyRawOutputEdit;
 
 // ===================================
 // 快捷回复 (Quick Replay) Feature
@@ -2162,7 +2505,8 @@ window.handleInitiateCall = async function () {
 
         const data = await response.json();
         const aiResponseContent = (isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content).replace(/```json\s*|```/gi, '').trim();
-        const responseArray = JSON.parse(aiResponseContent);
+        const robustParse = window.repairAndParseJSON || JSON.parse;
+        const responseArray = robustParse(aiResponseContent) || [];
 
         if (chat.isGroup) {
             responseArray.forEach((action) => {
@@ -2747,7 +3091,8 @@ window.triggerAiInCallAction = async function (userInput = null) {
             try {
                 // Remove markdown code block syntax if present
                 const cleanedJson = sanitizedResponse.replace(/```json\s*|```/gi, '').trim();
-                const turns = JSON.parse(cleanedJson);
+                const robustParse2 = window.repairAndParseJSON || JSON.parse;
+                const turns = robustParse2(cleanedJson);
                 if (Array.isArray(turns)) {
                     turns.forEach(turn => {
                         let bubble;

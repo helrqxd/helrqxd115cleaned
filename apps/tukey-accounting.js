@@ -1582,7 +1582,7 @@ ${membersText}
         const rawContent = (isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content)
             .replace(/^```json\s*|```$/g, '')
             .trim();
-        const replies = JSON.parse(rawContent);
+        const replies = (window.repairAndParseJSON || JSON.parse)(rawContent);
 
         if (Array.isArray(replies)) {
             // 为所有被评论的账单都添加这些回复

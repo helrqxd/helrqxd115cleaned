@@ -910,7 +910,8 @@ ${publicFiguresContext}
             throw new Error('API返回了空内容，可能被安全策略拦截。请检查Prompt或更换模型。');
         }
         const sanitizedContent = aiResponseContent.replace(/^```json\s*|```$/g, '').trim();
-        const responseData = JSON.parse(sanitizedContent);
+        const robustParse = window.repairAndParseJSON || JSON.parse;
+        const responseData = robustParse(sanitizedContent);
         const hotSearchData = responseData.hot_searches || responseData;
         weiboHotSearchCache = hotSearchData;
         await generatePlazaFeed(hotSearchData, targets);
@@ -1060,7 +1061,8 @@ ${JSON.stringify(allPeople, null, 2)}
         }
 
         const sanitizedContent = aiResponseContent.replace(/^```json\s*|```$/g, '').trim();
-        const responseData = JSON.parse(sanitizedContent);
+        const robustParse = window.repairAndParseJSON || JSON.parse;
+        const responseData = robustParse(sanitizedContent);
         const feedData = responseData.posts || responseData;
 
 
@@ -1187,7 +1189,7 @@ ${publicFiguresContext}
             throw new Error('API返回了空内容，可能被安全策略拦截。');
         }
         const sanitizedContent = aiResponseContent.replace(/^```json\s*|```$/g, '').trim();
-        const responseData = JSON.parse(sanitizedContent);
+        const responseData = (window.repairAndParseJSON || JSON.parse)(sanitizedContent);
         const feedData = responseData.posts || responseData;
         renderWeiboFeed(feedEl, feedData, false);
         if (!hotTopics) {
@@ -1481,7 +1483,7 @@ ${commenterContext}
             .replace(/^```json\s*|```$/g, '')
             .trim();
 
-        const newComments = JSON.parse(aiResponseContent);
+        const newComments = (window.repairAndParseJSON || JSON.parse)(aiResponseContent);
 
         if (Array.isArray(newComments) && newComments.length > 0) {
             const postToUpdate = await db.weiboPosts.get(post.id);
@@ -1981,7 +1983,7 @@ ${extraContext}
             .replace(/^```json\s*|```$/g, '')
             .trim();
 
-        const result = JSON.parse(aiResponseContent);
+        const result = (window.repairAndParseJSON || JSON.parse)(aiResponseContent);
 
         if (actionType === 'post') {
             const newPost = {
@@ -2153,7 +2155,7 @@ ${existingDmsContext}
         const data = await response.json();
         const rawContent = isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content;
         const cleanedContent = rawContent.replace(/^```json\s*|```$/g, '').trim();
-        const newDmsData = JSON.parse(cleanedContent);
+        const newDmsData = (window.repairAndParseJSON || JSON.parse)(cleanedContent);
 
         if (Array.isArray(newDmsData)) {
             newDmsData.forEach((convo, index) => {
@@ -2498,7 +2500,7 @@ ${conversation.messages
         const rawContent = isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content;
         const cleanedContent = rawContent.replace(/^```json\s*|```$/g, '').trim();
 
-        const newMessages = JSON.parse(cleanedContent);
+        const newMessages = (window.repairAndParseJSON || JSON.parse)(cleanedContent);
 
         return Array.isArray(newMessages) ? newMessages : [newMessages];
     } catch (error) {
@@ -2638,7 +2640,7 @@ ${existingDmsContext}
         const data = await response.json();
         const rawContent = isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content;
         const cleanedContent = rawContent.replace(/^```json\s*|```$/g, '').trim();
-        const newDmsData = JSON.parse(cleanedContent);
+        const newDmsData = (window.repairAndParseJSON || JSON.parse)(cleanedContent);
         if (Array.isArray(newDmsData)) {
             const fanAvatars = [
                 'https://i.postimg.cc/PxZrFFFL/o-o-1.jpg',

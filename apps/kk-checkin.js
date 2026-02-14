@@ -219,7 +219,7 @@ async function generateHouseData(charId, includeComputer = true) {
             /^```json\s*|```$/g,
             '',
         );
-        const houseData = JSON.parse(rawContent);
+        const houseData = (window.repairAndParseJSON || JSON.parse)(rawContent);
 
         // 逐张生成 + 失败重试 + 即时刷新屏幕背景
         (async () => {
@@ -570,7 +570,7 @@ async function handleContinueKkSearch() {
             /^```json\s*|```$/g,
             '',
         );
-        const newItemsData = JSON.parse(rawContent);
+        const newItemsData = (window.repairAndParseJSON || JSON.parse)(rawContent);
 
         // 将AI返回的新物品/发现合并到旧数据中
         for (const key in newItemsData) {
@@ -930,7 +930,7 @@ async function generateMoreSteamGames() {
             /^```json\s*|```$/g,
             '',
         );
-        const newData = JSON.parse(rawContent);
+        const newData = (window.repairAndParseJSON || JSON.parse)(rawContent);
 
         if (newData.steam_games && Array.isArray(newData.steam_games)) {
             if (!chat.houseData.computer.steam_games) {
@@ -1092,7 +1092,7 @@ async function generateInitialSurveillanceFeeds(charId) {
             /^```json\s*|```$/g,
             '',
         );
-        const surveillanceData = JSON.parse(rawContent);
+        const surveillanceData = (window.repairAndParseJSON || JSON.parse)(rawContent);
 
         return surveillanceData;
     } catch (error) {
@@ -1440,7 +1440,7 @@ async function generateSurveillanceUpdate(charId) {
             /^```json\s*|```$/g,
             '',
         );
-        return JSON.parse(rawContent);
+        return (window.repairAndParseJSON || JSON.parse)(rawContent);
     } catch (error) {
         console.error('刷新监控画面失败:', error);
         await showCustomAlert('刷新失败', `发生错误: ${error.message}`);
@@ -2004,7 +2004,7 @@ async function generateWardrobeData(charId) {
             .replace(/^```json\s*|```$/g, '')
             .trim();
 
-        const result = JSON.parse(rawContent);
+        const result = (window.repairAndParseJSON || JSON.parse)(rawContent);
 
         if (result && result.wardrobe) {
             // 1. 先保存文字数据，确保即使生图失败，物品也在
@@ -2112,7 +2112,7 @@ async function generateMoreWardrobeData() {
         const rawContent = (isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content)
             .replace(/^```json\s*|```$/g, '')
             .trim();
-        const result = JSON.parse(rawContent);
+        const result = (window.repairAndParseJSON || JSON.parse)(rawContent);
 
         if (result && result.new_items) {
             // 1. 先把新物品加入到数组并保存文字版
