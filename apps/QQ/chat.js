@@ -6332,41 +6332,47 @@ ${contextSummaryForApproval}
                     break;
 
                 case 'send_and_recall': {
-                    // --- 动画部分 (保持不变) ---
-                    if (!isViewingThisChat) continue;
-                    const tempMessageData = { ...baseMessage, content: msgData.content };
-                    appendMessage(tempMessageData, chat, true);
-                    await new Promise((resolve) => setTimeout(resolve, Math.random() * 1000 + 1500));
-                    const bubbleWrapper = document.querySelector(`.message-bubble[data-timestamp="${tempMessageData.timestamp}"]`)?.closest('.message-wrapper');
-                    if (bubbleWrapper) {
-                        bubbleWrapper.classList.add('recalled-animation');
-                        await new Promise((resolve) => setTimeout(resolve, 300));
-                    }
-
+                    const recallTimestamp = baseMessage.timestamp;
                     const recalledMessage = {
                         role: 'assistant',
                         senderName: msgData.name || chat.name,
                         type: 'recalled_message',
                         content: '对方撤回了一条消息',
-                        timestamp: tempMessageData.timestamp,
+                        timestamp: recallTimestamp,
                         recalledData: { originalType: 'text', originalContent: msgData.content },
                     };
-
-                    // 2. 创建一条对用户隐藏、但对AI可见的“记忆”消息
                     const hiddenMemoryMessage = {
-                        role: 'system', // 必须是 system，这样AI才知道这是上下文信息
-                        content: `[系统提示：你刚刚说了一句“${msgData.content}”，但立刻就撤回了它。]`,
-                        timestamp: tempMessageData.timestamp + 1, // 确保在撤回消息之后
-                        isHidden: true, // 这个标记让它不在UI上显示
+                        role: 'system',
+                        content: `[系统提示：你刚刚说了一句"${msgData.content}"，但立刻就撤回了它。]`,
+                        timestamp: recallTimestamp + 1,
+                        isHidden: true,
                     };
 
-                    // 3. 将这两条消息都添加到历史记录中
-                    chat.history.push(recalledMessage, hiddenMemoryMessage);
+                    if (isViewingThisChat) {
+                        // 用户正在查看此聊天 → 播放撤回动画
+                        const tempMessageData = { ...baseMessage, content: msgData.content };
+                        appendMessage(tempMessageData, chat, true);
+                        await new Promise((resolve) => setTimeout(resolve, Math.random() * 1000 + 1500));
+                        const bubbleWrapper = document.querySelector(`.message-bubble[data-timestamp="${tempMessageData.timestamp}"]`)?.closest('.message-wrapper');
+                        if (bubbleWrapper) {
+                            bubbleWrapper.classList.add('recalled-animation');
+                            await new Promise((resolve) => setTimeout(resolve, 300));
+                        }
 
-                    // 4. 替换DOM，显示“已撤回”提示
-                    const placeholder = createMessageElement(recalledMessage, chat);
-                    if (document.body.contains(bubbleWrapper)) {
-                        bubbleWrapper.parentNode.replaceChild(placeholder, bubbleWrapper);
+                        // 将消息添加到历史记录
+                        chat.history.push(recalledMessage, hiddenMemoryMessage);
+
+                        // 替换DOM，显示"已撤回"提示
+                        const placeholder = createMessageElement(recalledMessage, chat);
+                        if (bubbleWrapper && document.body.contains(bubbleWrapper)) {
+                            bubbleWrapper.parentNode.replaceChild(placeholder, bubbleWrapper);
+                        }
+                    } else {
+                        // 用户不在此聊天 → 跳过动画，直接保存记录
+                        chat.history.push(recalledMessage, hiddenMemoryMessage);
+                        chat.unreadCount = (chat.unreadCount || 0) + 1;
+                        showNotification(chatId, '对方撤回了一条消息');
+                        renderChatList();
                     }
 
                     continue;

@@ -1406,6 +1406,43 @@ async function applyRawOutputEdit() {
                 aiMessage = { ...baseMessage, type: 'narrative', content: String(msgData.content || '') };
                 break;
 
+            case 'update_status': {
+                // [Fix] 编辑重处理时正确处理状态更新
+                const activeChat = state.chats[state.activeChatId];
+                if (activeChat && msgData.status_text) {
+                    activeChat.status.text = msgData.status_text;
+                    activeChat.status.isBusy = msgData.is_busy || false;
+                    activeChat.status.lastUpdate = Date.now();
+                }
+                aiMessage = {
+                    ...baseMessage,
+                    role: 'system',
+                    type: 'pat_message',
+                    content: `[${baseMessage.senderName}的状态已更新为: ${msgData.status_text}]`,
+                };
+                break;
+            }
+
+            case 'send_and_recall': {
+                // [Fix] 编辑重处理时正确处理撤回消息
+                const recalledMsg = {
+                    ...baseMessage,
+                    role: 'assistant',
+                    type: 'recalled_message',
+                    content: '对方撤回了一条消息',
+                    recalledData: { originalType: 'text', originalContent: msgData.content },
+                };
+                const hiddenMem = {
+                    role: 'system',
+                    content: `[系统提示：你刚刚说了一句"${msgData.content}"，但立刻就撤回了它。]`,
+                    timestamp: currentTimestamp + 1,
+                    isHidden: true,
+                };
+                chat.history.push(recalledMsg, hiddenMem);
+                // 不设置 aiMessage，因为已直接 push
+                break;
+            }
+
             case 'transfer':
                 aiMessage = {
                     ...baseMessage,
@@ -1414,6 +1451,92 @@ async function applyRawOutputEdit() {
                     note: msgData.note || '',
                     receiverName: msgData.receiver || '我',
                     status: 'pending',
+                };
+                break;
+
+            case 'pat_user': {
+                // [Fix] 拍一拍 → 系统消息
+                const suffix = msgData.suffix ? ` ${msgData.suffix}` : '';
+                aiMessage = {
+                    role: 'system',
+                    type: 'pat_message',
+                    content: `${msgData.name || baseMessage.senderName} 拍了拍我${suffix}`,
+                    timestamp: currentTimestamp,
+                };
+                break;
+            }
+
+            case 'red_packet':
+                aiMessage = {
+                    ...baseMessage,
+                    type: 'red_packet',
+                    packetType: msgData.packetType,
+                    totalAmount: msgData.amount,
+                    count: msgData.count || (msgData.packetType === 'direct' ? 1 : msgData.count),
+                    greeting: msgData.greeting,
+                    receiverName: msgData.receiver,
+                    claimedBy: {},
+                    isFullyClaimed: false,
+                };
+                break;
+
+            case 'poll':
+                // 投票 → 隐藏系统消息
+                aiMessage = {
+                    role: 'system',
+                    content: `[系统提示：${baseMessage.senderName} 发起了一个投票。问题："${msgData.question}", 选项："${(msgData.options || []).join ? msgData.options.join('", "') : msgData.options}"。]`,
+                    timestamp: currentTimestamp,
+                    isHidden: true,
+                };
+                break;
+
+            case 'quote_reply': {
+                // [Fix] 引用回复
+                const originalMsg = chat.history.find(m => m.timestamp === msgData.target_timestamp);
+                if (originalMsg) {
+                    aiMessage = {
+                        ...baseMessage,
+                        content: msgData.reply_content || msgData.content || '',
+                        quote: {
+                            timestamp: originalMsg.timestamp,
+                            senderName: originalMsg.senderName || chat.name,
+                            content: String(originalMsg.content || ''),
+                        },
+                    };
+                } else {
+                    aiMessage = { ...baseMessage, content: msgData.reply_content || msgData.content || '' };
+                }
+                break;
+            }
+
+            case 'share_link':
+                aiMessage = {
+                    ...baseMessage,
+                    type: 'share_link',
+                    title: msgData.title,
+                    description: msgData.description,
+                    source_name: msgData.source_name,
+                    content: msgData.content,
+                };
+                break;
+
+            case 'location':
+                aiMessage = {
+                    ...baseMessage,
+                    type: 'location',
+                    userLocation: msgData.userLocation,
+                    aiLocation: msgData.aiLocation,
+                    distance: msgData.distance,
+                    trajectoryPoints: msgData.trajectoryPoints || [],
+                };
+                break;
+
+            case 'system_message':
+                aiMessage = {
+                    role: 'system',
+                    type: 'pat_message',
+                    content: msgData.content,
+                    timestamp: currentTimestamp,
                 };
                 break;
 

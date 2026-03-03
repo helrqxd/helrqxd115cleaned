@@ -665,13 +665,63 @@ async function triggerInactiveAiAction(chatId) {
                 chat.status.text = action.status_text;
                 chat.status.isBusy = action.is_busy || false;
                 chat.status.lastUpdate = Date.now();
+
+                // [Fix] 创建可见的系统消息，与chat.js保持一致
+                const statusMsg = {
+                    role: 'system',
+                    type: 'pat_message',
+                    content: `[${chat.name}的状态已更新为: ${action.status_text}]`,
+                    timestamp: Date.now(),
+                };
+                chat.history.push(statusMsg);
+
                 await db.chats.put(chat);
                 renderChatList();
+                continue; // 处理完毕，跳到下一个action
             }
-            // 扩展支持更多类型的消息 (text, sticker, ai_image)
+
+            // [Fix] 处理后台活动中的撤回消息
+            if (action.type === 'send_and_recall' && action.content) {
+                let recallTimestamp = Date.now();
+                if (action.sendTime) {
+                    const parsedTime = new Date(action.sendTime).getTime();
+                    if (!isNaN(parsedTime)) recallTimestamp = parsedTime;
+                }
+                const startTimestamp = lastMessage ? lastMessage.timestamp : 0;
+                recallTimestamp = Math.min(Date.now(), Math.max(startTimestamp + 1000, recallTimestamp));
+                if (recallTimestamp <= lastUsedTimestamp) {
+                    recallTimestamp = lastUsedTimestamp + 1;
+                }
+                lastUsedTimestamp = recallTimestamp;
+
+                const recalledMessage = {
+                    role: 'assistant',
+                    type: 'recalled_message',
+                    content: '对方撤回了一条消息',
+                    timestamp: recallTimestamp,
+                    recalledData: { originalType: 'text', originalContent: action.content },
+                    isUnread: true,
+                };
+                const hiddenMemory = {
+                    role: 'system',
+                    content: `[系统提示：${chat.name}说了一句"${action.content}"，但立刻就撤回了它。]`,
+                    timestamp: recallTimestamp + 1,
+                    isHidden: true,
+                };
+                chat.history.push(recalledMessage, hiddenMemory);
+                chat.unreadCount = (chat.unreadCount || 0) + 1;
+                await db.chats.put(chat);
+                showNotification(chatId, '对方撤回了一条消息');
+                renderChatList();
+                console.log(`后台活动: 角色 "${chat.name}" 发送后撤回了一条消息`);
+                continue;
+            }
+
+            // 扩展支持更多类型的消息 (text, sticker, ai_image, voice_message)
             const isChatMessage = (action.type === 'text' && action.content) ||
                 (action.type === 'sticker' && action.sticker_name) ||
-                (action.type === 'ai_image' && action.description);
+                (action.type === 'ai_image' && action.description) ||
+                (action.type === 'voice_message' && action.content);
 
             if (isChatMessage) {
                 // 计算消息时间戳
@@ -731,6 +781,8 @@ async function triggerInactiveAiAction(chatId) {
                     }
                 } else if (action.type === 'ai_image') {
                     aiMessage = { ...baseMsg, type: 'ai_image', description: action.description, content: action.description };
+                } else if (action.type === 'voice_message') {
+                    aiMessage = { ...baseMsg, type: 'voice_message', content: String(action.content) };
                 }
 
                 if (aiMessage) {
@@ -747,6 +799,8 @@ async function triggerInactiveAiAction(chatId) {
                         logContent = '[表情]';
                     } else if (aiMessage.type === 'ai_image') {
                         logContent = '[图片]';
+                    } else if (aiMessage.type === 'voice_message') {
+                        logContent = '[语音]';
                     } else if (aiMessage.content) {
                         logContent = aiMessage.content;
                     } else if (aiMessage.description) {
@@ -1365,6 +1419,63 @@ async function triggerGroupAiAction(chatId) {
                             pollId: 'poll_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
                         };
                         break;
+                    case 'send_and_recall': {
+                        // [Fix] 后台群聊中的撤回：直接保存为recalled_message
+                        const recalledMsg = {
+                            ...baseMessage,
+                            role: 'assistant',
+                            type: 'recalled_message',
+                            content: '对方撤回了一条消息',
+                            recalledData: { originalType: 'text', originalContent: msgData.content },
+                        };
+                        const hiddenMem = {
+                            role: 'system',
+                            content: `[系统提示：${msgData.name}说了一句"${msgData.content}"，但立刻就撤回了它。]`,
+                            timestamp: baseMessage.timestamp + 1,
+                            isHidden: true,
+                        };
+                        chat.history.push(recalledMsg, hiddenMem);
+                        // 不设置 aiMessage，因为已直接push
+                        break;
+                    }
+                    case 'update_status': {
+                        // [Fix] 后台群聊中的状态更新
+                        if (msgData.status_text) {
+                            chat.status = chat.status || {};
+                            chat.status.text = msgData.status_text;
+                            chat.status.isBusy = msgData.is_busy || false;
+                            chat.status.lastUpdate = Date.now();
+                        }
+                        // 创建一条系统提示消息记录状态变更
+                        const statusMsg = {
+                            role: 'system',
+                            type: 'pat_message',
+                            content: `[${msgData.name || chat.name}的状态已更新为: ${msgData.status_text || ''}]`,
+                            timestamp: baseMessage.timestamp,
+                        };
+                        chat.history.push(statusMsg);
+                        // 不设置 aiMessage
+                        break;
+                    }
+                    case 'quote_reply': {
+                        // [Fix] 后台群聊中的引用回复
+                        const originalMsg = chat.history.find(m => m.timestamp === msgData.target_timestamp);
+                        if (originalMsg) {
+                            aiMessage = {
+                                ...baseMessage,
+                                content: msgData.reply_content || msgData.message || '',
+                                quote: {
+                                    timestamp: originalMsg.timestamp,
+                                    senderName: originalMsg.senderName || chat.name,
+                                    content: String(originalMsg.content || ''),
+                                },
+                            };
+                        } else {
+                            // 找不到引用目标，降级为普通文本
+                            aiMessage = { ...baseMessage, content: msgData.reply_content || msgData.message || '' };
+                        }
+                        break;
+                    }
                     default:
                         // 尝试作为一个普通文本处理，如果含有message字段
                         if (msgData.message) {
