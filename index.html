@@ -681,6 +681,7 @@
 										<line x1="20" y1="8" x2="20" y2="14"></line>
 										<line x1="23" y1="11" x2="17" y2="11"></line>
 									</svg>
+									<span class="xhs-badge" id="xhs-follows-badge" style="display: none">0</span>
 								</div>
 								<span>新增关注</span>
 							</div>
@@ -725,6 +726,20 @@
 						</div>
 						<div id="xhs-comments-at-list" class="xhs-notif-list">
 							<!-- 评论@记录由JS生成 -->
+						</div>
+					</div>
+
+					<!-- 新增关注详情页 -->
+					<div id="xhs-new-follows-view" class="xhs-view" style="display: none; height: 100%; background: #fff">
+						<div class="xhs-sub-header xhs-notif-header">
+							<svg class="xhs-back-btn" id="xhs-new-follows-back" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+								<polyline points="15 18 9 12 15 6"></polyline>
+							</svg>
+							<span>新增关注</span>
+							<div style="width: 24px"></div>
+						</div>
+						<div id="xhs-new-follows-list" class="xhs-notif-list">
+							<!-- 粉丝变动记录由JS生成 -->
 						</div>
 					</div>
 
@@ -8458,6 +8473,7 @@
 										<span class="xhs-color-value" id="xhs-bg-color2-text">#fecfef</span>
 									</div>
 								</div>
+								<div class="xhs-bg-default-swatch" id="xhs-bg-default-swatch" title="默认渐变粉" style="width: 32px; height: 32px; border-radius: 6px; background: linear-gradient(180deg, #ff9a9e 0%, #fecfef 50%, #fff 100%); border: 2px solid #e5e5e5; cursor: pointer; flex-shrink: 0; margin-left: 4px"></div>
 							</div>
 							<div class="xhs-bg-option-row">
 								<input type="radio" name="xhs-bg-type" id="xhs-bg-image" value="image" />
@@ -9695,8 +9711,54 @@
 								</div>
 							</div>
 						</div>
+						<!-- 互动统计区 -->
+						<div class="lofter-article-engagement">
+							<div class="lofter-engagement-item" id="lofter-engagement-like">
+								<div class="lofter-engagement-icon">
+									<svg viewBox="0 0 24 24"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z" /></svg>
+								</div>
+								<span class="lofter-engagement-count" id="lofter-engagement-like-count">0</span>
+								<span class="lofter-engagement-label">点赞</span>
+							</div>
+							<div class="lofter-engagement-item" id="lofter-engagement-collect">
+								<div class="lofter-engagement-icon">
+									<svg viewBox="0 0 24 24"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z" /></svg>
+								</div>
+								<span class="lofter-engagement-count" id="lofter-engagement-collect-count">0</span>
+								<span class="lofter-engagement-label">收藏</span>
+							</div>
+							<div class="lofter-engagement-item" id="lofter-engagement-comment">
+								<div class="lofter-engagement-icon">
+									<svg viewBox="0 0 24 24"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z" /></svg>
+								</div>
+								<span class="lofter-engagement-count" id="lofter-engagement-comment-count">0</span>
+								<span class="lofter-engagement-label">评论</span>
+							</div>
+							<div class="lofter-engagement-item" id="lofter-engagement-share">
+								<div class="lofter-engagement-icon">
+									<svg viewBox="0 0 24 24">
+										<circle cx="18" cy="5" r="3" />
+										<circle cx="6" cy="12" r="3" />
+										<circle cx="18" cy="19" r="3" />
+										<line x1="8.59" y1="13.51" x2="15.42" y2="17.49" />
+										<line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+									</svg>
+								</div>
+								<span class="lofter-engagement-label">分享</span>
+							</div>
+						</div>
 						<!-- 评论区 -->
 						<div class="lofter-comments-section">
+							<!-- 发布评论 -->
+							<div class="lofter-inline-comment-box" id="lofter-inline-comment-box">
+								<img class="lofter-inline-comment-avatar" id="lofter-inline-comment-avatar" src="" alt="我的头像" />
+								<div class="lofter-inline-comment-form">
+									<textarea class="lofter-inline-comment-textarea" id="lofter-inline-comment-textarea" placeholder="写下你的评论..." rows="2"></textarea>
+									<div class="lofter-inline-comment-actions">
+										<button class="lofter-inline-comment-submit" id="lofter-inline-comment-submit">发布评论</button>
+									</div>
+								</div>
+							</div>
 							<div class="lofter-comments-header">
 								<span>评论 (<span id="lofter-comment-count">0</span>)</span>
 								<button class="lofter-generate-comments-btn" id="lofter-generate-comments-btn">

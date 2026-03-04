@@ -5708,8 +5708,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     </svg>
                 </div>
 
-                <div class="sf-title">E-PHONE TUKI</div>
-                <div class="sf-subtitle">向阳而生 · 温暖登录</div>
+                <div class="sf-title">E-PHONE LRQ</div>
+                <div class="sf-subtitle">向阳而生</div>
 
                 <div class="sf-input-group">
                     <label class="sf-input-label">账号 Account</label>
@@ -5721,7 +5721,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <input type="password" id="login-pwd" class="sf-input" placeholder="请输入密码" autocomplete="off">
                 </div>
 
-                <p id="login-msg">等待输入...</p>
+                <p id="login-msg">请输入账号密码</p>
 
                 <div class="sf-btn-row">
                     <button id="btn-login-reset" class="sf-btn">重置</button>
@@ -5729,7 +5729,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 </div>
             </div>
 
-            <div class="sf-footer">Ephone TUKI · Sunflower Edition 🌻</div>
+            <div class="sf-footer">Ephone LRQ · Sunflower Edition 🌻</div>
           `;
 
         document.body.prepend(overlay);

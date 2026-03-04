@@ -29925,9 +29925,10 @@ input:checked + .slider::after {
     box-shadow: 0 0 0 2px #fff;
 }
 
-/* 赞和收藏、评论和@详情页定位 */
+/* 赞和收藏、评论和@、新增关注详情页定位 */
 #xhs-likes-collects-view,
-#xhs-comments-at-view {
+#xhs-comments-at-view,
+#xhs-new-follows-view {
     position: absolute;
     top: 0;
     left: 0;
@@ -29936,6 +29937,28 @@ input:checked + .slider::after {
     z-index: 1000;
     display: flex;
     flex-direction: column;
+}
+
+/* 粉丝变动通知 - 增长图标背景 */
+.xhs-notif-icon-wrap.fans-gain {
+    background: #eff6ff;
+}
+
+/* 粉丝变动通知 - 流失图标背景 */
+.xhs-notif-icon-wrap.fans-loss {
+    background: #fef2f2;
+}
+
+/* 粉丝增长数字颜色 */
+.xhs-notif-highlight.xhs-fans-gain {
+    color: #60a5fa;
+    font-weight: 600;
+}
+
+/* 粉丝流失数字颜色 */
+.xhs-notif-highlight.xhs-fans-loss {
+    color: #f87171;
+    font-weight: 600;
 }
 
 /* 分享弹窗样式 */
@@ -34646,6 +34669,157 @@ input:checked + .slider::after {
     border-top: 1px solid #eee;
 }
 
+/* Lofter 文章互动统计区 */
+.lofter-article-engagement {
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    background: #fff;
+    margin-top: 10px;
+    padding: 16px 20px;
+    border-radius: 0;
+}
+
+.lofter-engagement-item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    transition: transform 0.15s ease;
+    min-width: 60px;
+}
+
+.lofter-engagement-item:active {
+    transform: scale(0.92);
+}
+
+.lofter-engagement-icon {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f5f5f5;
+    transition: background 0.2s, color 0.2s;
+}
+
+.lofter-engagement-icon svg {
+    width: 22px;
+    height: 22px;
+    stroke: #666;
+    fill: none;
+    stroke-width: 2;
+    transition: stroke 0.2s, fill 0.2s;
+}
+
+.lofter-engagement-item.liked .lofter-engagement-icon {
+    background: rgba(255,107,129,0.12);
+}
+
+.lofter-engagement-item.liked .lofter-engagement-icon svg {
+    stroke: #ff6b81;
+    fill: #ff6b81;
+}
+
+.lofter-engagement-item.collected .lofter-engagement-icon {
+    background: rgba(255,193,7,0.12);
+}
+
+.lofter-engagement-item.collected .lofter-engagement-icon svg {
+    stroke: #ffc107;
+    fill: #ffc107;
+}
+
+.lofter-engagement-count {
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+}
+
+.lofter-engagement-label {
+    font-size: 11px;
+    color: #999;
+}
+
+/* Lofter 内联评论发布区 */
+.lofter-inline-comment-box {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 15px 0;
+    border-bottom: 1px solid #f0f0f0;
+    margin-bottom: 15px;
+}
+
+.lofter-inline-comment-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex-shrink: 0;
+}
+
+.lofter-inline-comment-form {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.lofter-inline-comment-textarea {
+    width: 100%;
+    min-height: 60px;
+    max-height: 120px;
+    padding: 10px 12px;
+    border: 1px solid #e8e8e8;
+    border-radius: 10px;
+    font-size: 14px;
+    line-height: 1.5;
+    resize: vertical;
+    outline: none;
+    background: #fafafa;
+    transition: border-color 0.2s, background 0.2s;
+    box-sizing: border-box;
+    font-family: inherit;
+}
+
+.lofter-inline-comment-textarea:focus {
+    border-color: #00c3ff;
+    background: #fff;
+}
+
+.lofter-inline-comment-textarea::placeholder {
+    color: #bbb;
+}
+
+.lofter-inline-comment-actions {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.lofter-inline-comment-submit {
+    padding: 6px 18px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #fff;
+    background: #00c3ff;
+    border: none;
+    border-radius: 16px;
+    cursor: pointer;
+    transition: opacity 0.2s;
+}
+
+.lofter-inline-comment-submit:hover {
+    opacity: 0.85;
+}
+
+.lofter-inline-comment-submit:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
 /* Lofter 评论区 */
 .lofter-comments-section {
     background: #fff;
@@ -36856,6 +37030,13 @@ input:checked + .slider::after {
 #lofter-tag-detail-content {
     display: flex;
     gap: 10px;
+}
+
+#lofter-tag-detail-content .lofter-waterfall-card {
+    background: #fff;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
 }
 
 /* ========================================= 
