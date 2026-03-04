@@ -36,7 +36,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const feeds = {
         discover: document.getElementById('xhs-discover-feed'),
         follow: document.getElementById('xhs-follow-feed'),
-        local: null
+        local: null // 附近页占位，按需创建
     };
 
     // 顶部按钮
@@ -1648,6 +1648,10 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
         if (feeds.discover.parentElement) feeds.discover.parentElement.classList.remove('xhs-no-scroll');
+
+        // 移除空状态容器类（该类含 overflow:hidden 和 height:100% 会阻止滚动）
+        feeds.discover.classList.remove('xhs-grid-empty-container');
+        feeds.discover.style.cssText = '';
 
         // 使用新的瀑布流渲染
         renderWaterfall(feeds.discover, notes, (note) => {
@@ -4274,10 +4278,17 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
                 if (currentHomeTab === 'follow') {
                     if (feeds.discover) feeds.discover.style.display = 'none';
                     if (feeds.follow) feeds.follow.style.display = '';
+                    if (feeds.local) feeds.local.style.display = 'none';
                     loadFollowedUsersNotes();
+                } else if (currentHomeTab === 'local') {
+                    if (feeds.discover) feeds.discover.style.display = 'none';
+                    if (feeds.follow) feeds.follow.style.display = 'none';
+                    // 触发tab点击以创建local feed
+                    topTabItems.forEach(t => { if (t.dataset.target === 'local') t.click(); });
                 } else {
                     if (feeds.discover) feeds.discover.style.display = '';
                     if (feeds.follow) feeds.follow.style.display = 'none';
+                    if (feeds.local) feeds.local.style.display = 'none';
                     loadXhsNotes();
                 }
             } else if (index === 1) {
@@ -4311,12 +4322,42 @@ ${note.comments ? note.comments.map(c => `主评论ID:${c.id}, 用户:${c.user}`
             currentHomeTab = target; // 更新当前激活的tab
             if (feeds.discover) feeds.discover.style.display = 'none';
             if (feeds.follow) feeds.follow.style.display = 'none';
+            // 隐藏附近页占位
+            if (feeds.local) feeds.local.style.display = 'none';
+
+            // 切换tab时清除共享父容器的滚动锁定（各tab的load函数会按需重新设置）
+            const contentArea = document.querySelector('.xhs-content-area');
+            if (contentArea) contentArea.classList.remove('xhs-no-scroll');
+
             if (target === 'discover') {
                 if (feeds.discover) feeds.discover.style.display = '';
+                loadXhsNotes(); // 重新加载以确保滚动状态正确
             } else if (target === 'follow') {
                 if (feeds.follow) feeds.follow.style.display = '';
                 // 加载关注页笔记
                 loadFollowedUsersNotes();
+            } else if (target === 'local') {
+                // 附近页 - 显示占位内容
+                if (!feeds.local) {
+                    const localFeed = document.createElement('div');
+                    localFeed.id = 'xhs-local-feed';
+                    localFeed.className = 'xhs-grid-empty-container';
+                    localFeed.innerHTML = `
+                        <div class="xhs-empty-state">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" class="xhs-empty-icon">
+                                <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+                                <circle cx="12" cy="10" r="3"></circle>
+                            </svg>
+                            <p>开发中，敬请期待</p>
+                            <p class="xhs-text-refresh" style="font-size:12px;color:#999">功能即将上线~</p>
+                        </div>
+                    `;
+                    // 插入到 content-area 中
+                    const contentArea = feeds.discover ? feeds.discover.parentElement : document.querySelector('.xhs-content-area');
+                    if (contentArea) contentArea.appendChild(localFeed);
+                    feeds.local = localFeed;
+                }
+                feeds.local.style.display = '';
             }
         });
     });
