@@ -5470,10 +5470,10 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (document.getElementById('login-overlay')) return;
 
         // 1. 引入字体
-        if (!document.getElementById('pixel-font-link')) {
+        if (!document.getElementById('sunflower-font-link')) {
             const fontLink = document.createElement('link');
-            fontLink.id = 'pixel-font-link';
-            fontLink.href = 'https://fonts.googleapis.com/css2?family=VT323&display=swap';
+            fontLink.id = 'sunflower-font-link';
+            fontLink.href = 'https://fonts.googleapis.com/css2?family=Quicksand:wght@400;500;600;700&display=swap';
             fontLink.rel = 'stylesheet';
             document.head.appendChild(fontLink);
         }
@@ -5483,157 +5483,183 @@ document.addEventListener('DOMContentLoaded', async () => {
         style.innerHTML = `
             #login-overlay {
                 position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-                background-color: #dbc6c6; 
+                background: linear-gradient(160deg, #fffde7 0%, #fff9c4 30%, #fff176 70%, #fdd835 100%);
                 z-index: 99999;
                 display: flex; flex-direction: column;
                 justify-content: center; align-items: center;
-                font-family: 'VT323', monospace;
+                font-family: 'Quicksand', sans-serif;
                 overflow: hidden;
             }
 
-            /* --- 机身 --- */
-            .gameboy-body {
-                width: 360px; height: 640px;
-                background-color: #eed7d5; /* 枯玫瑰粉 */
-                border-radius: 60px;
-                box-shadow: 
-                    20px 20px 60px #c5b0ae, 
-                    -20px -20px 60px #fffaf8,
-                    inset 2px 2px 5px rgba(255,255,255,0.5);
-                border: 6px solid #e6cfcd;
-                display: flex; flex-direction: column;
-                align-items: center;
-                padding: 30px; box-sizing: border-box; position: relative;
+            /* --- 背景装饰：漂浮的花瓣 --- */
+            .sf-petal {
+                position: absolute;
+                width: 18px; height: 40px;
+                background: #fbc02d;
+                border-radius: 50% 50% 50% 50% / 70% 70% 30% 30%;
+                opacity: 0.18;
+                animation: sfFloat linear infinite;
+                pointer-events: none;
+            }
+            @keyframes sfFloat {
+                0% { transform: translateY(110vh) rotate(0deg); opacity: 0; }
+                10% { opacity: 0.18; }
+                90% { opacity: 0.18; }
+                100% { transform: translateY(-10vh) rotate(360deg); opacity: 0; }
             }
 
-            /* --- 屏幕外框 --- */
-            .screen-bezel {
-                width: 100%;
-                background-color: #dcbdbb;
-                border-radius: 40px 40px 50px 40px;
-                padding: 20px; box-sizing: border-box;
-                box-shadow: inset 3px 3px 10px rgba(0,0,0,0.1);
+            /* --- 登录卡片 --- */
+            .sf-card {
+                width: 340px;
+                background: rgba(255, 255, 255, 0.85);
+                backdrop-filter: blur(20px);
+                -webkit-backdrop-filter: blur(20px);
+                border-radius: 28px;
+                box-shadow: 0 8px 40px rgba(251, 192, 45, 0.2), 0 2px 12px rgba(0,0,0,0.06);
+                padding: 40px 32px 32px;
+                box-sizing: border-box;
                 display: flex; flex-direction: column; align-items: center;
-                margin-bottom: 30px; position: relative;
-            }
-            .bezel-dots { position: absolute; top: 12px; left: 25px; display: flex; gap: 6px; }
-            .dot { width: 6px; height: 6px; border-radius: 50%; background: #b09896; opacity: 0.5;}
-
-            /* --- 液晶屏幕 --- */
-            .screen-lcd {
-                width: 100%; height: 320px;
-                background-color: #4a3b3b;
-                border-radius: 20px;
-                box-shadow: inset 0 0 15px rgba(0,0,0,0.6);
-                background-image: 
-                    linear-gradient(rgba(255, 192, 203, 0.03) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(255, 192, 203, 0.03) 1px, transparent 1px);
-                background-size: 4px 4px;
-                display: flex; flex-direction: column; align-items: center; justify-content: center;
-                color: #fce4ec; text-shadow: 0 0 4px rgba(252, 228, 236, 0.6);
-                position: relative; overflow: hidden;
-            }
-            
-            .scanline {
-                width: 100%; height: 100%; position: absolute; left: 0; top: 0;
-                background: linear-gradient(to bottom, rgba(255,255,255,0), rgba(255,255,255,0) 50%, rgba(0,0,0,0.1) 50%, rgba(0,0,0,0.1));
-                background-size: 100% 4px; pointer-events: none; z-index: 5; opacity: 0.3;
-            }
-
-            .game-logo { font-size: 28px; margin-bottom: 30px; letter-spacing: 4px; opacity: 0.9; }
-
-            /* --- 输入框组 (包含行走的小人) --- */
-            .input-group {
-                width: 85%;
                 position: relative;
-                margin-bottom: 25px; /* 增加间距给小人留位置 */
+                z-index: 2;
             }
 
-            .pixel-input {
-                width: 100%; height: 40px;
-                background: rgba(255, 255, 255, 0.1);
-                border: 2px solid #8d7878;
-                border-radius: 10px;
-                color: #fff;
-                font-family: 'VT323', monospace;
-                font-size: 20px;
-                padding: 0 10px;
-                text-align: center;
+            /* --- 太阳花 SVG 装饰 --- */
+            .sf-flower-wrap {
+                width: 90px; height: 90px;
+                margin-bottom: 16px;
+                animation: sfSpin 20s linear infinite;
+                filter: drop-shadow(0 4px 12px rgba(251,192,45,0.3));
+            }
+            @keyframes sfSpin {
+                from { transform: rotate(0deg); }
+                to { transform: rotate(360deg); }
+            }
+
+            .sf-title {
+                font-size: 22px; font-weight: 700;
+                color: #5d4037;
+                letter-spacing: 1px;
+                margin-bottom: 4px;
+            }
+            .sf-subtitle {
+                font-size: 13px; font-weight: 500;
+                color: #a1887f;
+                margin-bottom: 28px;
+            }
+
+            /* --- 输入框 --- */
+            .sf-input-group {
+                width: 100%;
+                margin-bottom: 16px;
+                position: relative;
+            }
+            .sf-input-label {
+                display: block;
+                font-size: 12px; font-weight: 600;
+                color: #8d6e63;
+                margin-bottom: 6px;
+                padding-left: 4px;
+            }
+            .sf-input {
+                width: 100%; height: 46px;
+                background: rgba(255, 249, 196, 0.6);
+                border: 2px solid #ffe082;
+                border-radius: 14px;
+                color: #4e342e;
+                font-family: 'Quicksand', sans-serif;
+                font-size: 15px; font-weight: 500;
+                padding: 0 16px;
                 outline: none;
-                transition: all 0.3s;
-                box-sizing: border-box; /* 确保padding不撑大宽度 */
+                transition: all 0.3s ease;
+                box-sizing: border-box;
             }
-            .pixel-input:focus {
-                background: rgba(255, 255, 255, 0.2);
-                border-color: #f8a5c2;
-                box-shadow: 0 0 10px rgba(248, 165, 194, 0.4);
+            .sf-input:focus {
+                background: #fff;
+                border-color: #ffb300;
+                box-shadow: 0 0 0 4px rgba(255, 179, 0, 0.15);
             }
-            .pixel-input::placeholder { color: rgba(252, 228, 236, 0.3); font-size: 18px; }
+            .sf-input::placeholder {
+                color: #bcaaa4; font-size: 14px; font-weight: 400;
+            }
 
-            /* --- 行走的小人动画 --- */
-            .walker {
+            /* --- 状态消息 --- */
+            #login-msg {
+                height: 22px; line-height: 22px;
+                font-size: 13px; font-weight: 600;
+                color: #f9a825;
+                margin: 4px 0 20px;
+                text-align: center;
+                transition: color 0.3s;
+            }
+
+            /* --- 按钮行 --- */
+            .sf-btn-row {
+                width: 100%;
+                display: flex; gap: 12px;
+            }
+            .sf-btn {
+                flex: 1; height: 46px;
+                border: none; border-radius: 14px;
+                font-family: 'Quicksand', sans-serif;
+                font-size: 15px; font-weight: 700;
+                cursor: pointer;
+                transition: all 0.25s ease;
+                letter-spacing: 0.5px;
+            }
+            .sf-btn:active {
+                transform: scale(0.96);
+            }
+            #btn-login-submit {
+                background: linear-gradient(135deg, #ffb300, #ff8f00);
+                color: #fff;
+                box-shadow: 0 4px 16px rgba(255, 143, 0, 0.35);
+            }
+            #btn-login-submit:hover {
+                box-shadow: 0 6px 24px rgba(255, 143, 0, 0.45);
+                transform: translateY(-1px);
+            }
+            #btn-login-submit:active {
+                transform: translateY(1px) scale(0.98);
+                box-shadow: 0 2px 8px rgba(255, 143, 0, 0.3);
+            }
+            #btn-login-submit:disabled {
+                opacity: 0.6; cursor: not-allowed;
+            }
+            #btn-login-reset {
+                background: transparent;
+                color: #a1887f;
+                border: 2px solid #d7ccc8;
+            }
+            #btn-login-reset:hover {
+                background: rgba(215, 204, 200, 0.2);
+                border-color: #bcaaa4;
+            }
+
+            /* --- 底部信息 --- */
+            .sf-footer {
+                margin-top: 20px;
+                font-size: 12px; font-weight: 500;
+                color: #a1887f;
+                letter-spacing: 0.5px;
+                z-index: 2;
+            }
+
+            /* --- 小蜜蜂动画（替代像素小人） --- */
+            .sf-bee {
                 position: absolute;
-                /* 放在输入框上方边框的位置 */
-                top: -38px; 
-                height: 40px; /* 稍微大一点点 */
-                width: auto;
-                z-index: 10;
-                pointer-events: none; /* 让鼠标点击穿透图片，不影响点输入框 */
-                image-rendering: pixelated; /* 保持像素清晰 */
+                font-size: 20px;
+                pointer-events: none;
+                z-index: 3;
+                animation: sfBee 12s ease-in-out infinite;
+                filter: drop-shadow(0 2px 4px rgba(0,0,0,0.1));
             }
-
-            /* 定义行走动画：从左跑到右，然后瞬间回到左边循环 */
-            @keyframes walkRight {
-                0% { left: -10px; }
-                100% { left: calc(100% - 30px); } 
+            @keyframes sfBee {
+                0% { top: 30%; left: -5%; transform: rotate(10deg); }
+                25% { top: 15%; left: 40%; transform: rotate(-5deg); }
+                50% { top: 35%; left: 85%; transform: rotate(15deg); }
+                75% { top: 10%; left: 55%; transform: rotate(-10deg); }
+                100% { top: 30%; left: -5%; transform: rotate(10deg); }
             }
-
-            .walker-uid {
-                animation: walkRight 8s linear infinite;
-            }
-            
-            .walker-pwd {
-                /* 稍微慢一点，并且有延迟，制造距离感 */
-                animation: walkRight 9s linear infinite; 
-                animation-delay: -4s; /* 负延迟表示动画一开始就在中间 */
-            }
-
-            #login-msg { height: 20px; font-size: 16px; color: #fab1a0; margin-top: 5px; }
-
-            /* --- 操控区 --- */
-            .controls-area { width: 100%; flex: 1; position: relative; }
-
-            .d-pad { position: absolute; top: 20px; left: 20px; width: 100px; height: 100px; }
-            .d-pad-h, .d-pad-v {
-                background: #b5a3a3; border-radius: 10px;
-                box-shadow: inset 2px 2px 5px rgba(255,255,255,0.2), 3px 3px 5px rgba(0,0,0,0.1);
-                position: absolute;
-            }
-            .d-pad-h { width: 100px; height: 34px; top: 33px; }
-            .d-pad-v { width: 34px; height: 100px; left: 33px; }
-            .d-pad-center {
-                width: 34px; height: 34px; background: #b5a3a3;
-                position: absolute; top: 33px; left: 33px; z-index: 2;
-                border-radius: 50%; box-shadow: inset 2px 2px 5px rgba(0,0,0,0.1);
-            }
-
-            .action-btns { position: absolute; top: 30px; right: 20px; display: flex; gap: 20px; transform: rotate(-10deg); }
-            .round-btn {
-                width: 55px; height: 55px; border-radius: 50%; border: none; cursor: pointer;
-                font-family: 'VT323', monospace; font-size: 24px; color: rgba(255,255,255,0.6);
-                display: flex; justify-content: center; align-items: center;
-                box-shadow: 0 6px 0 rgba(0,0,0,0.15), 0 10px 10px rgba(0,0,0,0.1);
-                transition: transform 0.1s; position: relative;
-            }
-            .btn-a { background: radial-gradient(circle at 30% 30%, #eababa, #cd8d8d); margin-top: -20px; }
-            .btn-b { background: radial-gradient(circle at 30% 30%, #c4d4c4, #8fa08f); margin-top: 20px; }
-            .round-btn:active { transform: translateY(6px); box-shadow: 0 0 0 rgba(0,0,0,0.15); }
-            .btn-label { position: absolute; bottom: -25px; width: 100%; text-align: center; color: #bcaaaa; font-size: 14px; font-weight: bold; }
-
-            .options-group { position: absolute; bottom: 20px; width: 100%; display: flex; justify-content: center; gap: 30px; }
-            .pill-btn { width: 60px; height: 16px; background: #cbbaba; border-radius: 20px; transform: rotate(-15deg); box-shadow: inset 1px 1px 3px rgba(0,0,0,0.1); border: 1px solid rgba(255,255,255,0.2); }
-            .speakers { position: absolute; bottom: 30px; right: 30px; display: flex; gap: 5px; transform: rotate(-15deg); }
-            .sp-slot { width: 6px; height: 6px; background: rgba(0,0,0,0.05); border-radius: 50%; box-shadow: inset 1px 1px 1px rgba(0,0,0,0.1); }
           `;
         document.head.appendChild(style);
 
@@ -5641,63 +5667,69 @@ document.addEventListener('DOMContentLoaded', async () => {
         const overlay = document.createElement('div');
         overlay.id = 'login-overlay';
 
+        // 生成随机漂浮花瓣背景
+        let petalsHtml = '';
+        for (let i = 0; i < 12; i++) {
+            const left = Math.random() * 100;
+            const delay = Math.random() * 8;
+            const dur = 10 + Math.random() * 8;
+            const size = 0.6 + Math.random() * 0.8;
+            const hue = Math.random() > 0.5 ? '#fbc02d' : '#ffca28';
+            petalsHtml += `<div class="sf-petal" style="left:${left}%;animation-delay:${delay}s;animation-duration:${dur}s;transform:scale(${size});background:${hue};"></div>`;
+        }
+
         overlay.innerHTML = `
-            <div class="gameboy-body">
-                <div class="screen-bezel">
-                    <div class="bezel-dots"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>
-                    
-                    <div class="screen-lcd">
-                        <div class="scanline"></div>
-                        <div class="game-logo">E-PHONE TUKI</div>
-                        
-                        <!-- 账号输入框组 -->
-                        <div class="input-group">
-                            <img src="https://i.postimg.cc/bwyK9rVr/1000109644.png" class="walker walker-uid" alt="char1">
-                            <input type="text" id="login-uid" class="pixel-input" placeholder="ACCOUNT ID" spellcheck="false" autocomplete="off">
-                        </div>
+            ${petalsHtml}
+            <div class="sf-bee">🐝</div>
 
-                        <!-- 密码输入框组 -->
-                        <div class="input-group">
-                            <img src="https://i.postimg.cc/NjsWkFCQ/test.png" class="walker walker-pwd" alt="char2">
-                            <input type="password" id="login-pwd" class="pixel-input" placeholder="PASSWORD" autocomplete="off">
-                        </div>
-                        
-                        <p id="login-msg">WAITING...</p>
-                        
-                        <div style="margin-top: 15px; font-size: 14px; color: rgba(252, 228, 236, 0.5);">● REC</div>
-                    </div>
-                    
-                    <div style="margin-top: 10px; color: #a69292; font-size: 12px; letter-spacing: 1px; font-weight: bold;">
-                        Ephone TUKI ^ ̳- ‧̫ • ̳^ฅ
-                    </div>
+            <div class="sf-card">
+                <!-- 太阳花 SVG -->
+                <div class="sf-flower-wrap">
+                    <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+                        <defs>
+                            <radialGradient id="sfCenter" cx="50%" cy="45%">
+                                <stop offset="0%" stop-color="#8d6e63"/>
+                                <stop offset="100%" stop-color="#5d4037"/>
+                            </radialGradient>
+                        </defs>
+                        ${(() => {
+                let petals = '';
+                for (let i = 0; i < 14; i++) {
+                    const angle = (360 / 14) * i;
+                    petals += `<ellipse cx="100" cy="38" rx="18" ry="42" fill="#fdd835" transform="rotate(${angle},100,100)" opacity="0.92"/>`;
+                    petals += `<ellipse cx="100" cy="42" rx="13" ry="36" fill="#ffb300" transform="rotate(${angle + 13},100,100)" opacity="0.7"/>`;
+                }
+                return petals;
+            })()}
+                        <circle cx="100" cy="100" r="32" fill="url(#sfCenter)"/>
+                        <circle cx="92" cy="94" r="4" fill="#a1887f" opacity="0.5"/>
+                        <circle cx="108" cy="96" r="3" fill="#a1887f" opacity="0.4"/>
+                        <circle cx="100" cy="108" r="3.5" fill="#a1887f" opacity="0.45"/>
+                    </svg>
                 </div>
 
-                <div class="controls-area">
-                    <div class="d-pad">
-                        <div class="d-pad-h"></div><div class="d-pad-v"></div><div class="d-pad-center"></div>
-                    </div>
-                    <div class="action-btns">
-                        <div style="position:relative;">
-                             <button id="btn-login-reset" class="round-btn btn-b">B</button>
-                             <div class="btn-label">RESET</div>
-                        </div>
-                        <div style="position:relative;">
-                             <button id="btn-login-submit" class="round-btn btn-a">A</button>
-                             <div class="btn-label">START</div>
-                        </div>
-                    </div>
-                    <div class="options-group">
-                        <div class="pill-btn"></div><div class="pill-btn"></div>
-                    </div>
-                    <div class="speakers">
-                        <div class="sp-slot"></div><div class="sp-slot"></div><div class="sp-slot"></div>
-                        <div class="sp-slot"></div><div class="sp-slot"></div><div class="sp-slot"></div>
-                    </div>
+                <div class="sf-title">E-PHONE TUKI</div>
+                <div class="sf-subtitle">向阳而生 · 温暖登录</div>
+
+                <div class="sf-input-group">
+                    <label class="sf-input-label">账号 Account</label>
+                    <input type="text" id="login-uid" class="sf-input" placeholder="请输入账号" spellcheck="false" autocomplete="off">
+                </div>
+
+                <div class="sf-input-group">
+                    <label class="sf-input-label">密码 Password</label>
+                    <input type="password" id="login-pwd" class="sf-input" placeholder="请输入密码" autocomplete="off">
+                </div>
+
+                <p id="login-msg">等待输入...</p>
+
+                <div class="sf-btn-row">
+                    <button id="btn-login-reset" class="sf-btn">重置</button>
+                    <button id="btn-login-submit" class="sf-btn">🌻 登录</button>
                 </div>
             </div>
-            <div style="margin-top: 25px; font-size: 14px; color: #7f6e6e;">
-                PRESS <span style="color:#cd8d8d; font-weight:bold;">( A )</span> TO LOGIN
-            </div>
+
+            <div class="sf-footer">Ephone TUKI · Sunflower Edition 🌻</div>
           `;
 
         document.body.prepend(overlay);
@@ -5710,7 +5742,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         function handleLoginTrigger() {
             const msg = document.getElementById('login-msg');
-            if (msg) msg.textContent = 'CONNECTING...';
+            if (msg) msg.textContent = '正在连接...';
             setTimeout(() => {
                 if (typeof tryLogin === 'function') {
                     tryLogin();
@@ -5723,31 +5755,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         submitBtn.onclick = handleLoginTrigger;
         resetBtn.onclick = () => {
             pwdInput.value = '';
+            uidInput.value = '';
             const msg = document.getElementById('login-msg');
-            if (msg) msg.textContent = 'CLEARED';
-            pwdInput.focus();
+            if (msg) { msg.textContent = '已清空'; msg.style.color = '#f9a825'; }
+            uidInput.focus();
         };
         pwdInput.onkeypress = function (e) {
             if (e.key === 'Enter') handleLoginTrigger();
         };
-
-        const bindVisualEffect = (btn) => {
-            const down = () => {
-                btn.style.transform = 'translateY(6px)';
-                btn.style.boxShadow = 'none';
-            };
-            const up = () => {
-                btn.style.transform = 'translateY(0)';
-                btn.style.boxShadow = '0 6px 0 rgba(0,0,0,0.15), 0 10px 10px rgba(0,0,0,0.1)';
-            };
-            btn.addEventListener('mousedown', down);
-            btn.addEventListener('mouseup', up);
-            btn.addEventListener('mouseleave', up);
-            btn.addEventListener('touchstart', down, { passive: true });
-            btn.addEventListener('touchend', up);
+        uidInput.onkeypress = function (e) {
+            if (e.key === 'Enter') pwdInput.focus();
         };
-        bindVisualEffect(submitBtn);
-        bindVisualEffect(resetBtn);
     }
 
     // 2. 验证与启动函数
