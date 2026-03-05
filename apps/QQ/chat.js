@@ -167,6 +167,8 @@ function createChatListItem(chat) {
             lastMsgDisplay = '[语音]';
         } else if (lastMsgObj.type === 'xhs-share') {
             lastMsgDisplay = '[小红书] ' + (lastMsgObj.shareData?.title || '分享笔记');
+        } else if (lastMsgObj.type === 'lofter-share') {
+            lastMsgDisplay = '[LOFTER] ' + (lastMsgObj.shareData?.title || '分享作品');
         } else if (typeof lastMsgObj.content === 'string' && STICKER_REGEX.test(lastMsgObj.content)) {
             lastMsgDisplay = lastMsgObj.meaning ? `[表情: ${lastMsgObj.meaning}]` : '[表情]';
         } else if (Array.isArray(lastMsgObj.content)) {
@@ -183,6 +185,8 @@ function createChatListItem(chat) {
         // 非群聊：显示最后一条消息内容
         if (lastMsgObj.type === 'xhs-share') {
             lastMsgDisplay = '[小红书] ' + (lastMsgObj.shareData?.title || '分享笔记');
+        } else if (lastMsgObj.type === 'lofter-share') {
+            lastMsgDisplay = '[LOFTER] ' + (lastMsgObj.shareData?.title || '分享作品');
         } else if (lastMsgObj.type === 'transfer') {
             lastMsgDisplay = '[转账]';
         } else if (lastMsgObj.type === 'ai_image' || lastMsgObj.type === 'user_photo') {
@@ -1527,6 +1531,28 @@ function createMessageElement(msg, chat) {
                 </div>
             </div>
         `;
+    } else if (msg.type === 'lofter-share') {
+        // Lofter作品分享卡片
+        bubble.classList.add('is-lofter-share');
+        const data = msg.shareData || {};
+        contentHtml = `
+            <div class="lofter-share-card-in-chat" data-article-id="${data.articleId || ''}">
+                <div class="lofter-share-card-header">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+                    <span>LOFTER</span>
+                </div>
+                <div class="lofter-share-card-body">
+                    ${data.cover ? `<img src="${data.cover}" class="lofter-share-card-cover" onerror="this.style.display='none'" />` : ''}
+                    <div class="lofter-share-card-info">
+                        <div class="lofter-share-card-title">${data.title || '分享作品'}</div>
+                        <div class="lofter-share-card-author">
+                            <img src="${data.authorAvatar || ''}" class="lofter-share-card-avatar" onerror="this.style.display='none'" />
+                            <span>${data.authorName || '作者'}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
     } else if (msg.type === 'sticker' && msg.content) {
         bubble.classList.add('is-sticker');
         // 直接从消息对象中获取 url 和 meaning
@@ -1756,6 +1782,36 @@ function formatMessageForContext(msg, chat) {
             });
         }
         contentText = xhsContent.trim();
+    } else if (msg.type === 'lofter-share' && msg.shareData) {
+        // Lofter作品分享 - 包含完整信息
+        const data = msg.shareData;
+        let lofterContent = `[分享了一篇LOFTER作品]\n`;
+        lofterContent += `标题: ${data.title || '无标题'}\n`;
+        lofterContent += `作者: ${data.authorName || '未知'}\n`;
+        if (data.content) {
+            lofterContent += `内容: ${data.content}\n`;
+        }
+        if (data.tags && data.tags.length > 0) {
+            lofterContent += `标签: ${data.tags.map(t => '#' + t).join(' ')}\n`;
+        }
+        if (data.authorNotes) {
+            lofterContent += `作者有话说: ${data.authorNotes}\n`;
+        }
+        if (data.stats) {
+            lofterContent += `互动: ${data.stats.likes || 0}赞 ${data.stats.collects || 0}收藏 ${data.stats.views || 0}阅读\n`;
+        }
+        if (data.comments && data.comments.length > 0) {
+            lofterContent += `评论区:\n`;
+            data.comments.forEach((c, idx) => {
+                lofterContent += `  ${idx + 1}. ${c.name || '匿名'}: ${c.text || ''}\n`;
+                if (c.replies && c.replies.length > 0) {
+                    c.replies.forEach(r => {
+                        lofterContent += `     └ ${r.name || '匿名'}: ${r.text || ''}\n`;
+                    });
+                }
+            });
+        }
+        contentText = lofterContent.trim();
     } else {
         contentText = String(msg.content || '');
     }
@@ -2919,6 +2975,28 @@ window.triggerAiResponse = async function triggerAiResponse() {
                         }
                         contentStr = xhsContent.trim();
                     }
+                    else if (msg.type === 'lofter-share' && msg.shareData) {
+                        const data = msg.shareData;
+                        let lofterContent = `[用户分享了一篇LOFTER作品]\n`;
+                        lofterContent += `标题: ${data.title || '无标题'}\n`;
+                        lofterContent += `作者: ${data.authorName || '未知'}\n`;
+                        if (data.content) lofterContent += `内容: ${data.content}\n`;
+                        if (data.tags && data.tags.length > 0) lofterContent += `标签: ${data.tags.map(t => '#' + t).join(' ')}\n`;
+                        if (data.authorNotes) lofterContent += `作者有话说: ${data.authorNotes}\n`;
+                        if (data.stats) lofterContent += `互动: ${data.stats.likes || 0}赞 ${data.stats.collects || 0}收藏 ${data.stats.views || 0}阅读\n`;
+                        if (data.comments && data.comments.length > 0) {
+                            lofterContent += `评论区:\n`;
+                            data.comments.forEach((c, idx) => {
+                                lofterContent += `  ${idx + 1}. ${c.name || '匿名'}: ${c.text || ''}\n`;
+                                if (c.replies && c.replies.length > 0) {
+                                    c.replies.forEach(r => {
+                                        lofterContent += `     └ ${r.name || '匿名'}: ${r.text || ''}\n`;
+                                    });
+                                }
+                            });
+                        }
+                        contentStr = lofterContent.trim();
+                    }
 
                     return `${timestampStr} ${myNickname}: ${contentStr}`;
                 })
@@ -3288,6 +3366,27 @@ ${libraryList}
                             });
                         }
                         contentStr = xhsContent.trim();
+                    } else if (msg.type === 'lofter-share' && msg.shareData) {
+                        const data = msg.shareData;
+                        let lofterContent = `[用户分享了一篇LOFTER作品]\n`;
+                        lofterContent += `标题: ${data.title || '无标题'}\n`;
+                        lofterContent += `作者: ${data.authorName || '未知'}\n`;
+                        if (data.content) lofterContent += `内容: ${data.content}\n`;
+                        if (data.tags && data.tags.length > 0) lofterContent += `标签: ${data.tags.map(t => '#' + t).join(' ')}\n`;
+                        if (data.authorNotes) lofterContent += `作者有话说: ${data.authorNotes}\n`;
+                        if (data.stats) lofterContent += `互动: ${data.stats.likes || 0}赞 ${data.stats.collects || 0}收藏 ${data.stats.views || 0}阅读\n`;
+                        if (data.comments && data.comments.length > 0) {
+                            lofterContent += `评论区:\n`;
+                            data.comments.forEach((c, idx) => {
+                                lofterContent += `  ${idx + 1}. ${c.name || '匿名'}: ${c.text || ''}\n`;
+                                if (c.replies && c.replies.length > 0) {
+                                    c.replies.forEach(r => {
+                                        lofterContent += `     └ ${r.name || '匿名'}: ${r.text || ''}\n`;
+                                    });
+                                }
+                            });
+                        }
+                        contentStr = lofterContent.trim();
                     }
                     return `${timestampStr} ${myNickname}: ${contentStr}`;
                 })
@@ -6839,7 +6938,142 @@ function setupChatListeners() {
         viewerModal.classList.add('visible');
     }
 
-    // Function for XHS note viewer (used in click listener)
+    // 打开Lofter作品查看器（聊天内查看分享的作品）
+    function openLofterArticleViewer(shareData) {
+        if (!shareData) return;
+
+        const viewerModal = document.getElementById('lofter-article-viewer-modal');
+        if (!viewerModal) return;
+
+        // 填充作者信息
+        const avatarEl = document.getElementById('lofter-viewer-avatar');
+        const authorNameEl = document.getElementById('lofter-viewer-author-name');
+        if (avatarEl) avatarEl.src = shareData.authorAvatar || '';
+        if (authorNameEl) authorNameEl.textContent = shareData.authorName || '作者';
+
+        // 填充封面图
+        const coverWrap = document.getElementById('lofter-viewer-cover-wrap');
+        const coverEl = document.getElementById('lofter-viewer-cover');
+        const coverUrl = shareData.cover || (shareData.images && shareData.images[0]) || '';
+        if (coverEl && coverWrap) {
+            if (coverUrl) {
+                coverEl.src = coverUrl;
+                coverEl.onerror = () => { coverWrap.style.display = 'none'; };
+                coverWrap.style.display = 'block';
+            } else {
+                coverWrap.style.display = 'none';
+            }
+        }
+
+        // 填充额外图片
+        const imagesEl = document.getElementById('lofter-viewer-images');
+        if (imagesEl) {
+            const extraImages = (shareData.images || []).slice(1);
+            if (extraImages.length > 0) {
+                imagesEl.innerHTML = extraImages.map(img =>
+                    `<img src="${img}" class="lofter-viewer-extra-img" onerror="this.style.display='none'" />`
+                ).join('');
+                imagesEl.style.display = 'flex';
+            } else {
+                imagesEl.style.display = 'none';
+            }
+        }
+
+        // 填充标题和内容
+        const titleEl = document.getElementById('lofter-viewer-title');
+        const contentEl = document.getElementById('lofter-viewer-content');
+        if (titleEl) titleEl.textContent = shareData.title || '分享作品';
+        if (contentEl) contentEl.innerHTML = (shareData.content || '').replace(/\n/g, '<br>');
+
+        // 填充标签
+        const tagsEl = document.getElementById('lofter-viewer-tags');
+        if (tagsEl) {
+            if (shareData.tags && shareData.tags.length > 0) {
+                tagsEl.innerHTML = shareData.tags.map(tag =>
+                    `<span class="lofter-viewer-tag-item">${tag.startsWith('#') ? tag : '#' + tag}</span>`
+                ).join('');
+                tagsEl.style.display = 'flex';
+            } else {
+                tagsEl.style.display = 'none';
+            }
+        }
+
+        // 填充作者有话说
+        const authorNotesEl = document.getElementById('lofter-viewer-author-notes');
+        if (authorNotesEl) {
+            if (shareData.authorNotes) {
+                authorNotesEl.innerHTML = `<div class="lofter-viewer-author-notes-title">作者有话说</div><div class="lofter-viewer-author-notes-text">${shareData.authorNotes}</div>`;
+                authorNotesEl.style.display = 'block';
+            } else {
+                authorNotesEl.style.display = 'none';
+            }
+        }
+
+        // 填充日期和统计数据
+        const dateEl = document.getElementById('lofter-viewer-date');
+        if (dateEl) dateEl.textContent = shareData.dateStr || '';
+        const likesEl = document.getElementById('lofter-viewer-likes');
+        const collectsEl = document.getElementById('lofter-viewer-collects');
+        const viewsEl = document.getElementById('lofter-viewer-views');
+        if (likesEl) likesEl.textContent = shareData.stats?.likes || 0;
+        if (collectsEl) collectsEl.textContent = shareData.stats?.collects || 0;
+        if (viewsEl) viewsEl.textContent = shareData.stats?.views || 0;
+
+        // 填充评论区
+        const commentsSection = document.getElementById('lofter-viewer-comments-section');
+        const commentsCountEl = document.getElementById('lofter-viewer-comments-count');
+        const commentsListEl = document.getElementById('lofter-viewer-comments-list');
+        if (commentsSection && commentsListEl) {
+            const comments = shareData.comments || [];
+            let totalCount = comments.length;
+            comments.forEach(c => { if (c.replies) totalCount += c.replies.length; });
+
+            if (comments.length > 0) {
+                commentsSection.style.display = 'block';
+                if (commentsCountEl) commentsCountEl.textContent = totalCount;
+                commentsListEl.innerHTML = comments.map(comment => {
+                    const userName = comment.name || '匿名用户';
+                    const commentText = comment.text || '';
+                    const userAvatar = comment.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(userName)}`;
+
+                    let repliesHtml = '';
+                    if (comment.replies && comment.replies.length > 0) {
+                        repliesHtml = `
+                            <div class="lofter-viewer-replies">
+                                ${comment.replies.map(reply => {
+                            const replyName = reply.name || '匿名用户';
+                            const replyText = reply.text || '';
+                            const replyAvatar = reply.avatar || `https://api.dicebear.com/7.x/notionists/svg?seed=${encodeURIComponent(replyName)}`;
+                            return `
+                                        <div class="lofter-viewer-reply-item">
+                                            <img src="${replyAvatar}" class="lofter-viewer-reply-avatar" />
+                                            <div class="lofter-viewer-reply-body">
+                                                <span class="lofter-viewer-reply-user">${replyName}</span>
+                                                <span class="lofter-viewer-reply-text">${replyText}</span>
+                                            </div>
+                                        </div>`;
+                        }).join('')}
+                            </div>`;
+                    }
+
+                    return `
+                        <div class="lofter-viewer-comment-item">
+                            <img src="${userAvatar}" class="lofter-viewer-comment-avatar" />
+                            <div class="lofter-viewer-comment-body">
+                                <div class="lofter-viewer-comment-user">${userName}</div>
+                                <div class="lofter-viewer-comment-text">${commentText}</div>
+                                ${repliesHtml}
+                            </div>
+                        </div>`;
+                }).join('');
+            } else {
+                commentsSection.style.display = 'none';
+            }
+        }
+
+        viewerModal.classList.add('visible');
+    }
+
     function openXhsNoteViewer(shareData) {
         if (!shareData) return;
 
@@ -7380,6 +7614,19 @@ function setupChatListeners() {
             }
         }
 
+        // 处理Lofter分享卡片的点击
+        const lofterShareCard = e.target.closest('.lofter-share-card-in-chat[data-article-id]');
+        if (lofterShareCard) {
+            const messageBubble = lofterShareCard.closest('.message-bubble');
+            if (messageBubble) {
+                const timestamp = parseInt(messageBubble.dataset.timestamp);
+                const msg = window.state.chats[window.state.activeChatId]?.history.find((m) => m.timestamp === timestamp);
+                if (msg && msg.type === 'lofter-share' && msg.shareData) {
+                    openLofterArticleViewer(msg.shareData);
+                }
+            }
+        }
+
         // 处理分享卡片的点击
         const shareCard = e.target.closest('.link-share-card[data-timestamp]');
         if (shareCard && shareCard.closest('.message-bubble.is-link-share')) {
@@ -7657,6 +7904,14 @@ function setupChatListeners() {
     document.getElementById('close-xhs-note-viewer-btn').addEventListener('click', () => {
         document.getElementById('xhs-note-viewer-modal').classList.remove('visible');
     });
+
+    // Lofter Article Viewer Close
+    const closeLofterViewerBtn = document.getElementById('close-lofter-viewer-btn');
+    if (closeLofterViewerBtn) {
+        closeLofterViewerBtn.addEventListener('click', () => {
+            document.getElementById('lofter-article-viewer-modal').classList.remove('visible');
+        });
+    }
 
     // Chat List Swipe / Click
     chatListEl.addEventListener('mousedown', (e) => {
