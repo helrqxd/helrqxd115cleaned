@@ -345,8 +345,8 @@
         const selectionFavoriteBtn = document.getElementById('selection-favorite-btn');
         if (selectionFavoriteBtn) {
             selectionFavoriteBtn.addEventListener('click', async () => {
-                const selectedBubbles = document.querySelectorAll('.message-bubble.multiselect-selected');
-                const timestampsToFavorite = Array.from(selectedBubbles).map(el => parseInt(el.closest('.chat-message').dataset.timestamp));
+                const selectedBubbles = document.querySelectorAll('.message-bubble.selected');
+                const timestampsToFavorite = Array.from(selectedBubbles).map(el => parseInt(el.dataset.timestamp));
 
                 if (timestampsToFavorite.length === 0) return;
 

@@ -4202,24 +4202,6 @@ body {
   margin-bottom: 8px;
 }
 
-/* === 约定卡片 - 已完成样式 === */
-.countdown-card.countdown-completed {
-  background: linear-gradient(135deg, #a8b5d6, #9b8fb4);
-  box-shadow: 0 2px 8px rgba(118, 75, 162, 0.2);
-}
-.countdown-card.countdown-completed::before {
-  content: "🎉";
-}
-.countdown-card.countdown-completed .title {
-  text-decoration: line-through;
-  opacity: 0.85;
-}
-.countdown-done-text {
-  font-size: 22px !important;
-  font-weight: 500 !important;
-  letter-spacing: 1px;
-}
-
 /* === 收藏 - 聊天记录卡片样式 === */
 .chat-record-card {
   cursor: pointer;
