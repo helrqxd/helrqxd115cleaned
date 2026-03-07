@@ -1,4 +1,4 @@
-// apps/QQ/favorites.js
+﻿// apps/QQ/favorites.js
 // QQ收藏功能模块
 
 // 常量定义 (改用 IIFE 包装避免污染全局，或者直接依赖全局定义)
@@ -200,6 +200,44 @@
                         contentHtml = messageText.replace(/\n/g, '<br>');
                     }
                 }
+            } else if (item.type === 'chat_record') {
+                // 合并聊天记录卡片
+                const messages = item.content;
+                const chat = window.state.chats[item.chatId];
+                const chatName = item.chatName || (chat ? chat.name : '未知聊天');
+                sourceText = `来自与 ${chatName} 的聊天`;
+
+                headerHtml = `<div class="chat-record-icon">💬</div><div class="info"><div class="name">聊天记录</div></div>`;
+
+                // 显示前几条消息的预览
+                const previewLines = messages.slice(0, 4).map(msg => {
+                    let sName = '我';
+                    if (msg.role !== 'user') {
+                        if (chat && chat.isGroup) {
+                            const member = chat ? chat.members.find(m => m.originalName === msg.senderName) : null;
+                            sName = member ? member.groupNickname : (msg.senderName || chatName);
+                        } else {
+                            sName = chatName;
+                        }
+                    }
+                    let text = '';
+                    if (typeof msg.content === 'string' && STICKER_REGEX.test(msg.content)) {
+                        text = '[表情]';
+                    } else if (Array.isArray(msg.content)) {
+                        text = '[图片]';
+                    } else {
+                        text = String(msg.content || '').replace(/\n/g, ' ').substring(0, 30);
+                        if (String(msg.content || '').length > 30) text += '...';
+                    }
+                    return `<div class="chat-record-preview-line"><span class="preview-sender">${sName}:</span> ${text}</div>`;
+                }).join('');
+
+                contentHtml = `<div class="chat-record-preview" data-favid="${item.id}">${previewLines}</div>`;
+                if (messages.length > 4) {
+                    contentHtml += `<div class="chat-record-more">共${messages.length}条消息</div>`;
+                }
+
+                card.classList.add('chat-record-card');
             }
 
             card.innerHTML = `
@@ -276,6 +314,11 @@
                             // 发送者名字较为复杂，这里简化搜索逻辑，搜索聊天对象名或“我”
                             authorToSearch = chat.name + (chat.isGroup ? ' 群' : '');
                         }
+                    } else if (item.type === 'chat_record') {
+                        // 合并聊天记录：搜索所有消息内容和聊天对象名
+                        const messages = item.content;
+                        contentToSearch = messages.map(m => typeof m.content === 'string' ? m.content : '').join(' ');
+                        authorToSearch = item.chatName || '';
                     }
 
                     // 同时搜索内容和作者，并且不区分大小写
@@ -302,18 +345,6 @@
         const selectionFavoriteBtn = document.getElementById('selection-favorite-btn');
         if (selectionFavoriteBtn) {
             selectionFavoriteBtn.addEventListener('click', async () => {
-                // 需要获取全局的selectedMessages
-                // 注意：selectedMessages 是在 main-app.js 中定义的全局变量
-                // 我们假设在 favorites.js 中无法直接访问 main-app.js 的非window变量
-                // 但是DOM元素事件是共享的。 
-                // 修正：main-app.js 中的 selectedMessages 是一个 Set，如果没有暴露到 window，我们这里无法获取。
-                // 因此，我们必须假设 selectedMessages 已经被暴露到了 window.selectedMessages，或者我们保留这段逻辑在 main-app.js 并只调用 helper？
-                // 考虑到用户要求“全部事件监听器”都整理移动，说明 main-app.js 中应该不再保留相关逻辑。
-                // 这是一个潜在问题。我们需要在 main-app.js 移除的地方，把 selectedMessages 暴露给 window。
-
-                // 暂时假设 window.selectedMessages 可用，或者使用 document.querySelectorAll 获取选中态
-                // 更好的方式是查找 DOM 中被选中的消息气泡
-
                 const selectedBubbles = document.querySelectorAll('.message-bubble.multiselect-selected');
                 const timestampsToFavorite = Array.from(selectedBubbles).map(el => parseInt(el.closest('.chat-message').dataset.timestamp));
 
@@ -322,38 +353,53 @@
                 const chat = window.state.chats[window.state.activeChatId];
                 if (!chat) return;
 
-                const favoritesToAdd = [];
-
+                // 收集所有选中的消息对象，并按时间排序
+                const messagesToSave = [];
                 for (const timestamp of timestampsToFavorite) {
-                    // 使用索引查询避免重复 (需要 async await)
-                    const existing = await window.db.favorites.where('originalTimestamp').equals(timestamp).first();
+                    const msg = chat.history.find((m) => m.timestamp === timestamp);
+                    if (msg) messagesToSave.push(msg);
+                }
+                messagesToSave.sort((a, b) => a.timestamp - b.timestamp);
 
+                if (messagesToSave.length === 0) return;
+
+                if (messagesToSave.length === 1) {
+                    // 单条消息仍然按原来方式收藏
+                    const msg = messagesToSave[0];
+                    const existing = await window.db.favorites.where('originalTimestamp').equals(msg.timestamp).first();
                     if (!existing) {
-                        const messageToSave = chat.history.find((msg) => msg.timestamp === timestamp);
-                        if (messageToSave) {
-                            favoritesToAdd.push({
-                                type: 'chat_message',
-                                content: messageToSave,
-                                chatId: window.state.activeChatId,
-                                timestamp: Date.now(), // 这是收藏操作发生的时间
-                                originalTimestamp: messageToSave.timestamp, // 保存原始消息的时间戳到新字段
-                            });
-                        }
+                        await window.db.favorites.add({
+                            type: 'chat_message',
+                            content: msg,
+                            chatId: window.state.activeChatId,
+                            timestamp: Date.now(),
+                            originalTimestamp: msg.timestamp,
+                        });
+                        if (window.showCustomAlert) await window.showCustomAlert('收藏成功', '已成功收藏 1 条消息。');
+                    } else {
+                        if (window.showCustomAlert) await window.showCustomAlert('提示', '该消息已收藏过。');
                     }
-                }
-
-                if (favoritesToAdd.length > 0) {
-                    await window.db.favorites.bulkAdd(favoritesToAdd);
-                    // 更新全局收藏缓存
-                    if (window.db.favorites) {
-                        allFavoriteItems = await window.db.favorites.orderBy('timestamp').reverse().toArray();
-                    }
-                    if (window.showCustomAlert) await window.showCustomAlert('收藏成功', `已成功收藏 ${favoritesToAdd.length} 条消息。`);
                 } else {
-                    if (window.showCustomAlert) await window.showCustomAlert('提示', '选中的消息均已收藏过。');
+                    // 多条消息合并为一条聊天记录收藏
+                    const chatName = chat.name;
+                    await window.db.favorites.add({
+                        type: 'chat_record',
+                        content: messagesToSave,
+                        chatId: window.state.activeChatId,
+                        chatName: chatName,
+                        isGroup: chat.isGroup || false,
+                        timestamp: Date.now(),
+                        messageCount: messagesToSave.length,
+                    });
+                    if (window.showCustomAlert) await window.showCustomAlert('收藏成功', `已将 ${messagesToSave.length} 条消息合并收藏为聊天记录。`);
                 }
 
-                // 退出选择模式 (需调用全局函数 exitSelectionMode)
+                // 更新全局收藏缓存
+                if (window.db.favorites) {
+                    allFavoriteItems = await window.db.favorites.orderBy('timestamp').reverse().toArray();
+                }
+
+                // 退出选择模式
                 if (window.exitSelectionMode) window.exitSelectionMode();
             });
         }
@@ -458,6 +504,104 @@
                 }
             });
         }
+
+        // 聊天记录卡片点击展开事件（事件委托在 favoritesList 上）
+        if (favoritesList) {
+            favoritesList.addEventListener('click', (e) => {
+                // 只在非选择模式下响应聊天记录卡片的点击
+                if (isFavoritesSelectionMode) return;
+                const recordCard = e.target.closest('.chat-record-card');
+                if (!recordCard) return;
+                const favId = parseInt(recordCard.dataset.favid);
+                if (isNaN(favId)) return;
+                const favItem = allFavoriteItems.find(f => f.id === favId);
+                if (!favItem || favItem.type !== 'chat_record') return;
+                openChatRecordModal(favItem);
+            });
+        }
+
+        // 聊天记录模态框关闭按钮
+        const chatRecordModalClose = document.getElementById('chat-record-modal-close');
+        if (chatRecordModalClose) {
+            chatRecordModalClose.addEventListener('click', () => {
+                document.getElementById('chat-record-modal').classList.remove('visible');
+            });
+        }
+        // 点击模态框背景关闭
+        const chatRecordModal = document.getElementById('chat-record-modal');
+        if (chatRecordModal) {
+            chatRecordModal.addEventListener('click', (e) => {
+                if (e.target === chatRecordModal) chatRecordModal.classList.remove('visible');
+            });
+        }
+    }
+
+    /**
+     * 打开聊天记录展开模态框
+     */
+    function openChatRecordModal(favItem) {
+        const modal = document.getElementById('chat-record-modal');
+        const title = document.getElementById('chat-record-modal-title');
+        const body = document.getElementById('chat-record-modal-body');
+        if (!modal || !body) return;
+
+        const chat = window.state.chats[favItem.chatId];
+        const chatName = favItem.chatName || (chat ? chat.name : '未知聊天');
+        title.textContent = `与 ${chatName} 的聊天记录`;
+        body.innerHTML = '';
+
+        const messages = favItem.content;
+        messages.forEach(msg => {
+            const isUser = msg.role === 'user';
+            let senderName, senderAvatar;
+
+            if (isUser) {
+                senderName = (chat && chat.isGroup) ? (chat.settings.myNickname || '我') : '我';
+                senderAvatar = (chat && chat.settings.myAvatar) || ((chat && chat.isGroup) ? defaultMyGroupAvatar : defaultAvatar);
+            } else {
+                if (chat && chat.isGroup) {
+                    const member = chat.members.find(m => m.originalName === msg.senderName);
+                    senderName = member ? member.groupNickname : (msg.senderName || '未知成员');
+                    senderAvatar = member ? member.avatar : defaultGroupMemberAvatar;
+                } else {
+                    senderName = chatName;
+                    senderAvatar = (chat && chat.settings.aiAvatar) || defaultAvatar;
+                }
+            }
+
+            let msgContentHtml = '';
+            if (typeof msg.content === 'string' && STICKER_REGEX.test(msg.content)) {
+                msgContentHtml = `<img src="${msg.content}" class="sticker-image" style="max-width: 80px; max-height: 80px;">`;
+            } else if (Array.isArray(msg.content) && msg.content[0]?.type === 'image_url') {
+                msgContentHtml = `<img src="${msg.content[0].image_url.url}" class="chat-image">`;
+            } else {
+                const text = String(msg.content || '');
+                const stickerMatch = text.match(/\[sticker:\s*(.+?)\s*\]/i);
+                if (stickerMatch) {
+                    const stickerName = stickerMatch[1].trim();
+                    const allStickers = [...window.state.userStickers, ...window.state.charStickers, ...((chat && chat.settings.stickerLibrary) || [])];
+                    const found = allStickers.find(s => s.name === stickerName);
+                    msgContentHtml = found ? `<img src="${found.url}" alt="${found.name}" class="sticker-image">` : text.replace(/\n/g, '<br>');
+                } else {
+                    msgContentHtml = text.replace(/\n/g, '<br>');
+                }
+            }
+
+            const msgTime = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }) : '';
+
+            const msgEl = document.createElement('div');
+            msgEl.className = 'chat-record-msg' + (isUser ? ' is-user' : '');
+            msgEl.innerHTML = `
+                <img src="${senderAvatar}" class="chat-record-avatar">
+                <div class="chat-record-msg-body">
+                    <div class="chat-record-msg-sender">${senderName} <span class="chat-record-msg-time">${msgTime}</span></div>
+                    <div class="chat-record-msg-content">${msgContentHtml}</div>
+                </div>
+            `;
+            body.appendChild(msgEl);
+        });
+
+        modal.classList.add('visible');
     }
 
     // 暴露给全局

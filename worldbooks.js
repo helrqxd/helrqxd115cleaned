@@ -502,7 +502,6 @@
                 await db.worldBooks.put(book);
                 document.getElementById('world-book-editor-title').textContent = newName;
                 editingWorldBookId = null;
-                renderWorldBookScreen();
                 showScreen('world-book-screen');
             }
         });

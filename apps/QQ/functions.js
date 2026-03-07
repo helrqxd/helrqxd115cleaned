@@ -1060,36 +1060,69 @@ function findLastAiTurnMessages(history) {
 }
 
 /**
+ * 检查上一次回复之后是否触发了自动总结，如果是则删除该总结并重置总结位置
+ */
+function removeLastSummaryIfTriggeredAfterReply(chat, replyStartIndex) {
+    if (!chat.settings.summary || !chat.settings.summary.enabled) return false;
+    for (let i = chat.history.length - 1; i >= replyStartIndex; i--) {
+        const msg = chat.history[i];
+        if (msg.type === 'summary' && msg.role === 'system') {
+            chat.history.splice(i, 1);
+            const lastRemainingSummary = chat.history.filter((m) => m.type === 'summary').pop();
+            if (lastRemainingSummary) {
+                const lastSummaryIdx = chat.history.findIndex((m) => m.timestamp === lastRemainingSummary.timestamp);
+                chat.settings.summary.lastSummaryIndex = lastSummaryIdx > 0 ? lastSummaryIdx - 1 : -1;
+            } else {
+                chat.settings.summary.lastSummaryIndex = -1;
+            }
+            console.log('[重roll/编辑] 已删除上一次回复触发的自动总结，并重置总结位置。');
+            return true;
+        }
+    }
+    return false;
+}
+
+/**
  * “重roll”按钮被点击时的主处理函数
  */
 async function handleRerollClick() {
     if (!state.activeChatId) return;
     const chat = state.chats[state.activeChatId];
 
-    // 1. 调用我们的智能查找函数，找出需要删除的消息
-    const messagesToReroll = findLastAiTurnMessages(chat.history);
+    // 1. 优先使用记录的生成位置，如果没有则回退到旧逻辑
+    const replyStartIndex = chat._lastReplyStartIndex;
 
-    // 2. 如果没找到（比如最后一条是用户发的），就提示并退出
-    if (messagesToReroll.length === 0) {
-        alert('请在AI回复后使用此功能。');
-        return;
+    if (replyStartIndex !== undefined && replyStartIndex !== null && replyStartIndex <= chat.history.length) {
+        // 使用记录的位置：先检查并删除可能触发的自动总结
+        removeLastSummaryIfTriggeredAfterReply(chat, replyStartIndex);
+
+        // 删除从生成位置开始的所有消息
+        chat.history.splice(replyStartIndex);
+    } else {
+        // 回退到旧逻辑
+        const messagesToReroll = findLastAiTurnMessages(chat.history);
+        if (messagesToReroll.length === 0) {
+            alert('请在AI回复后使用此功能。');
+            return;
+        }
+        const timestampsToReroll = new Set(messagesToReroll.map((m) => m.timestamp));
+        chat.history = chat.history.filter((msg) => !timestampsToReroll.has(msg.timestamp));
     }
 
-    // 3. 从聊天记录中过滤掉这些旧消息
-    const timestampsToReroll = new Set(messagesToReroll.map((m) => m.timestamp));
-    chat.history = chat.history.filter((msg) => !timestampsToReroll.has(msg.timestamp));
+    // 2. 清除旧的生成位置记录（新一次生成会重新记录）
+    delete chat._lastReplyStartIndex;
 
-    // 4. 保存更新后的聊天记录到数据库
+    // 3. 保存更新后的聊天记录到数据库
     await db.chats.put(chat);
 
-    // 5. 刷新聊天界面，让旧消息瞬间消失
+    // 4. 刷新聊天界面，让旧消息瞬间消失
     if (typeof window.renderChatInterface === 'function') {
         window.renderChatInterface(state.activeChatId);
     } else if (typeof renderChatInterface === 'function') {
         renderChatInterface(state.activeChatId);
     }
 
-    // 6. 触发一次新的AI响应
+    // 5. 触发一次新的AI响应（完成后会自动调用 checkAndTriggerSummary 重新判断是否需要总结）
     if (typeof window.triggerAiResponse === 'function') {
         window.triggerAiResponse();
     } else if (typeof triggerAiResponse === 'function') {
@@ -1243,11 +1276,15 @@ function handleEditRawOutputClick() {
     const chat = state.chats[state.activeChatId];
     if (!chat) return;
 
-    // 找到最后一轮AI消息
-    const lastAiTurnMessages = findLastAiTurnMessages(chat.history);
-    if (lastAiTurnMessages.length === 0) {
-        alert('请在AI回复后使用此功能。');
-        return;
+    // 优先使用记录的生成位置验证是否有AI回复，回退到旧逻辑
+    const replyStartIndex = chat._lastReplyStartIndex;
+    if (replyStartIndex === undefined || replyStartIndex === null || replyStartIndex > chat.history.length) {
+        // 没有记录的位置，回退到查找逻辑
+        const lastAiTurnMessages = findLastAiTurnMessages(chat.history);
+        if (lastAiTurnMessages.length === 0) {
+            alert('请在AI回复后使用此功能。');
+            return;
+        }
     }
 
     // 从chat对象上读取原始输出
@@ -1295,15 +1332,25 @@ async function applyRawOutputEdit() {
         return;
     }
 
-    // 1. 找到本轮AI消息并删除
-    const lastAiTurnMessages = findLastAiTurnMessages(chat.history);
-    if (lastAiTurnMessages.length === 0) {
-        alert('未找到需要替换的AI消息。');
-        return;
-    }
+    // 1. 使用记录的生成位置删除本轮AI消息，回退到旧逻辑
+    const replyStartIndex = chat._lastReplyStartIndex;
 
-    const timestampsToRemove = new Set(lastAiTurnMessages.map((m) => m.timestamp));
-    chat.history = chat.history.filter((msg) => !timestampsToRemove.has(msg.timestamp));
+    if (replyStartIndex !== undefined && replyStartIndex !== null && replyStartIndex <= chat.history.length) {
+        // 使用记录的位置：先检查并删除可能触发的自动总结
+        removeLastSummaryIfTriggeredAfterReply(chat, replyStartIndex);
+
+        // 删除从生成位置开始的所有消息
+        chat.history.splice(replyStartIndex);
+    } else {
+        // 回退到旧逻辑
+        const lastAiTurnMessages = findLastAiTurnMessages(chat.history);
+        if (lastAiTurnMessages.length === 0) {
+            alert('未找到需要替换的AI消息。');
+            return;
+        }
+        const timestampsToRemove = new Set(lastAiTurnMessages.map((m) => m.timestamp));
+        chat.history = chat.history.filter((msg) => !timestampsToRemove.has(msg.timestamp));
+    }
 
     // 2. 解析编辑后的内容（使用健壮的JSON解析器）
     let messagesArray = [];
@@ -1350,6 +1397,8 @@ async function applyRawOutputEdit() {
 
     // 4. 构建新的消息对象
     let messageTimestamp = Date.now();
+    // 记录编辑后新消息的起始位置
+    chat._lastReplyStartIndex = chat.history.length;
 
     for (const msgData of messagesArray) {
         if (!msgData || typeof msgData !== 'object') continue;
@@ -1563,6 +1612,9 @@ async function applyRawOutputEdit() {
     } else if (typeof renderChatInterface === 'function') {
         renderChatInterface(state.activeChatId);
     }
+
+    // 6. 重新判断当前位置是否需要触发自动总结
+    window.checkAndTriggerSummary(state.activeChatId);
 
     console.log('[编辑原始输出] 已成功应用修改并重新渲染。');
 }

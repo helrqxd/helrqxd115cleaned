@@ -488,6 +488,7 @@ async function triggerInactiveAiAction(chatId) {
              - 消息1 ("在吗"): \`sendTime: "2023/10/27 10:30:00"\`
              - 消息2 ("是不是睡着了"): \`sendTime: "2023/10/27 10:40:00"\`
              - 消息3 ("晚安"): \`sendTime: "2023/10/27 12:00:00"\`
+        3. **更新状态**：你现在展示的状态是“${chat.status.text}”。如果聊天内容中涉及到你状态的改变（例如：正在吃饭、出门了、睡觉了），你【必须】在消息中体现出来，并且更新状态指令中的 \`status_text\` 和 \`is_busy\` 字段来反映这种改变。
 
         # 【【【输出铁律：这是最高指令】】】
         你的回复【必须且只能】是一个严格的JSON数组格式的字符串，必须多发几条，禁止全部杂糅在一条，是在线上，例如 \`[{"type": "text", "content": "你好呀", "sendTime": "${currentFullTime}"}]\`。
@@ -566,7 +567,8 @@ async function triggerInactiveAiAction(chatId) {
 
         ### 供你决策的参考信息：
         -   **你的角色设定**: ${chat.settings.aiPersona}
-        - 情侣空间状态: ${chat.loversSpaceData ? '已开启' : '未开启'}
+        -   **用户（${userNickname}）的角色设定：** ${chat.settings.myPersona}
+        -   情侣空间状态: ${chat.loversSpaceData ? '已开启' : '未开启'}
         -   **【【【微博专属设定(必须严格遵守)】】】**
             - 你的微博职业: ${chat.settings.weiboProfession || '无'}
             - 你的微博指令: ${chat.settings.weiboInstruction || '无特殊指令'}
@@ -629,6 +631,7 @@ async function triggerInactiveAiAction(chatId) {
 
         const responseArray = parseAiResponse(aiResponseContent);
         chat._lastRawAiOutput = aiResponseContent; // 保存后台活动的AI原始输出
+        chat._lastReplyStartIndex = chat.history.length; // 记录本轮AI回复的起始位置
         console.log('解析后的 Action 列表:', responseArray); // Debug log
 
         // [Fix] 引入 lastUsedTimestamp 以确保批量生成的 timestamp 绝对不重复
@@ -1291,6 +1294,7 @@ async function triggerGroupAiAction(chatId) {
         const messagesArray = parseAiResponse(aiResponseContent);
         console.log(`【后台群聊互动 - AI 原始输出】\n群聊 "${chat.name}" 的原始回复:\n`, aiResponseContent);
         chat._lastRawAiOutput = aiResponseContent; // 保存群聊后台活动的AI原始输出
+        chat._lastReplyStartIndex = chat.history.length; // 记录本轮AI回复的起始位置
 
         if (Array.isArray(messagesArray) && messagesArray.length > 0) {
             let messageTimestamp = Date.now();

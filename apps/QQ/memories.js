@@ -70,14 +70,22 @@ window.renderMemoriesScreen = async function () {
         return;
     }
 
-    // 2. 将未到期的约定排在最前面
+    // 2. 排序：未到期约定 > 已到期约定 > 普通回忆
     allMemories.sort((a, b) => {
         const aIsActiveCountdown = a.type === 'countdown' && a.targetDate > Date.now();
         const bIsActiveCountdown = b.type === 'countdown' && b.targetDate > Date.now();
-        if (aIsActiveCountdown && !bIsActiveCountdown) return -1; // a排前面
-        if (!aIsActiveCountdown && bIsActiveCountdown) return 1; // b排前面
-        if (aIsActiveCountdown && bIsActiveCountdown) return a.targetDate - b.targetDate; // 都是倒计时，按日期升序
-        return 0; // 其他情况保持原序
+        const aIsCompletedCountdown = a.type === 'countdown' && a.targetDate && a.targetDate <= Date.now();
+        const bIsCompletedCountdown = b.type === 'countdown' && b.targetDate && b.targetDate <= Date.now();
+
+        if (aIsActiveCountdown && !bIsActiveCountdown) return -1;
+        if (!aIsActiveCountdown && bIsActiveCountdown) return 1;
+        if (aIsActiveCountdown && bIsActiveCountdown) return a.targetDate - b.targetDate;
+
+        if (aIsCompletedCountdown && !bIsCompletedCountdown) return -1;
+        if (!aIsCompletedCountdown && bIsCompletedCountdown) return 1;
+        if (aIsCompletedCountdown && bIsCompletedCountdown) return b.targetDate - a.targetDate; // 最近完成的排前
+
+        return 0;
     });
 
     // 3. 使用单一循环来处理所有类型的卡片
@@ -87,7 +95,11 @@ window.renderMemoriesScreen = async function () {
         if (item.type === 'countdown' && item.targetDate > Date.now()) {
             card = createCountdownCard(item);
         }
-        // 判断2：其他所有情况（普通回忆 或 已到期的约定）
+        // 判断2：如果是已到期的约定，保留卡片样式但显示已完成
+        else if (item.type === 'countdown' && item.targetDate) {
+            card = createCountdownCard(item, true);
+        }
+        // 判断3：其他所有情况（普通回忆）
         else {
             card = createMemoryCard(item);
         }
@@ -144,9 +156,9 @@ function createMemoryCard(memory) {
     return card;
 }
 
-function createCountdownCard(countdown) {
+function createCountdownCard(countdown, isCompleted = false) {
     const card = document.createElement('div');
-    card.className = 'countdown-card';
+    card.className = 'countdown-card' + (isCompleted ? ' countdown-completed' : '');
 
     // 在使用前，先从 countdown 对象中创建 targetDate 变量
     const targetDate = new Date(countdown.targetDate);
@@ -154,10 +166,17 @@ function createCountdownCard(countdown) {
     // 现在可以安全地使用 targetDate 了
     const targetDateString = targetDate.toLocaleString('zh-CN', { dateStyle: 'full', timeStyle: 'short' });
 
+    // 记录者名称
+    const authorName = countdown.authorName || '我';
+
     card.innerHTML = `
+                <div class="countdown-author">记录者: ${authorName}</div>
                 <div class="title">${countdown.description}</div>
-                <div class="timer" data-target-date="${countdown.targetDate}">--天--时--分--秒</div>
-                <div class="target-date">目标时间: ${targetDateString}</div>
+                ${isCompleted
+            ? '<div class="timer countdown-done-text">🎉 约定已达成！</div>'
+            : `<div class="timer" data-target-date="${countdown.targetDate}">--天--时--分--秒</div>`
+        }
+                <div class="target-date">${isCompleted ? '达成时间' : '目标时间'}: ${targetDateString}</div>
             `;
 
     if (window.addLongPressListener) {
@@ -189,10 +208,11 @@ function startAllCountdownTimers() {
             const distance = targetTimestamp - now;
 
             if (distance < 0) {
-                timerEl.textContent = '约定达成！';
-                // 现在 updateTimer 可以正确地找到并清除它自己了
+                timerEl.textContent = '🎉 约定已达成！';
+                timerEl.classList.add('countdown-done-text');
                 clearInterval(timerId);
-                setTimeout(() => window.renderMemoriesScreen(), 2000);
+                // 刷新页面以显示已完成样式
+                setTimeout(() => window.renderMemoriesScreen(), 1500);
                 return;
             }
             const days = Math.floor(distance / (1000 * 60 * 60 * 24));

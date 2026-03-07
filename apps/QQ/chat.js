@@ -2016,6 +2016,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
             // 2. 处理消息数组 (支持 naiimag)
             const isViewingThisChat = document.getElementById('chat-interface-screen').classList.contains('active') && window.state.activeChatId === chatId;
             let messageTimestamp = Date.now();
+            let isFirstOfflineAiMsg = true;
 
             for (const msgData of messagesArray) {
                 // 2.1 如果是 naiimag 类型，执行生图逻辑 (复用线上代码)
@@ -2219,6 +2220,12 @@ window.triggerAiResponse = async function triggerAiResponse() {
                     timestamp: messageTimestamp++,
                     content: msgData.content || '',
                 };
+                // 记录线下模式本轮AI回复的起始位置（仅记录一次）
+                if (isFirstOfflineAiMsg) {
+                    chat._lastRawAiOutput = aiResponseContent;
+                    chat._lastReplyStartIndex = chat.history.length;
+                    isFirstOfflineAiMsg = false;
+                }
                 chat.history.push(aiMessage);
                 await window.incrementMessageCount(chatId);
                 if (isViewingThisChat) {
@@ -6707,6 +6714,7 @@ ${contextSummaryForApproval}
                 // 在chat对象上保存本轮AI原始输出（仅记录一次）
                 if (isFirstAiMessageOfTurn) {
                     chat._lastRawAiOutput = aiResponseContent;
+                    chat._lastReplyStartIndex = chat.history.length; // 记录本轮AI回复的起始位置
                     isFirstAiMessageOfTurn = false;
                 }
                 // 1. 将新消息存入历史记录
