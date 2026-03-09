@@ -5,6 +5,126 @@ let currentDatingScenes = []; // 存储所有已生成的约会场景
 let isGeneratingScenes = false; // 标记是否正在生成场景
 let currentDatingUISettings = null; // 存储约会界面设置
 const bgmPlayer = document.getElementById('dating-bgm-player');
+
+// ===================================================================
+// 约会进度保存/恢复
+// ===================================================================
+const DATING_PROGRESS_KEY = 'datingGameSavedProgress';
+
+function saveDatingProgress() {
+    if (!datingGameState.isActive) return;
+    try {
+        // 保存时排除不可序列化的字段
+        const saveData = { ...datingGameState, currentBgm: null };
+        localStorage.setItem(DATING_PROGRESS_KEY, JSON.stringify(saveData));
+    } catch (e) {
+        console.error('保存约会进度失败:', e);
+    }
+}
+
+function loadDatingProgress() {
+    try {
+        const saved = localStorage.getItem(DATING_PROGRESS_KEY);
+        return saved ? JSON.parse(saved) : null;
+    } catch (e) {
+        console.error('加载约会进度失败:', e);
+        localStorage.removeItem(DATING_PROGRESS_KEY);
+        return null;
+    }
+}
+
+function clearDatingProgress() {
+    localStorage.removeItem(DATING_PROGRESS_KEY);
+}
+
+/**
+ * 从保存的进度恢复约会游戏
+ * @param {object} savedState - 保存的游戏状态
+ */
+async function resumeDatingGame(savedState) {
+    datingGameState = savedState;
+    datingGameState.isActive = true;
+    datingGameState.isSwitchingSentence = false;
+    datingGameState.currentBgm = null;
+
+    const chat = state.chats[savedState.characterId];
+    if (!chat) {
+        await showCustomAlert('恢复失败', '约会角色已不存在，无法恢复进度。');
+        return;
+    }
+
+    // 设置UI元素
+    const backgroundEl = document.getElementById('dating-game-background');
+    const charNameEl = document.getElementById('dating-game-char-name');
+    const textContentEl = document.getElementById('dating-game-text-content');
+    const choicesEl = document.getElementById('dating-game-choices');
+
+    charNameEl.textContent = chat.name;
+    textContentEl.parentElement.style.opacity = 1;
+
+    // 恢复背景
+    const uiSettings = chat.settings.datingUISettings || {};
+    if (uiSettings.backgroundUrl) {
+        backgroundEl.style.backgroundImage = `url(${uiSettings.backgroundUrl})`;
+    } else if (savedState.scene && savedState.scene.imageUrl) {
+        backgroundEl.style.backgroundImage = `url(${savedState.scene.imageUrl})`;
+    } else {
+        backgroundEl.style.backgroundColor = '#1c1e26';
+    }
+
+    // 渲染数值条和完成度
+    renderDatingValues();
+    renderDatingCompletion();
+    document.getElementById('dating-completion-bar-container').style.display = 'block';
+    document.getElementById('dating-values-container').style.display = 'flex';
+
+    // 显示BGM按钮
+    const bgmBtn = document.getElementById('dating-bgm-btn');
+    if (bgmBtn) bgmBtn.style.display = 'inline-flex';
+
+    // 恢复故事显示
+    if (savedState.sentences && savedState.sentences.length > 0) {
+        const lastSentence = savedState.sentences[savedState.sentences.length - 1];
+        textContentEl.textContent = lastSentence;
+
+        choicesEl.innerHTML = '';
+        if (savedState.choices && savedState.choices.length > 0) {
+            savedState.choices.forEach(choiceText => {
+                const choiceBtn = document.createElement('button');
+                choiceBtn.className = 'dating-game-choice-btn';
+                choiceBtn.textContent = choiceText;
+                choiceBtn.onclick = () => {
+                    if (datingGameState.isNsfwMode) {
+                        triggerNsfwScene(choiceText);
+                    } else {
+                        triggerDatingStory(choiceText);
+                    }
+                };
+                choicesEl.appendChild(choiceBtn);
+            });
+
+            const inputBtn = document.createElement('button');
+            inputBtn.className = 'dating-game-choice-btn input-action';
+            inputBtn.textContent = '自定义行动...';
+            inputBtn.onclick = async () => {
+                const userInput = await showCustomPrompt('你的行动', '请输入你想说的话或想做的事：');
+                if (userInput && userInput.trim()) {
+                    if (datingGameState.isNsfwMode) {
+                        triggerNsfwScene(userInput.trim());
+                    } else {
+                        triggerDatingStory(userInput.trim());
+                    }
+                }
+            };
+            choicesEl.appendChild(inputBtn);
+        }
+    } else {
+        textContentEl.innerHTML = '<p>约会进度已恢复，等待继续...</p>';
+        choicesEl.innerHTML = '';
+    }
+
+    showScreen('dating-game-screen');
+}
 /**
  * 打开"约会大作战"App，快速显示已保存数据
  */
@@ -16,6 +136,23 @@ async function openDatingApp() {
     console.log(`从数据库加载了 ${currentDatingScenes.length} 个约会场景。`);
     // 渲染这些场景（只会先显示文字和加载动画）
     renderDatingScenes();
+
+    // 检查是否有保存的约会进度
+    const savedProgress = loadDatingProgress();
+    if (savedProgress && savedProgress.isActive) {
+        const charName = state.chats[savedProgress.characterId]?.name || '未知角色';
+        const sceneName = savedProgress.scene?.name || '未知场景';
+        const resume = await showCustomConfirm(
+            '发现未完成的约会',
+            `检测到与“${charName}”在“${sceneName}”的约会进度，是否继续？`
+        );
+        if (resume) {
+            clearDatingProgress();
+            await resumeDatingGame(savedProgress);
+        } else {
+            clearDatingProgress();
+        }
+    }
 }
 
 /**
@@ -1431,15 +1568,33 @@ async function endDate() {
 
     // 弹出选择框，让用户决定如何结束
     const choice = await showChoiceModal('结束约会', [
+        { text: '💾 保存进度并退出', value: 'save' },
         { text: '生成并记录约会', value: 'record' },
         { text: '直接结束不记录', value: 'discard' },
     ]);
 
     // 根据用户的选择执行不同操作
-    if (choice === 'record') {
+    if (choice === 'save') {
+        saveDatingProgress();
+        // 清理退出，不记录到聊天
+        stopDatingBgm();
+        const bgmBtn = document.getElementById('dating-bgm-btn');
+        if (bgmBtn) bgmBtn.style.display = 'none';
+        document.getElementById('dating-completion-bar-container').style.display = 'none';
+        document.getElementById('dating-summary-overlay').classList.remove('visible');
+        datingGameState = {
+            isActive: false, scene: null, characterId: null, storyHistory: [],
+            romance: 0, lust: 0, currentStoryText: '', currentSentenceIndex: -1,
+            sentences: [], isSwitchingSentence: false, isNsfwMode: false,
+            extraWorldBookIds: [], completion: 0, currentBgm: null,
+        };
+        showScreen('date-a-live-screen');
+    } else if (choice === 'record') {
+        clearDatingProgress();
         // 如果选择“记录”，就显示结算卡片
         showDatingSummaryCard();
     } else if (choice === 'discard') {
+        clearDatingProgress();
         // 如果选择“不记录”，就直接结束并返回聊天列表
         finalizeAndExitDate();
     }

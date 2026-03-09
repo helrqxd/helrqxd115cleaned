@@ -32021,6 +32021,40 @@ input:checked + .slider::after {
     border-radius: 2px;
 }
 
+/* 收藏夹生成按钮（内嵌在收藏标签内） */
+.xhs-user-gen-collections-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 4px;
+    vertical-align: middle;
+    cursor: pointer;
+    padding: 2px;
+    border-radius: 50%;
+    transition: background 0.2s;
+}
+
+.xhs-user-gen-collections-btn:hover {
+    background: rgba(255, 36, 66, 0.1);
+}
+
+/* 收藏夹更新遮罩 */
+.xhs-collections-loading-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(255, 255, 255, 0.75);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 10;
+    color: #999;
+    border-radius: 8px;
+}
+
 /* 内容区域 */
 .xhs-user-profile-content {
     min-height: 300px;

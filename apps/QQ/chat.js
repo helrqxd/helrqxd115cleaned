@@ -2240,6 +2240,8 @@ window.triggerAiResponse = async function triggerAiResponse() {
         } catch (error) {
             console.error('线下模式AI响应失败:', error);
             const errorMessage = { role: 'assistant', content: `[出错了: ${error.message}]`, timestamp: Date.now() };
+            // 记录错误消息的生成位置，方便重新生成时定位
+            chat._lastReplyStartIndex = chat.history.length;
             chat.history.push(errorMessage);
             chat.hasError = true;
             await window.db.chats.put(chat);
@@ -6806,6 +6808,8 @@ ${contextSummaryForApproval}
             const errorContent = `[出错了: ${error.message}]`;
             const errorMessage = { role: 'assistant', content: errorContent, timestamp: Date.now() };
             if (chat.isGroup) errorMessage.senderName = '系统消息';
+            // 记录错误消息的生成位置，方便重新生成时定位
+            chat._lastReplyStartIndex = chat.history.length;
             chat.history.push(errorMessage);
         }
 

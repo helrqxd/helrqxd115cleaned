@@ -8,6 +8,35 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeStudioPlay = null; // 记录当前正在进行的演绎会话 { script, userRole, aiRole, aiChatId, history }
 
     // ===================================================================
+    // 1.5 演绎进度保存/恢复
+    // ===================================================================
+    const STUDIO_PROGRESS_KEY = 'studioPlaySavedProgress';
+
+    function saveStudioPlayProgress() {
+        if (!activeStudioPlay) return;
+        try {
+            localStorage.setItem(STUDIO_PROGRESS_KEY, JSON.stringify(activeStudioPlay));
+        } catch (e) {
+            console.error('保存小剧场进度失败:', e);
+        }
+    }
+
+    function loadStudioPlayProgress() {
+        try {
+            const saved = localStorage.getItem(STUDIO_PROGRESS_KEY);
+            return saved ? JSON.parse(saved) : null;
+        } catch (e) {
+            console.error('加载小剧场进度失败:', e);
+            localStorage.removeItem(STUDIO_PROGRESS_KEY);
+            return null;
+        }
+    }
+
+    function clearStudioPlayProgress() {
+        localStorage.removeItem(STUDIO_PROGRESS_KEY);
+    }
+
+    // ===================================================================
     // 2. DOM 元素获取 (为提高性能，一次性获取)
     // ===================================================================
     const studioAppIcon = document.getElementById('studio-app-icon');
@@ -46,6 +75,23 @@ document.addEventListener('DOMContentLoaded', () => {
     async function showStudioScreen() {
         await renderStudioScriptList();
         showScreen('studio-screen');
+
+        // 检查是否有保存的演绎进度
+        const savedProgress = loadStudioPlayProgress();
+        if (savedProgress) {
+            const resume = await showCustomConfirm(
+                '发现未完成的演绎',
+                `检测到剧本《${savedProgress.script.name}》有未完成的进度，是否继续？`
+            );
+            if (resume) {
+                activeStudioPlay = savedProgress;
+                clearStudioPlayProgress();
+                renderStudioPlayScreen();
+                showScreen('studio-play-screen');
+            } else {
+                clearStudioPlayProgress();
+            }
+        }
     }
 
     /**
@@ -460,6 +506,8 @@ document.addEventListener('DOMContentLoaded', () => {
             userRole: userRoleNumber,
             aiRole: aiRoleNumber,
             aiChatId: aiChatId,
+            // 存储用户选择的身份值，用于恢复进度时获取头像
+            userIdentityValue: userRoleNumber === 1 ? role1IdentityValue : role2IdentityValue,
             // 存储身份
             aiIdentity: aiRoleNumber === 1 ? script.character1_identity : script.character2_identity,
             userPersona: userRoleNumber === 1 ? script.character1_identity : script.character2_identity,
@@ -533,10 +581,11 @@ document.addEventListener('DOMContentLoaded', () => {
             // 根据角色获取正确的头像
             if (msg.role === 'user') {
                 const userNickname = window.state.qzoneSettings.weiboNickname || '我';
-                const userIdentityValue =
+                const userIdentityValue = activeStudioPlay.userIdentityValue || (
                     activeStudioPlay.userRole === 1
                         ? document.getElementById('studio-role1-identity-select').value
-                        : document.getElementById('studio-role2-identity-select').value;
+                        : document.getElementById('studio-role2-identity-select').value
+                );
                 if (userIdentityValue !== 'user' && window.state.chats[userIdentityValue]) {
                     avatarSrc = window.state.chats[userIdentityValue].settings.aiAvatar;
                 } else {
@@ -880,10 +929,16 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (exitPlayBtn) {
         exitPlayBtn.addEventListener('click', async () => {
-            const confirmed = await showCustomConfirm('确认退出', '确定要中途退出这次演绎吗？', {
-                confirmButtonClass: 'btn-danger',
-            });
-            if (confirmed) {
+            const choice = await showChoiceModal('退出演绎', [
+                { text: '💾 保存进度并退出', value: 'save' },
+                { text: '🚪 不保存直接退出', value: 'discard' },
+            ]);
+            if (choice === 'save') {
+                saveStudioPlayProgress();
+                activeStudioPlay = null;
+                showStudioScreen();
+            } else if (choice === 'discard') {
+                clearStudioPlayProgress();
                 endStudioPlay(false);
             }
         });
