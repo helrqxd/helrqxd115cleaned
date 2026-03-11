@@ -32021,13 +32021,15 @@ input:checked + .slider::after {
     border-radius: 2px;
 }
 
-/* 收藏夹生成按钮（内嵌在收藏标签内） */
+/* 收藏夹生成按钮（绝对定位，不影响收藏文字居中） */
 .xhs-user-gen-collections-btn {
+    position: absolute;
+    right: calc(50% - 32px);
+    top: 50%;
+    transform: translateY(-50%);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    margin-left: 4px;
-    vertical-align: middle;
     cursor: pointer;
     padding: 2px;
     border-radius: 50%;
@@ -36035,10 +36037,10 @@ input:checked + .slider::after {
     display: inline-block;
 }
 
-/* Lofter 生成中弹窗（顶部标题栏处悬浮，缩小不遮挡） */
+/* Lofter 生成中弹窗（状态栏处悬浮，避免遮挡页面内容） */
 .lofter-generating-overlay {
     position: fixed;
-    top: 36px;
+    top: 8px;
     left: 50%;
     transform: translateX(-50%);
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);

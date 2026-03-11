@@ -54,6 +54,11 @@ document.addEventListener('DOMContentLoaded', () => {
     // 文章详情
     const articleBackBtn = document.getElementById('lofter-article-back');
     const articleFollowBtn = document.getElementById('lofter-article-follow-btn');
+    if (articleFollowBtn) {
+        articleFollowBtn.addEventListener('click', () => {
+            showLofterToast('功能开发中，敬请期待');
+        });
+    }
     const generateCommentsBtn = document.getElementById('lofter-generate-comments-btn');
     const commentInput = document.getElementById('lofter-comment-input');
     const commentSendBtn = document.getElementById('lofter-comment-send-btn');
@@ -1717,6 +1722,15 @@ ${typeInfo.desc}
             e.stopPropagation();
             toggleCollect(article.id, collectAction);
         });
+
+        // 关注按钮
+        const followBtn = card.querySelector('.lofter-card-follow-btn');
+        if (followBtn) {
+            followBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                showLofterToast('功能开发中，敬请期待');
+            });
+        }
 
         // 标签点击
         const tagElements = card.querySelectorAll('.lofter-tag');

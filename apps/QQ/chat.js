@@ -1927,6 +1927,13 @@ window.triggerAiResponse = async function triggerAiResponse() {
 
             现在，请根据用户的最后一句话，开始你的表演。`;
 
+        // [Fix] 如果是重新生成(reroll)，注入上次输出和重新生成理由（线下模式）
+        if (chat._rerollContext) {
+            const rc = chat._rerollContext;
+            offlineSystemPrompt += `\n\n# 【重要：这是一次重新生成请求】\n用户对你上一次的输出不满意，要求重新生成。\n## 上一次的输出内容：\n\`\`\`\n${rc.previousOutput}\n\`\`\`\n## 用户给出的重新生成理由：\n${rc.reason || '未提供具体理由'}\n## 要求：\n请根据以上理由调整你的输出方向，避免重复上次的问题。生成全新的、改进后的回复。`;
+            delete chat._rerollContext;
+        }
+
         const messagesForOfflineMode = chat.history.slice(-chat.settings.maxMemory);
 
         // UI 状态更新
@@ -2224,6 +2231,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
                 if (isFirstOfflineAiMsg) {
                     chat._lastRawAiOutput = aiResponseContent;
                     chat._lastReplyStartIndex = chat.history.length;
+                    chat._isLastReplyBackground = false; // 标记非后台回复
                     isFirstOfflineAiMsg = false;
                 }
                 chat.history.push(aiMessage);
@@ -2242,6 +2250,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
             const errorMessage = { role: 'assistant', content: `[出错了: ${error.message}]`, timestamp: Date.now() };
             // 记录错误消息的生成位置，方便重新生成时定位
             chat._lastReplyStartIndex = chat.history.length;
+            chat._isLastReplyBackground = false;
             chat.history.push(errorMessage);
             chat.hasError = true;
             await window.db.chats.put(chat);
@@ -3134,6 +3143,13 @@ window.triggerAiResponse = async function triggerAiResponse() {
             
             现在，请严格遵守以上所有规则，开始你的模拟。`;
 
+            // [Fix] 如果是重新生成(reroll)，注入上次输出和重新生成理由
+            if (chat._rerollContext) {
+                const rc = chat._rerollContext;
+                systemPrompt += `\n\n# 【重要：这是一次重新生成请求】\n用户对你上一次的输出不满意，要求重新生成。\n## 上一次的输出内容：\n\`\`\`\n${rc.previousOutput}\n\`\`\`\n## 用户给出的重新生成理由：\n${rc.reason || '未提供具体理由'}\n## 要求：\n请根据以上理由调整你的输出方向，避免重复上次的问题。生成全新的、改进后的回复。`;
+                delete chat._rerollContext; // 用完即删
+            }
+
             messagesPayload = [
                 { role: 'user', content: systemPrompt },
             ];
@@ -3776,6 +3792,13 @@ ${contextSummaryForApproval}
             - **其他相关聊天记录**:
             - 以下聊天记录只能用于【剧情参考】，【绝对不能】在当前聊天中接续行动，也【不可以重复】类似对话至当前聊天当中。
             ${linkedMemoryContext}`;
+        }
+
+        // [Fix] 如果是重新生成(reroll)，注入上次输出和重新生成理由
+        if (chat._rerollContext) {
+            const rc = chat._rerollContext;
+            systemPrompt += `\n\n# 【重要：这是一次重新生成请求】\n用户对你上一次的输出不满意，要求重新生成。\n## 上一次的输出内容：\n\`\`\`\n${rc.previousOutput}\n\`\`\`\n## 用户给出的重新生成理由：\n${rc.reason || '未提供具体理由'}\n## 要求：\n请根据以上理由调整你的输出方向，避免重复上次的问题。生成全新的、改进后的回复。`;
+            delete chat._rerollContext; // 用完即删
         }
 
         messagesPayload = [
@@ -6717,6 +6740,7 @@ ${contextSummaryForApproval}
                 if (isFirstAiMessageOfTurn) {
                     chat._lastRawAiOutput = aiResponseContent;
                     chat._lastReplyStartIndex = chat.history.length; // 记录本轮AI回复的起始位置
+                    chat._isLastReplyBackground = false; // 标记非后台回复
                     isFirstAiMessageOfTurn = false;
                 }
                 // 1. 将新消息存入历史记录
@@ -6810,6 +6834,7 @@ ${contextSummaryForApproval}
             if (chat.isGroup) errorMessage.senderName = '系统消息';
             // 记录错误消息的生成位置，方便重新生成时定位
             chat._lastReplyStartIndex = chat.history.length;
+            chat._isLastReplyBackground = false; // 错误消息标记为非后台
             chat.history.push(errorMessage);
         }
 

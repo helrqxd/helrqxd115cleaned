@@ -1089,6 +1089,20 @@ async function handleRerollClick() {
     if (!state.activeChatId) return;
     const chat = state.chats[state.activeChatId];
 
+    // 0. 弹出输入框，让用户填写重新生成的理由
+    const previousOutput = chat._lastRawAiOutput || '';
+    const isBackgroundReply = !!chat._isLastReplyBackground;
+
+    const reason = await window.showCustomPrompt(
+        '重新生成',
+        '请输入重新生成的理由（可选），例如：角色OOC、不符合剧情、语气不对等',
+        '',
+        'textarea'
+    );
+
+    // 用户点了取消则不执行
+    if (reason === null) return;
+
     // 1. 优先使用记录的生成位置，如果没有则回退到旧逻辑
     const replyStartIndex = chat._lastReplyStartIndex;
 
@@ -1112,21 +1126,44 @@ async function handleRerollClick() {
     // 2. 清除旧的生成位置记录（新一次生成会重新记录）
     delete chat._lastReplyStartIndex;
 
-    // 3. 保存更新后的聊天记录到数据库
+    // 3. 保存重新生成上下文（上次输出 + 理由），供 AI prompt 使用
+    if (previousOutput) {
+        chat._rerollContext = {
+            previousOutput: previousOutput,
+            reason: reason.trim() || '',
+        };
+    }
+
+    // 4. 保存更新后的聊天记录到数据库
     await db.chats.put(chat);
 
-    // 4. 刷新聊天界面，让旧消息瞬间消失
+    // 5. 刷新聊天界面，让旧消息瞬间消失
     if (typeof window.renderChatInterface === 'function') {
         window.renderChatInterface(state.activeChatId);
     } else if (typeof renderChatInterface === 'function') {
         renderChatInterface(state.activeChatId);
     }
 
-    // 5. 触发一次新的AI响应（完成后会自动调用 checkAndTriggerSummary 重新判断是否需要总结）
-    if (typeof window.triggerAiResponse === 'function') {
-        window.triggerAiResponse();
-    } else if (typeof triggerAiResponse === 'function') {
-        triggerAiResponse();
+    // 6. 根据上次回复来源，分发到对应的生成函数
+    if (isBackgroundReply) {
+        // 后台行动消息：调用后台行动函数重新生成
+        if (chat.isGroup && typeof window.triggerGroupAiAction === 'function') {
+            window.triggerGroupAiAction(state.activeChatId);
+        } else if (typeof window.triggerInactiveAiAction === 'function') {
+            window.triggerInactiveAiAction(state.activeChatId);
+        } else {
+            // 兜底：使用普通AI响应
+            if (typeof window.triggerAiResponse === 'function') {
+                window.triggerAiResponse();
+            }
+        }
+    } else {
+        // 普通回复：用正常的AI响应
+        if (typeof window.triggerAiResponse === 'function') {
+            window.triggerAiResponse();
+        } else if (typeof triggerAiResponse === 'function') {
+            triggerAiResponse();
+        }
     }
 }
 
@@ -1396,7 +1433,12 @@ async function applyRawOutputEdit() {
     }
 
     // 4. 构建新的消息对象
+    const isBackgroundReply = !!chat._isLastReplyBackground;
     let messageTimestamp = Date.now();
+    // 用于后台消息时间戳递增校验
+    let lastUsedTimestamp = chat.history.length > 0 ? chat.history[chat.history.length - 1].timestamp : 0;
+    const lastMessage = chat.history.length > 0 ? chat.history[chat.history.length - 1] : null;
+
     // 记录编辑后新消息的起始位置
     chat._lastReplyStartIndex = chat.history.length;
 
@@ -1418,12 +1460,35 @@ async function applyRawOutputEdit() {
         if (msgData.type === 'innervoice') continue;
 
         let aiMessage = null;
-        const currentTimestamp = messageTimestamp++;
+
+        // [Fix] 计算消息时间戳：后台消息优先使用 sendTime
+        let currentTimestamp = messageTimestamp++;
+        if (isBackgroundReply && msgData.sendTime) {
+            const parsedTime = new Date(msgData.sendTime).getTime();
+            if (!isNaN(parsedTime)) {
+                currentTimestamp = parsedTime;
+            }
+        }
+        if (isBackgroundReply) {
+            // 确保时间合法性
+            const startTimestamp = lastMessage ? lastMessage.timestamp : 0;
+            currentTimestamp = Math.min(Date.now(), Math.max(startTimestamp + 1000, currentTimestamp));
+            if (currentTimestamp <= lastUsedTimestamp) {
+                currentTimestamp = lastUsedTimestamp + 1;
+            }
+            lastUsedTimestamp = currentTimestamp;
+        }
+
         const baseMessage = {
             role: 'assistant',
             senderName: msgData.name || chat.name,
             timestamp: currentTimestamp,
         };
+
+        // [Fix] 后台消息标记为未读
+        if (isBackgroundReply) {
+            baseMessage.isUnread = true;
+        }
 
         switch (msgData.type) {
             case 'text':
@@ -1456,12 +1521,12 @@ async function applyRawOutputEdit() {
                 break;
 
             case 'update_status': {
-                // [Fix] 编辑重处理时正确处理状态更新
+                // [Fix] 编辑重处理时正确处理状态更新，使用消息的时间戳而非Date.now()
                 const activeChat = state.chats[state.activeChatId];
                 if (activeChat && msgData.status_text) {
                     activeChat.status.text = msgData.status_text;
                     activeChat.status.isBusy = msgData.is_busy || false;
-                    activeChat.status.lastUpdate = Date.now();
+                    activeChat.status.lastUpdate = currentTimestamp;
                 }
                 aiMessage = {
                     ...baseMessage,
@@ -1599,6 +1664,16 @@ async function applyRawOutputEdit() {
 
         if (aiMessage) {
             chat.history.push(aiMessage);
+        }
+    }
+
+    // [Fix] 后台消息需要按时间排序，确保时间线正确
+    if (isBackgroundReply) {
+        chat.history.sort((a, b) => a.timestamp - b.timestamp);
+        // 更新未读计数
+        const newMsgCount = chat.history.length - chat._lastReplyStartIndex;
+        if (newMsgCount > 0) {
+            chat.unreadCount = (chat.unreadCount || 0) + newMsgCount;
         }
     }
 

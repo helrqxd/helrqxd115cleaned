@@ -598,6 +598,14 @@ async function triggerInactiveAiAction(chatId) {
         ${linkedMemoryContext}
 
         `;
+
+    // [Fix] 如果是重新生成(reroll)，注入上次输出和重新生成理由
+    if (chat._rerollContext) {
+        const rc = chat._rerollContext;
+        systemPrompt += `\n\n# 【重要：这是一次重新生成请求】\n用户对你上一次的输出不满意，要求重新生成。\n## 上一次的输出内容：\n\`\`\`\n${rc.previousOutput}\n\`\`\`\n## 用户给出的重新生成理由：\n${rc.reason || '未提供具体理由'}\n## 要求：\n请根据以上理由调整你的输出方向，避免重复上次的问题。生成全新的、改进后的回复。`;
+        delete chat._rerollContext; // 用完即删
+    }
+
     //console.log(`【后台角色实时活动 - 系统提示】\n角色 "${chat.name}" 的系统提示:\n`, systemPrompt);
     let messagesPayload = [
         { role: 'system', content: systemPrompt },
@@ -632,6 +640,7 @@ async function triggerInactiveAiAction(chatId) {
         const responseArray = parseAiResponse(aiResponseContent);
         chat._lastRawAiOutput = aiResponseContent; // 保存后台活动的AI原始输出
         chat._lastReplyStartIndex = chat.history.length; // 记录本轮AI回复的起始位置
+        chat._isLastReplyBackground = true; // 标记此次回复来自后台行动
         console.log('解析后的 Action 列表:', responseArray); // Debug log
 
         // [Fix] 引入 lastUsedTimestamp 以确保批量生成的 timestamp 绝对不重复
@@ -665,16 +674,29 @@ async function triggerInactiveAiAction(chatId) {
             // ------------------------------
 
             if (action.type === 'update_status' && action.status_text) {
+                // [Fix] 计算状态更新的时间戳，优先使用 sendTime
+                let statusTimestamp = Date.now();
+                if (action.sendTime) {
+                    const parsedTime = new Date(action.sendTime).getTime();
+                    if (!isNaN(parsedTime)) statusTimestamp = parsedTime;
+                }
+                const startTimestamp = lastMessage ? lastMessage.timestamp : 0;
+                statusTimestamp = Math.min(Date.now(), Math.max(startTimestamp + 1000, statusTimestamp));
+                if (statusTimestamp <= lastUsedTimestamp) {
+                    statusTimestamp = lastUsedTimestamp + 1;
+                }
+                lastUsedTimestamp = statusTimestamp;
+
                 chat.status.text = action.status_text;
                 chat.status.isBusy = action.is_busy || false;
-                chat.status.lastUpdate = Date.now();
+                chat.status.lastUpdate = statusTimestamp;
 
-                // [Fix] 创建可见的系统消息，与chat.js保持一致
+                // [Fix] 创建可见的系统消息，使用sendTime对应的时间戳
                 const statusMsg = {
                     role: 'system',
                     type: 'pat_message',
                     content: `[${chat.name}的状态已更新为: ${action.status_text}]`,
-                    timestamp: Date.now(),
+                    timestamp: statusTimestamp,
                 };
                 chat.history.push(statusMsg);
 
@@ -1268,6 +1290,13 @@ async function triggerGroupAiAction(chatId) {
 
         现在，请严格遵守以上所有规则，开始你的模拟。`;
 
+        // [Fix] 如果是重新生成(reroll)，注入上次输出和重新生成理由
+        if (chat._rerollContext) {
+            const rc = chat._rerollContext;
+            systemPrompt += `\n\n# 【重要：这是一次重新生成请求】\n用户对你上一次的输出不满意，要求重新生成。\n## 上一次的输出内容：\n\`\`\`\n${rc.previousOutput}\n\`\`\`\n## 用户给出的重新生成理由：\n${rc.reason || '未提供具体理由'}\n## 要求：\n请根据以上理由调整你的输出方向，避免重复上次的问题。生成全新的、改进后的回复。`;
+            delete chat._rerollContext; // 用完即删
+        }
+
         //console.log(`【后台群聊互动 - 系统提示】\n群聊 "${chat.name}" 的系统提示:\n`, systemPrompt);
         const messagesPayload = [{ role: 'user', content: systemPrompt }];
 
@@ -1295,6 +1324,7 @@ async function triggerGroupAiAction(chatId) {
         console.log(`【后台群聊互动 - AI 原始输出】\n群聊 "${chat.name}" 的原始回复:\n`, aiResponseContent);
         chat._lastRawAiOutput = aiResponseContent; // 保存群聊后台活动的AI原始输出
         chat._lastReplyStartIndex = chat.history.length; // 记录本轮AI回复的起始位置
+        chat._isLastReplyBackground = true; // 标记此次回复来自后台行动
 
         if (Array.isArray(messagesArray) && messagesArray.length > 0) {
             let messageTimestamp = Date.now();
@@ -1533,3 +1563,7 @@ async function triggerGroupAiAction(chatId) {
         console.error(`群聊 "${chat.name}" 的后台活动失败:`, error);
     }
 }
+
+// 暴露后台行动函数到全局，供重新生成功能调用
+window.triggerInactiveAiAction = triggerInactiveAiAction;
+window.triggerGroupAiAction = triggerGroupAiAction;
