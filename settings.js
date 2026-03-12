@@ -301,6 +301,8 @@ window.DEFAULT_APP_ICONS = {
     'tukey-accounting': 'https://i.postimg.cc/k4fZKVXP/tu-tu.png',
     'kk-checkin': 'https://i.postimg.cc/MGwrL0nf/kitty.png',
     studio: 'https://i.postimg.cc/W3sLz11s/clapperboard-icon.png',
+    xhs: 'https://i.postimg.cc/hPSYnJqq/xhs-icon.png',
+    lofter: 'https://i.postimg.cc/VkWvLn2P/lofter-icon.png',
 };
 
 window.DEFAULT_APP_LABELS = {
@@ -320,6 +322,8 @@ window.DEFAULT_APP_LABELS = {
     'tukey-accounting': '兔兔记账',
     'kk-checkin': 'kk查岗',
     studio: 'lrq小剧场',
+    xhs: '小红书',
+    lofter: 'Lofter',
 };
 
 // ===================================================================
@@ -2842,12 +2846,19 @@ window.getFullBackupData = async function () {
         deviceCode: window.getDeviceCode(),
     };
 
-    const [chats, worldBooks, userStickers, charStickers, apiConfig, globalSettings, personaPresets, musicLibrary, qzoneSettings, qzonePosts, qzoneAlbums, qzonePhotos, favorites, qzoneGroups, memories, worldBookCategories, callRecords, customAvatarFrames, themes, apiPresets, bubbleStylePresets, fontPresets, homeScreenPresets, datingScenes, datingPresets, datingSpriteGroups, datingSprites, datingHistory, pomodoroSessions, ludoQuestionBanks, ludoQuestions, scriptKillScripts, taobaoProducts, taobaoOrders, taobaoCart, userWalletTransactions, userStickerCategories] = await Promise.all([
-        db.chats.toArray(), db.worldBooks.toArray(), db.userStickers.toArray(), db.charStickers.toArray(), db.apiConfig.get('main'), db.globalSettings.get('main'), db.personaPresets.toArray(), db.musicLibrary.get('main'), db.qzoneSettings.get('main'), db.qzonePosts.toArray(), db.qzoneAlbums.toArray(), db.qzonePhotos.toArray(), db.favorites.toArray(), db.qzoneGroups.toArray(), db.memories.toArray(), db.worldBookCategories.toArray(), db.callRecords.toArray(), db.customAvatarFrames.toArray(), db.themes.toArray(), db.apiPresets.toArray(), db.bubbleStylePresets.toArray(), db.fontPresets.toArray(), db.homeScreenPresets.toArray(), db.datingScenes.toArray(), db.datingPresets.toArray(), db.datingSpriteGroups.toArray(), db.datingSprites.toArray(), db.datingHistory.toArray(), db.pomodoroSessions.toArray(), db.ludoQuestionBanks.toArray(), db.ludoQuestions.toArray(), db.scriptKillScripts.toArray(), db.taobaoProducts.toArray(), db.taobaoOrders.toArray(), db.taobaoCart.toArray(), db.userWalletTransactions.toArray(), db.userStickerCategories.toArray()
+    const [chats, worldBooks, userStickers, charStickers, apiConfig, globalSettings, personaPresets, musicLibrary, qzoneSettings, qzonePosts, qzoneAlbums, qzonePhotos, favorites, qzoneGroups, memories, worldBookCategories, callRecords, customAvatarFrames, themes, apiPresets, bubbleStylePresets, fontPresets, homeScreenPresets, datingScenes, datingPresets, datingSpriteGroups, datingSprites, datingHistory, pomodoroSessions, ludoQuestionBanks, ludoQuestions, scriptKillScripts, taobaoProducts, taobaoOrders, taobaoCart, userWalletTransactions, userStickerCategories, xhsSettings, xhsNotes, lofterArticles] = await Promise.all([
+        db.chats.toArray(), db.worldBooks.toArray(), db.userStickers.toArray(), db.charStickers.toArray(), db.apiConfig.get('main'), db.globalSettings.get('main'), db.personaPresets.toArray(), db.musicLibrary.get('main'), db.qzoneSettings.get('main'), db.qzonePosts.toArray(), db.qzoneAlbums.toArray(), db.qzonePhotos.toArray(), db.favorites.toArray(), db.qzoneGroups.toArray(), db.memories.toArray(), db.worldBookCategories.toArray(), db.callRecords.toArray(), db.customAvatarFrames.toArray(), db.themes.toArray(), db.apiPresets.toArray(), db.bubbleStylePresets.toArray(), db.fontPresets.toArray(), db.homeScreenPresets.toArray(), db.datingScenes.toArray(), db.datingPresets.toArray(), db.datingSpriteGroups.toArray(), db.datingSprites.toArray(), db.datingHistory.toArray(), db.pomodoroSessions.toArray(), db.ludoQuestionBanks.toArray(), db.ludoQuestions.toArray(), db.scriptKillScripts.toArray(), db.taobaoProducts.toArray(), db.taobaoOrders.toArray(), db.taobaoCart.toArray(), db.userWalletTransactions.toArray(), db.userStickerCategories.toArray(), db.xhsSettings.get('main'), db.xhsNotes.toArray(), db.lofterArticles.toArray()
     ]);
 
+    // 备份 Lofter 的 localStorage 数据
+    const lofterLocalData = {};
+    ['lofterUserSettings', 'lofterGenSettings', 'lofterSubscribedTags', 'lofterSubscribedCollections', 'lofterCollections', 'lofterLeguProducts'].forEach(key => {
+        const val = localStorage.getItem(key);
+        if (val) lofterLocalData[key] = val;
+    });
+
     Object.assign(backupData, {
-        chats, worldBooks, userStickers, charStickers, apiConfig, globalSettings, personaPresets, musicLibrary, qzoneSettings, qzonePosts, qzoneAlbums, qzonePhotos, favorites, qzoneGroups, memories, worldBookCategories, callRecords, customAvatarFrames, themes, apiPresets, bubbleStylePresets, fontPresets, homeScreenPresets, datingScenes, datingPresets, datingSpriteGroups, datingSprites, datingHistory, pomodoroSessions, ludoQuestionBanks, ludoQuestions, scriptKillScripts, taobaoProducts, taobaoOrders, taobaoCart, userWalletTransactions, userStickerCategories,
+        chats, worldBooks, userStickers, charStickers, apiConfig, globalSettings, personaPresets, musicLibrary, qzoneSettings, qzonePosts, qzoneAlbums, qzonePhotos, favorites, qzoneGroups, memories, worldBookCategories, callRecords, customAvatarFrames, themes, apiPresets, bubbleStylePresets, fontPresets, homeScreenPresets, datingScenes, datingPresets, datingSpriteGroups, datingSprites, datingHistory, pomodoroSessions, ludoQuestionBanks, ludoQuestions, scriptKillScripts, taobaoProducts, taobaoOrders, taobaoCart, userWalletTransactions, userStickerCategories, xhsSettings, xhsNotes, lofterArticles, lofterLocalData,
     });
 
     // 如果在主屏幕，尝试获取完整的 homeScreenState (optional, omitted here as per original logic's simplified return)
@@ -2867,7 +2878,7 @@ window.importBackup = async function (file) {
         await db.transaction('rw', db.tables, async () => {
             for (const table of db.tables) { await table.clear(); }
 
-            const arrayTables = ['chats', 'worldBooks', 'userStickers', 'charStickers', 'personaPresets', 'qzonePosts', 'qzoneAlbums', 'qzonePhotos', 'favorites', 'qzoneGroups', 'memories', 'worldBookCategories', 'callRecords', 'customAvatarFrames', 'themes', 'apiPresets', 'bubbleStylePresets', 'fontPresets', 'homeScreenPresets', 'datingScenes', 'datingPresets', 'datingSpriteGroups', 'datingSprites', 'datingHistory', 'pomodoroSessions', 'ludoQuestionBanks', 'ludoQuestions', 'scriptKillScripts', 'taobaoProducts', 'taobaoOrders', 'taobaoCart', 'userWalletTransactions', 'userStickerCategories'];
+            const arrayTables = ['chats', 'worldBooks', 'userStickers', 'charStickers', 'personaPresets', 'qzonePosts', 'qzoneAlbums', 'qzonePhotos', 'favorites', 'qzoneGroups', 'memories', 'worldBookCategories', 'callRecords', 'customAvatarFrames', 'themes', 'apiPresets', 'bubbleStylePresets', 'fontPresets', 'homeScreenPresets', 'datingScenes', 'datingPresets', 'datingSpriteGroups', 'datingSprites', 'datingHistory', 'pomodoroSessions', 'ludoQuestionBanks', 'ludoQuestions', 'scriptKillScripts', 'taobaoProducts', 'taobaoOrders', 'taobaoCart', 'userWalletTransactions', 'userStickerCategories', 'xhsNotes', 'lofterArticles'];
 
             for (const tableName of arrayTables) {
                 if (Array.isArray(data[tableName]) && db[tableName]) {
@@ -2893,6 +2904,15 @@ window.importBackup = async function (file) {
             const objectTables = ['apiConfig', 'globalSettings', 'musicLibrary', 'qzoneSettings', 'xhsSettings'];
             for (const tableName of objectTables) {
                 if (data[tableName] && db[tableName]) await db[tableName].put(data[tableName]);
+            }
+
+            // 恢复 Lofter 的 localStorage 数据
+            if (data.lofterLocalData) {
+                for (const key in data.lofterLocalData) {
+                    if (data.lofterLocalData.hasOwnProperty(key)) {
+                        localStorage.setItem(key, data.lofterLocalData[key]);
+                    }
+                }
             }
         });
 
@@ -3474,6 +3494,15 @@ window.exportChunkedData = async function () {
                 tables: ['studioScripts', 'studioHistory'],
             },
 
+            xhs: {
+                tables: ['xhsSettings', 'xhsNotes'],
+            },
+
+            lofter: {
+                tables: ['lofterArticles'],
+                localStorageKeys: ['lofterUserSettings', 'lofterGenSettings', 'lofterSubscribedTags', 'lofterSubscribedCollections', 'lofterCollections', 'lofterLeguProducts'],
+            },
+
             userStickers: {
                 tables: ['userStickers', 'userStickerCategories'],
             },
@@ -3493,8 +3522,21 @@ window.exportChunkedData = async function () {
             if (appInfo) {
                 backupData.contains.push(appId);
                 for (const tableName of appInfo.tables) {
-                    backupData.data[tableName] = await db[tableName].toArray();
+                    // xhsSettings 是单对象表，需要用 get('main')
+                    if (tableName === 'xhsSettings') {
+                        backupData.data[tableName] = await db[tableName].get('main');
+                    } else {
+                        backupData.data[tableName] = await db[tableName].toArray();
+                    }
                     console.log(`已打包App数据表: ${tableName}`);
+                }
+                // 导出 localStorage 数据（如 Lofter）
+                if (appInfo.localStorageKeys) {
+                    if (!backupData.data._localStorage) backupData.data._localStorage = {};
+                    for (const key of appInfo.localStorageKeys) {
+                        const val = localStorage.getItem(key);
+                        if (val) backupData.data._localStorage[key] = val;
+                    }
                 }
             }
         }
@@ -3506,7 +3548,7 @@ window.exportChunkedData = async function () {
             backupData.contains.push(...charIds.map((id) => `character_${id}`));
 
             // 打包所有与这些角色关联的数据
-            const relatedDataTables = ['memories', 'callRecords', 'qzonePosts', 'weiboPosts', 'datingHistory', 'pomodoroSessions'];
+            const relatedDataTables = ['memories', 'callRecords', 'qzonePosts', 'weiboPosts', 'datingHistory', 'pomodoroSessions', 'lofterArticles'];
             const relatedKey = {
                 memories: 'chatId',
                 callRecords: 'chatId',
@@ -3514,6 +3556,7 @@ window.exportChunkedData = async function () {
                 weiboPosts: 'authorId',
                 datingHistory: 'characterId',
                 pomodoroSessions: 'chatId',
+                lofterArticles: 'authorId',
             };
 
             for (const tableName of relatedDataTables) {
@@ -3591,6 +3634,9 @@ window.importChunkedData = async function (file) {
 
                 studio: '小剧场数据',
 
+                xhs: '小红书 (笔记/设置)',
+                lofter: 'Lofter (文章/设置)',
+
                 userStickers: '我的表情包',
                 charStickers: '角色通用表情包',
                 gameData: '游戏大厅数据',
@@ -3629,9 +3675,23 @@ window.importChunkedData = async function (file) {
                 if (Array.isArray(data.data[tableName])) {
                     console.log(`正在向表格 "${tableName}" 中补充/覆盖 ${data.data[tableName].length} 条数据...`);
                     await db[tableName].bulkPut(data.data[tableName]);
+                } else if (data.data[tableName] && typeof data.data[tableName] === 'object' && data.data[tableName].id) {
+                    // 处理单对象表（如 xhsSettings）
+                    console.log(`正在恢复对象表 "${tableName}"...`);
+                    await db[tableName].put(data.data[tableName]);
                 }
             }
         });
+
+        // 恢复 localStorage 数据（如 Lofter 设置）
+        if (data.data._localStorage) {
+            for (const key in data.data._localStorage) {
+                if (data.data._localStorage.hasOwnProperty(key)) {
+                    localStorage.setItem(key, data.data._localStorage[key]);
+                    console.log(`已恢复 localStorage 键: ${key}`);
+                }
+            }
+        }
 
         // 尝试重新加载数据，如果存在相关函数
         if (window.loadAllDataFromDB) await window.loadAllDataFromDB();
@@ -4385,6 +4445,17 @@ window.openAdvancedTransferModal = async function () {
             id: 'studio',
             name: '小剧场 (所有剧本/演绎记录)',
             tables: ['studioScripts', 'studioHistory'],
+        },
+
+        {
+            id: 'xhs',
+            name: '小红书 (全部笔记/个人设置)',
+            tables: ['xhsSettings', 'xhsNotes'],
+        },
+        {
+            id: 'lofter',
+            name: 'Lofter (全部文章/用户设置/订阅/合集)',
+            tables: ['lofterArticles'],
         },
 
         { id: 'userStickers', name: '我的表情包 (包含分类)', tables: ['userStickers', 'userStickerCategories'] },
