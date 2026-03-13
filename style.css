@@ -473,6 +473,35 @@ body {
   gap: 20px;
 }
 
+/* 新消息跳转横幅 */
+#new-messages-banner {
+  position: absolute;
+  right: 12px;
+  z-index: 100;
+  background: rgba(0, 132, 255, 0.92);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 18px;
+  font-size: 12px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.18);
+  white-space: nowrap;
+  user-select: none;
+  transition: opacity 0.3s;
+  animation: newMsgBannerFadeIn 0.25s ease-out;
+}
+#new-messages-banner:active {
+  opacity: 0.7;
+}
+.new-msg-banner-arrow {
+  font-weight: bold;
+  margin-right: 2px;
+}
+@keyframes newMsgBannerFadeIn {
+  from { opacity: 0; transform: translateY(-8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
 /* ▲▲▲ 替换结束 ▲▲▲ */
 #load-more-btn {
   text-align: center;
@@ -2978,6 +3007,11 @@ body {
   font-weight: 300; /* 使用更细的字重，让加号看起来更清爽，不显粗笨 */
   position: relative; /* 允许进行位置微调 */
   top: -1px; /* 字体放大后，通常需要稍微向上移动一点，使其视觉上更居中 */
+}
+
+/* === 创建新聊天下拉菜单 === */
+.add-chat-dropdown-item:active {
+  background-color: var(--hover-bg, #f0f0f0);
 }
 
 /* ▲▲▲ 新样式粘贴结束 ▲▲▲ */

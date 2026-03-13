@@ -1220,7 +1220,7 @@ async function triggerGroupAiAction(chatId) {
             .join('\n');
 
         // updated by lrq 251027
-        const systemPrompt = `
+        let systemPrompt = `
         # 任务
         你是一个群聊后台模拟器，在当前群聊"${chat.name}"中，负责扮演下方【群成员列表】当中的角色。
         当前日期时间是（${currentFullTime}），群聊 "${chat.name}" 已经沉寂了 ${Math.round(timeSinceLastMessage)} 分钟(上一条消息时间：${lastMessageTimeStr})，用户(昵称: "${chat.settings.myNickname || '我'}")不在线。

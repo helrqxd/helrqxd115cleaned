@@ -326,7 +326,7 @@ function createChatListItem(chat) {
     return container;
 }
 
-function renderChatInterface(chatId) {
+function renderChatInterface(chatId, unreadCountForBanner = 0) {
     window.renderChatInterface = renderChatInterface; // Expose for external use (e.g., functions.js)
     cleanupWaimaiTimers();
     const chat = window.state.chats[chatId];
@@ -464,8 +464,106 @@ function renderChatInterface(chatId) {
     typingIndicator.style.display = 'none';
     typingIndicator.textContent = '对方正在输入...';
     messagesContainer.appendChild(typingIndicator);
-    setTimeout(() => (messagesContainer.scrollTop = messagesContainer.scrollHeight), 0);
+
+    // 在消息区域内、typing indicator 之前插入新消息横幅占位（先隐藏，等布局完成后决定是否显示）
+    if (unreadCountForBanner > 0) {
+        const bannerAnchor = document.createElement('div');
+        bannerAnchor.id = 'new-msg-anchor';
+        bannerAnchor.style.display = 'none';
+        // 将锚点插入到第一条未读消息之前
+        const allWrappers = messagesContainer.querySelectorAll('.message-wrapper:not(.date-stamp-wrapper):not(.system-pat)');
+        const firstUnreadIdx = Math.max(0, allWrappers.length - unreadCountForBanner);
+        const firstUnreadEl = allWrappers[firstUnreadIdx];
+        if (firstUnreadEl) {
+            messagesContainer.insertBefore(bannerAnchor, firstUnreadEl);
+        }
+    }
+
+    // 使用 rAF + setTimeout 确保浏览器完成布局后再执行检测
+    setTimeout(() => {
+        messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        requestAnimationFrame(() => {
+            showNewMessagesBannerIfNeeded(messagesContainer, unreadCountForBanner);
+        });
+    }, 50);
     renderChatPet();
+}
+
+/**
+ * 如果未读消息超出屏幕可视范围，在消息区域右上角显示"xx条新消息"跳转横幅
+ */
+function showNewMessagesBannerIfNeeded(messagesContainer, unreadCount) {
+    // 移除可能存在的旧横幅
+    const oldBanner = document.getElementById('new-messages-banner');
+    if (oldBanner) oldBanner.remove();
+
+    console.log('[NewMsgBanner] unreadCount:', unreadCount);
+    if (unreadCount <= 0) return;
+
+    // 利用之前在 renderChatInterface 中插入的锚点元素来定位
+    const anchor = document.getElementById('new-msg-anchor');
+
+    // 获取所有消息元素
+    const allMsgEls = messagesContainer.querySelectorAll('.message-wrapper:not(.date-stamp-wrapper):not(.system-pat)');
+    if (allMsgEls.length === 0) return;
+
+    // 第一条未读消息：从末尾往前数 unreadCount 条
+    const firstUnreadIndex = Math.max(0, allMsgEls.length - unreadCount);
+    const firstUnreadEl = allMsgEls[firstUnreadIndex];
+    if (!firstUnreadEl) return;
+
+    // 判断第一条未读消息是否在当前可视区域之外
+    const containerRect = messagesContainer.getBoundingClientRect();
+    const msgRect = firstUnreadEl.getBoundingClientRect();
+    // 消息区有 110px padding-top 被 header 遮盖
+    const visibleTop = containerRect.top + 110;
+
+    console.log('[NewMsgBanner] containerRect.top:', containerRect.top,
+        'visibleTop:', visibleTop,
+        'msgRect.top:', msgRect.top,
+        'containerRect.bottom:', containerRect.bottom);
+
+    // 如果第一条未读消息在可视区域内，不需要横幅
+    if (msgRect.top >= visibleTop && msgRect.top < containerRect.bottom) {
+        console.log('[NewMsgBanner] First unread message is visible, no banner needed');
+        if (anchor) anchor.remove();
+        return;
+    }
+
+    console.log('[NewMsgBanner] Creating banner for', unreadCount, 'messages');
+
+    // 创建横幅元素
+    const banner = document.createElement('div');
+    banner.id = 'new-messages-banner';
+    banner.innerHTML = `<span class="new-msg-banner-arrow">↑</span> ${unreadCount}条新消息`;
+
+    banner.addEventListener('click', () => {
+        // 滚动到第一条未读消息
+        firstUnreadEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => banner.remove(), 800);
+    });
+
+    // 将横幅插入到 chat-interface-screen，用绝对定位浮于 header 正下方
+    const chatScreen = document.getElementById('chat-interface-screen');
+    const header = chatScreen.querySelector('.header');
+    const headerBottom = header ? header.offsetHeight : 110;
+    banner.style.top = (headerBottom + 8) + 'px';
+    chatScreen.appendChild(banner);
+
+    // 清理锚点
+    if (anchor) anchor.remove();
+
+    // 当用户手动滚动到第一条未读消息可见时，自动移除横幅
+    const onScroll = () => {
+        const r = firstUnreadEl.getBoundingClientRect();
+        const cr = messagesContainer.getBoundingClientRect();
+        const vTop = cr.top + 110;
+        if (r.top >= vTop && r.top < cr.bottom) {
+            banner.remove();
+            messagesContainer.removeEventListener('scroll', onScroll);
+        }
+    };
+    messagesContainer.addEventListener('scroll', onScroll);
 }
 
 function prependLoadMoreButton(container) {
@@ -1690,6 +1788,9 @@ window.openChat = async function openChat(chatId) {
     const chat = window.state.chats[chatId];
     if (!chat) return; // 安全检查
 
+    // 保存未读数，用于新消息跳转提示
+    const savedUnreadCount = chat.unreadCount || 0;
+
     // 将未读数清零 & 清除错误红点
     const needSave = chat.unreadCount > 0 || chat.hasError;
     if (chat.unreadCount > 0) chat.unreadCount = 0;
@@ -1701,7 +1802,7 @@ window.openChat = async function openChat(chatId) {
     // 把 openChat 函数挂载到全局 window 对象上
     window.openChat = openChat;
 
-    renderChatInterface(chatId);
+    renderChatInterface(chatId, savedUnreadCount);
     showScreen('chat-interface-screen');
     window.updateListenTogetherIconProxy(window.state.activeChatId);
     toggleCallButtons(chat.isGroup || false);
@@ -1881,7 +1982,7 @@ window.triggerAiResponse = async function triggerAiResponse() {
             naiExample = `,\n    {\n      "type": "naiimag",\n      "prompt": "1girl, sitting in cafe, holding coffee cup, smile, indoor lighting, cinematic composition"\n    }`;
         }
 
-        const offlineSystemPrompt = `
+        let offlineSystemPrompt = `
             # 核心任务：线下场景角色扮演
 
             你现在【就是】角色“${chat.name}”，正在和用户进行一次【线下约会】。
@@ -7285,7 +7386,24 @@ function setupChatListeners() {
         displayArea.classList.toggle('show-lyrics');
     });
 
-    document.getElementById('add-chat-btn').addEventListener('click', async () => {
+    // "+" 按钮下拉菜单逻辑
+    const addChatBtn = document.getElementById('add-chat-btn');
+    const addChatDropdown = document.getElementById('add-chat-dropdown');
+
+    addChatBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        addChatDropdown.style.display = addChatDropdown.style.display === 'none' ? 'block' : 'none';
+    });
+
+    // 点击其他区域关闭下拉菜单
+    document.addEventListener('click', () => {
+        if (addChatDropdown) addChatDropdown.style.display = 'none';
+    });
+    addChatDropdown.addEventListener('click', (e) => e.stopPropagation());
+
+    // 新建联系人
+    document.getElementById('dropdown-new-contact').addEventListener('click', async () => {
+        addChatDropdown.style.display = 'none';
         const name = await showCustomPrompt('创建新聊天', '请输入Ta的名字');
         if (name && name.trim()) {
             const newChatId = 'chat_' + Date.now();
@@ -7311,19 +7429,17 @@ function setupChatListeners() {
                     linkedWorldBookIds: [],
                     aiAvatarLibrary: [],
                     stickerLibrary: [], // 专属表情库
-                    // === 以下是本次修复新增的初始化属性 ===
-                    linkedMemories: [], // 【修复核心】初始化记忆互通数组
-                    offlineMode: { enabled: false, prompt: '', style: '', wordCount: 300, presets: [] }, // 初始化线下模式
-                    timePerceptionEnabled: true, // 初始化时间感知
-                    customTime: '', // 初始化自定义时间
-                    isCoupleAvatar: false, // 初始化情侣头像开关
-                    coupleAvatarDescription: '', // 初始化情侣头像描述
-                    weiboProfession: '', // 初始化微博职业
-                    weiboInstruction: '', // 初始化微博指令
+                    linkedMemories: [],
+                    offlineMode: { enabled: false, prompt: '', style: '', wordCount: 300, presets: [] },
+                    timePerceptionEnabled: true,
+                    customTime: '',
+                    isCoupleAvatar: false,
+                    coupleAvatarDescription: '',
+                    weiboProfession: '',
+                    weiboInstruction: '',
                 },
                 history: [],
                 musicData: { totalTime: 0 },
-                // 手机数据也保持完整
                 characterPhoneData: {
                     lastGenerated: null,
                     chats: {},
@@ -7345,8 +7461,18 @@ function setupChatListeners() {
         }
     });
 
-    // 创建群聊按钮现在打开联系人选择器
-    document.getElementById('add-group-chat-btn').addEventListener('click', () => { if (window.openContactPickerForGroupCreate) window.openContactPickerForGroupCreate(); });
+    // 导入角色卡
+    document.getElementById('dropdown-import-card').addEventListener('click', () => {
+        addChatDropdown.style.display = 'none';
+        // 复用 import-character-card-btn 原有的解锁和导入逻辑
+        document.getElementById('import-character-card-btn-hidden').click();
+    });
+
+    // 创建群聊
+    document.getElementById('dropdown-create-group').addEventListener('click', () => {
+        addChatDropdown.style.display = 'none';
+        if (window.openContactPickerForGroupCreate) window.openContactPickerForGroupCreate();
+    });
 
     // 绑定刷新后台活动按钮事件
     const refreshBtn = document.getElementById('refresh-background-activity-btn');
@@ -8869,6 +8995,8 @@ async function saveEditedMessage(timestamp, simpleContent = null) {
     renderChatInterface(state.activeChatId);
     await showCustomAlert('成功', '消息已更新！');
 }
+
+const selectedContacts = new Set();
 
 async function openContactPickerForGroupCreate() {
     selectedContacts.clear(); // 清空上次选择

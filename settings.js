@@ -300,9 +300,10 @@ window.DEFAULT_APP_ICONS = {
     'date-a-live': 'https://i.postimg.cc/Kjdss1j9/1761142686734.png',
     'tukey-accounting': 'https://i.postimg.cc/k4fZKVXP/tu-tu.png',
     'kk-checkin': 'https://i.postimg.cc/MGwrL0nf/kitty.png',
-    studio: 'https://i.postimg.cc/W3sLz11s/clapperboard-icon.png',
+    'studio-page3': 'https://i.postimg.cc/W3sLz11s/clapperboard-icon.png',
     xhs: 'https://i.postimg.cc/hPSYnJqq/xhs-icon.png',
     lofter: 'https://i.postimg.cc/VkWvLn2P/lofter-icon.png',
+    amap: 'https://i.postimg.cc/4dKgPcGx/amap-icon.png',
 };
 
 window.DEFAULT_APP_LABELS = {
@@ -321,9 +322,10 @@ window.DEFAULT_APP_LABELS = {
     'date-a-live': '约会大作战',
     'tukey-accounting': '兔兔记账',
     'kk-checkin': 'kk查岗',
-    studio: 'lrq小剧场',
+    'studio-page3': 'lrq小剧场',
     xhs: '小红书',
     lofter: 'Lofter',
+    amap: '高德地图',
 };
 
 // ===================================================================

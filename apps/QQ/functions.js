@@ -7131,7 +7131,7 @@ async function createCharacterFromData(data, avatarBase64) {
 }
 
 function initCharacterImportEventListeners() {
-    const importBtn = document.getElementById('import-character-card-btn');
+    const importBtn = document.getElementById('import-character-card-btn-hidden');
     if (importBtn) {
         importBtn.addEventListener('click', async () => {
             const unlockKey = 'isCharacterImportUnlocked';

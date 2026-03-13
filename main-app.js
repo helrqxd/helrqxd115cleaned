@@ -2338,6 +2338,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const chat = state.chats[chatId];
         if (!chat) return; // 安全检查
 
+        // 保存未读数，用于新消息跳转提示
+        const savedUnreadCount = chat.unreadCount || 0;
+
         // 将未读数清零
         if (chat.unreadCount > 0) {
             chat.unreadCount = 0;
@@ -2347,7 +2350,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 把 openChat 函数挂载到全局 window 对象上
 
 
-        renderChatInterface(chatId);
+        renderChatInterface(chatId, savedUnreadCount);
         showScreen('chat-interface-screen');
         window.updateListenTogetherIconProxy(state.activeChatId);
         toggleCallButtons(chat.isGroup || false);
@@ -4728,6 +4731,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     reader.readAsDataURL(file);
                 });
                 newLockscreenWallpaperBase64 = dataUrl;
+                window.newLockscreenWallpaperBase64 = dataUrl;
                 renderWallpaperScreen(); // 上传后实时预览
             }
         });
