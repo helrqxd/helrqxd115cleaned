@@ -103,7 +103,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const s = window.state.xhsSettings;
         if (s && s.enableAutoRefresh) {
             // 间隔单位为分钟，转换为毫秒
-            const intervalMinutes = s.autoRefreshInterval || 5;
+            const intervalMinutes = s.autoRefreshInterval || 60;
             const intervalMs = intervalMinutes * 60 * 1000;
             console.log(`[XHS] 开启自动刷新，间隔: ${intervalMinutes}分钟`);
 
@@ -1680,32 +1680,35 @@ document.addEventListener('DOMContentLoaded', () => {
      * 根据活力分数计算粉丝变化量
      * @param {number} score - 活力分数
      * @param {number|string} currentFans - 当前粉丝数
+     * @param {boolean} [isCharacter=false] - 是否为角色账号（角色变化量更小）
      * @returns {number} 粉丝变化量（正=增、负=减）
      */
-    function calculateFansDelta(score, currentFans) {
+    function calculateFansDelta(score, currentFans, isCharacter = false) {
         const fans = parseInt(currentFans) || 0;
         // 基准线：低于此则粉丝下降，高于则上升
         const baseline = 15;
         const delta = score - baseline;
         // 账号规模因子（粉丝越多，绝对变化越大）
-        const scaleFactor = Math.max(0.5, Math.log10(fans + 10) * 0.8);
-        // 随机波动因子 (0.7 ~ 1.3)
-        const randomFactor = 0.7 + Math.random() * 0.6;
+        const scaleFactor = Math.max(0.3, Math.log10(fans + 10) * 0.5);
+        // 随机波动因子 (0.8 ~ 1.2)
+        const randomFactor = 0.8 + Math.random() * 0.4;
+        // 角色衰减因子：角色账号变化量在用户基础上再缩小
+        const roleFactor = isCharacter ? 0.5 : 1.0;
 
         let change;
         if (delta > 0) {
             // 正面: 粉丝增长
-            change = Math.ceil(delta * scaleFactor * randomFactor * 0.5);
+            change = Math.ceil(delta * scaleFactor * randomFactor * 0.2 * roleFactor);
         } else if (delta < -5) {
             // 负面: 粉丝减少（力度较轻）
-            change = Math.floor(delta * scaleFactor * randomFactor * 0.2);
+            change = Math.floor(delta * scaleFactor * randomFactor * 0.08 * roleFactor);
         } else {
             // 中间地带: 小幅随机波动
-            change = Math.round((Math.random() - 0.4) * scaleFactor * 2);
+            change = Math.round((Math.random() - 0.45) * scaleFactor * 0.8 * roleFactor);
         }
 
-        // 单次变化不超过粉丝总数的5%，且至少 ±1
-        const maxChange = Math.max(3, Math.ceil(fans * 0.05));
+        // 单次变化不超过粉丝总数的2%，且至少 ±1
+        const maxChange = Math.max(1, Math.ceil(fans * 0.02));
         change = Math.max(-maxChange, Math.min(maxChange, change));
         // 确保粉丝数不变为负数
         if (fans + change < 0) change = -fans;
@@ -1782,7 +1785,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!profile.isFollowed) continue;
             const charScore = await computeAccountVitalityScore(authorName, false);
             const charFans = parseInt(profile.fansCount) || 0;
-            const charDelta = calculateFansDelta(charScore, charFans);
+            const charDelta = calculateFansDelta(charScore, charFans, true);
             if (charDelta !== 0) {
                 profile.fansCount = Math.max(0, charFans + charDelta);
             }
