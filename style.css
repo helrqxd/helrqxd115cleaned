@@ -11540,6 +11540,111 @@ body {
 
 /* ▲▲▲ 第三页样式结束 ▲▲▲ */
 
+/* 问卷反馈小组件 */
+.feedback-widget {
+  width: calc(100% - 40px);
+  max-width: 280px;
+  margin-top: 16px;
+  padding: 18px 20px;
+  background: linear-gradient(135deg,
+    rgba(88, 126, 255, 0.25) 0%,
+    rgba(155, 100, 255, 0.15) 100%);
+  border-radius: 20px;
+  border: 1px solid rgba(160, 140, 255, 0.3);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 32px rgba(80, 60, 200, 0.12);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.feedback-widget-inner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.feedback-icon {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg,
+    rgba(255, 255, 255, 0.22) 0%,
+    rgba(255, 255, 255, 0.08) 100%);
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.92);
+}
+
+.feedback-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.feedback-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.feedback-subtitle {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.feedback-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.feedback-btn {
+  flex: 1;
+  padding: 8px 0;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 500;
+  text-align: center;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  cursor: pointer;
+}
+
+.feedback-btn-fill {
+  background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+  color: #fff;
+  border: none;
+  box-shadow: 0 2px 8px rgba(108, 92, 231, 0.3);
+}
+
+.feedback-btn-fill:active {
+  transform: scale(0.97);
+  box-shadow: 0 1px 4px rgba(108, 92, 231, 0.2);
+}
+
+.feedback-btn-view {
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.feedback-btn-view:active {
+  transform: scale(0.97);
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* 夜间模式适配 */
+#phone-screen.dark-mode .feedback-widget {
+  background: linear-gradient(135deg,
+    rgba(88, 126, 255, 0.15) 0%,
+    rgba(155, 100, 255, 0.08) 100%);
+  border-color: rgba(160, 140, 255, 0.15);
+}
+
 /* ▲▲▲ 新增样式结束 ▲▲▲ */
 /* ▼▼▼ 把这段新样式粘贴到 <style> 标签的最末尾 ▼▼▼ */
 

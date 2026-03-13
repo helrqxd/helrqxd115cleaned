@@ -1485,10 +1485,7 @@ async function applyRawOutputEdit() {
             timestamp: currentTimestamp,
         };
 
-        // [Fix] 后台消息标记为未读
-        if (isBackgroundReply) {
-            baseMessage.isUnread = true;
-        }
+        // [Fix] 编辑原始输出时不标记未读（用户正在主动编辑，不应触发红点）
 
         switch (msgData.type) {
             case 'text':
@@ -1667,14 +1664,9 @@ async function applyRawOutputEdit() {
         }
     }
 
-    // [Fix] 后台消息需要按时间排序，确保时间线正确
+    // [Fix] 后台消息需要按时间排序，确保时间线正确（但编辑时不增加未读计数）
     if (isBackgroundReply) {
         chat.history.sort((a, b) => a.timestamp - b.timestamp);
-        // 更新未读计数
-        const newMsgCount = chat.history.length - chat._lastReplyStartIndex;
-        if (newMsgCount > 0) {
-            chat.unreadCount = (chat.unreadCount || 0) + newMsgCount;
-        }
     }
 
     // 5. 保存编辑后的原始输出到chat对象并刷新
