@@ -439,7 +439,9 @@ function renderChatInterface(chatId, unreadCountForBanner = 0) {
     const history = chat.history;
     const totalMessages = history.length;
     currentRenderedCount = 0;
-    const initialMessages = history.slice(-window.MESSAGE_RENDER_WINDOW);
+    // 如果未读消息数超过默认加载窗口，则扩展初始加载范围以包含所有未读消息
+    const renderWindow = Math.max(window.MESSAGE_RENDER_WINDOW, unreadCountForBanner);
+    const initialMessages = history.slice(-renderWindow);
     let lastMessageTimestamp = null;
 
     initialMessages.forEach((msg) => {
@@ -538,9 +540,31 @@ function showNewMessagesBannerIfNeeded(messagesContainer, unreadCount) {
     banner.innerHTML = `<span class="new-msg-banner-arrow">↑</span> ${unreadCount}条新消息`;
 
     banner.addEventListener('click', () => {
-        // 滚动到第一条未读消息
-        firstUnreadEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        setTimeout(() => banner.remove(), 800);
+        // 需要加载的未渲染消息：循环点击“加载更多”直到第一条未读消息被渲染
+        const loadUntilVisible = () => {
+            const loadBtn = document.getElementById('load-more-btn');
+            // 重新定位第一条未读消息元素
+            const allMsgs = messagesContainer.querySelectorAll('.message-wrapper:not(.date-stamp-wrapper):not(.system-pat)');
+            const targetIdx = Math.max(0, allMsgs.length - unreadCount);
+            const targetEl = allMsgs[targetIdx];
+            if (targetEl && targetEl === firstUnreadEl) {
+                // 第一条未读消息已渲染，直接滚动
+                firstUnreadEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => banner.remove(), 800);
+            } else if (loadBtn) {
+                // 还有更多未加载的消息，触发加载
+                loadBtn.click();
+                requestAnimationFrame(() => loadUntilVisible());
+            } else {
+                // 所有消息都已加载，滚动到最早的那条
+                const allMsgsNow = messagesContainer.querySelectorAll('.message-wrapper:not(.date-stamp-wrapper):not(.system-pat)');
+                const fallbackIdx = Math.max(0, allMsgsNow.length - unreadCount);
+                const fallbackEl = allMsgsNow[fallbackIdx] || allMsgsNow[0];
+                if (fallbackEl) fallbackEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                setTimeout(() => banner.remove(), 800);
+            }
+        };
+        loadUntilVisible();
     });
 
     // 将横幅插入到 chat-interface-screen，用绝对定位浮于 header 正下方
