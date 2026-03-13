@@ -387,6 +387,28 @@ document.addEventListener('DOMContentLoaded', () => {
         };
     }
 
+    // === Pollinations API Key 检查与占位图 ===
+    let _xhsPolliKeyAlerted = false; // 防止重复弹窗
+    function hasPollinationsApiKey() {
+        const key = window.state?.apiConfig?.pollinationsApiKey;
+        return !!key;
+    }
+    function showPollinationsKeyAlert() {
+        if (_xhsPolliKeyAlerted) return;
+        _xhsPolliKeyAlerted = true;
+        showXhsConfirmGeneral(
+            '需要 Pollinations API Key 才能生成图片。<br>请前往 <b>enter.pollinations.ai</b> 免费注册获取，然后在手机「设置 → Pollinations 生图」中填写。',
+            '我知道了',
+            () => { _xhsPolliKeyAlerted = false; }
+        );
+        // 点取消也重置标记
+        setTimeout(() => { _xhsPolliKeyAlerted = false; }, 10000);
+    }
+    function getXhsPlaceholderImage() {
+        // 与 QQ 聊天文字图使用同一张占位图
+        return 'https://i.postimg.cc/KYr2qRCK/1.jpg';
+    }
+
     // 绑定长按事件 (区分点击和长按)
     function bindLongPress(element, onLongPress, onClick, enableEffect = true, excludeSelector = null) {
         let timer;
@@ -2415,14 +2437,19 @@ document.addEventListener('DOMContentLoaded', () => {
                         // 如果没有提示词，使用标题作为兜底，并确保是英文以获得更好效果
                         promptForImage = `aesthetic lifestyle photo, ${note.title}, high quality, 4k`;
                     }
-                    // 使用全局合并后的生图函数
-                    note.imageUrl = await window.generatePollinationsImage(promptForImage, {
-                        width: 832,
-                        height: 1216,
-                        nologo: true,
-                        model: 'flux'
-                    });
-                    console.log("[XHS] Image URL generated:", note.imageUrl);
+                    // 使用全局合并后的生图函数（需要 API Key）
+                    if (hasPollinationsApiKey()) {
+                        note.imageUrl = await window.generatePollinationsImage(promptForImage, {
+                            width: 832,
+                            height: 1216,
+                            nologo: true,
+                            model: 'flux'
+                        });
+                        console.log("[XHS] Image URL generated:", note.imageUrl);
+                    } else {
+                        note.imageUrl = getXhsPlaceholderImage();
+                        showPollinationsKeyAlert();
+                    }
 
                     // 评论时间逻辑
                     if (note.comments && Array.isArray(note.comments)) {
@@ -2594,9 +2621,14 @@ document.addEventListener('DOMContentLoaded', () => {
                     }
 
                     let promptForImage = note.imagePrompt || `aesthetic photo, ${note.title}, high quality`;
-                    note.imageUrl = await window.generatePollinationsImage(promptForImage, {
-                        width: 832, height: 1216, nologo: true, model: 'flux'
-                    });
+                    if (hasPollinationsApiKey()) {
+                        note.imageUrl = await window.generatePollinationsImage(promptForImage, {
+                            width: 832, height: 1216, nologo: true, model: 'flux'
+                        });
+                    } else {
+                        note.imageUrl = getXhsPlaceholderImage();
+                        showPollinationsKeyAlert();
+                    }
 
                     if (note.comments) {
                         // 构建角色名→头像映射
@@ -3000,10 +3032,15 @@ ${memoryContext ? `【角色记忆与近期经历（帮助理解角色关系和�
                     // 生成封面图
                     let coverUrl = '';
                     if (n.imagePrompt && window.generatePollinationsImage) {
-                        try {
-                            coverUrl = await window.generatePollinationsImage(n.imagePrompt, 832, 1110);
-                        } catch (e) {
-                            console.warn('生成封面图失败:', e);
+                        if (hasPollinationsApiKey()) {
+                            try {
+                                coverUrl = await window.generatePollinationsImage(n.imagePrompt, { width: 832, height: 1110, nologo: true, model: 'flux' });
+                            } catch (e) {
+                                console.warn('生成封面图失败:', e);
+                            }
+                        } else {
+                            coverUrl = getXhsPlaceholderImage();
+                            showPollinationsKeyAlert();
                         }
                     }
 
@@ -5601,6 +5638,12 @@ ${memoryContext ? `【角色记忆与近期经历（帮助理解角色关系和�
                 aiGenerateBtn.classList.add('loading');
                 aiGenerateBtn.disabled = true;
 
+                if (!hasPollinationsApiKey()) {
+                    showPollinationsKeyAlert();
+                    aiGenerateBtn.classList.remove('loading');
+                    aiGenerateBtn.disabled = false;
+                    return;
+                }
                 try {
                     const imageUrl = await window.generatePollinationsImage(prompt, {
                         width: 832,
@@ -7049,15 +7092,20 @@ ${isUpdate ? '说明：isExisting为true表示这是已有的收藏夹（使用�
                         let imageUrl = '';
                         const imagePrompt = genNote.imagePrompt || `aesthetic lifestyle photo, ${genNote.title}, high quality, 4k`;
                         if (window.generatePollinationsImage) {
-                            try {
-                                imageUrl = await window.generatePollinationsImage(imagePrompt, {
-                                    width: 832,
-                                    height: 1216,
-                                    nologo: true,
-                                    model: 'flux'
-                                });
-                            } catch (imgErr) {
-                                console.error('[XHS] 收藏夹笔记生图失败:', imgErr);
+                            if (hasPollinationsApiKey()) {
+                                try {
+                                    imageUrl = await window.generatePollinationsImage(imagePrompt, {
+                                        width: 832,
+                                        height: 1216,
+                                        nologo: true,
+                                        model: 'flux'
+                                    });
+                                } catch (imgErr) {
+                                    console.error('[XHS] 收藏夹笔记生图失败:', imgErr);
+                                }
+                            } else {
+                                imageUrl = getXhsPlaceholderImage();
+                                showPollinationsKeyAlert();
                             }
                         }
 

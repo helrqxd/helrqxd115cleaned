@@ -5872,59 +5872,75 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         console.log(`[Global Image Gen] Prompt: ${prompt}, Options:`, options);
 
-        while (true) {
+        const MAX_RETRIES = 3;
+        let retries = 0;
+
+        while (retries < MAX_RETRIES) {
             try {
                 const encodedPrompt = encodeURIComponent(prompt);
-                // 尝试获取全局 state，如果不存在则为 null
                 const currentApiConfig = window.state && window.state.apiConfig ? window.state.apiConfig : null;
                 const pollApiKey = currentApiConfig ? currentApiConfig.pollinationsApiKey : null;
 
-                // 构建基础参数
+                // 构建参数 - gen.pollinations.ai 统一端点支持 model 参数
                 let queryParams = `width=${width}&height=${height}&seed=${seed}&model=${model}`;
                 if (nologo) queryParams += '&nologo=true';
 
-                // 1. === 有 API Key 的情况 ===
+                // 统一使用 gen.pollinations.ai（官方唯一端点）
+                let url = `https://gen.pollinations.ai/image/${encodedPrompt}?${queryParams}`;
+
+                const fetchOptions = {};
                 if (pollApiKey) {
-                    const primaryUrl = `https://gen.pollinations.ai/image/${encodedPrompt}?${queryParams}&key=${pollApiKey}`;
-                    console.log(`[Global Image Gen] 使用 API Key 请求: ${primaryUrl}`);
+                    // 优先使用 Authorization header（官方推荐方式）
+                    fetchOptions.headers = { 'Authorization': `Bearer ${pollApiKey}` };
+                    console.log(`[Global Image Gen] 使用 API Key 请求`);
+                } else {
+                    console.log(`[Global Image Gen] 无 API Key，尝试公开请求...`);
+                }
 
-                    const response = await fetch(primaryUrl, { method: 'GET' });
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 120000); // 120s 超时（生图较慢）
+                fetchOptions.signal = controller.signal;
 
-                    if (!response.ok) {
-                        throw new Error(`API Key 请求失败: ${response.status}`);
+                try {
+                    const resp = await fetch(url, fetchOptions);
+                    clearTimeout(timeoutId);
+
+                    if (resp.status === 401 || resp.status === 403) {
+                        // 认证失败，不重试，直接报错
+                        const errMsg = pollApiKey
+                            ? 'Pollinations API Key 无效或已过期，请在设置中更新。'
+                            : 'Pollinations 现在需要 API Key 才能生图。请到 enter.pollinations.ai 免费注册获取，然后在设置中填写。';
+                        console.error(`[Global Image Gen] ${errMsg}`);
+                        throw new Error(errMsg);
                     }
 
-                    const blob = await response.blob();
-                    // 将 Blob 转为 Base64 以便存储和持久化加载 (解决 blob:null 报错问题)
+                    if (!resp.ok) {
+                        throw new Error(`HTTP ${resp.status}`);
+                    }
+
+                    const blob = await resp.blob();
+                    // 转为 Base64 以便持久化存储
                     return await new Promise((resolve, reject) => {
                         const reader = new FileReader();
                         reader.onloadend = () => resolve(reader.result);
                         reader.onerror = reject;
                         reader.readAsDataURL(blob);
                     });
+                } catch (e) {
+                    clearTimeout(timeoutId);
+                    throw e;
                 }
-
-                // 2. === 无 API Key (公开接口) 的情况 ===
-                // 定义加载器
-                const loadImage = (url) =>
-                    new Promise((resolve, reject) => {
-                        const img = new Image();
-                        img.src = url;
-                        img.onload = () => resolve(url);
-                        img.onerror = () => reject(new Error(`图片加载失败: ${url}`));
-                    });
-
-                // 优先尝试 gen.pollinations.ai
-                const primaryUrl = `https://gen.pollinations.ai/image/${encodedPrompt}?${queryParams}`;
-
-                return await loadImage(primaryUrl).catch(async () => {
-                    console.warn(`[Global Image Gen] 主接口失败，尝试备用接口...`);
-                    // 备用接口 pollinations.ai/p/
-                    const fallbackUrl = `https://pollinations.ai/p/${encodedPrompt}?${queryParams}`;
-                    return await loadImage(fallbackUrl);
-                });
             } catch (error) {
-                console.error(`[Global Image Gen] 生成失败，5秒后自动重试... 错误: ${error.message}`);
+                // 401/403 认证错误不重试，直接抛出
+                if (error.message.includes('API Key') || error.message.includes('enter.pollinations.ai')) {
+                    throw error;
+                }
+                retries++;
+                if (retries >= MAX_RETRIES) {
+                    console.error(`[Global Image Gen] 已重试 ${MAX_RETRIES} 次仍失败，放弃。`);
+                    throw error;
+                }
+                console.warn(`[Global Image Gen] 第 ${retries} 次重试... 错误: ${error.message}`);
                 await new Promise((resolve) => setTimeout(resolve, 5000));
             }
         }
@@ -6351,82 +6367,3 @@ document.addEventListener('DOMContentLoaded', async () => {
         renderLoginOverlay();
     }
 });
-
-
-// 三次点击下载NAI图片功能（完整代码）
-
-/**
- * 统一的 Pollinations 生图函数 (从 Taobao, Date, XHS 提取并合并)
- * 优先使用 API Key，支持无限重试机制
- * @param {string} prompt - 英文提示词
- * @param {object} options - 配置项 { width, height, model, seed, nologo }
- * @returns {Promise<string>} - 返回图片地址 (Blob URL 或 公网 URL)
- */
-window.generatePollinationsImage = async function (prompt, options = {}) {
-    const {
-        width = 1024,
-        height = 1024,
-        model = 'flux',
-        seed = Math.floor(Math.random() * 100000),
-        nologo = true
-    } = options;
-
-    console.log(`[Global Image Gen] Prompt: ${prompt}, Options:`, options);
-
-    while (true) {
-        try {
-            const encodedPrompt = encodeURIComponent(prompt);
-            // 尝试获取全局 state，如果不存在则为 null
-            const currentApiConfig = (window.state && window.state.apiConfig) ? window.state.apiConfig : null;
-            const pollApiKey = currentApiConfig ? currentApiConfig.pollinationsApiKey : null;
-
-            // 构建基础参数
-            let queryParams = `width=${width}&height=${height}&seed=${seed}&model=${model}`;
-            if (nologo) queryParams += '&nologo=true';
-
-            // 1. === 有 API Key 的情况 ===
-            if (pollApiKey) {
-                const primaryUrl = `https://gen.pollinations.ai/image/${encodedPrompt}?${queryParams}&key=${pollApiKey}`;
-                console.log(`[Global Image Gen] 使用 API Key 请求: ${primaryUrl}`);
-
-                const response = await fetch(primaryUrl, { method: "GET" });
-
-                if (!response.ok) {
-                    throw new Error(`API Key 请求失败: ${response.status}`);
-                }
-
-                const blob = await response.blob();
-                // 将 Blob 转为 Base64 以便存储和持久化加载 (解决 blob:null 报错问题)
-                return await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-                    reader.onloadend = () => resolve(reader.result);
-                    reader.onerror = reject;
-                    reader.readAsDataURL(blob);
-                });
-            }
-
-            // 2. === 无 API Key (公开接口) 的情况 ===
-            // 定义加载器
-            const loadImage = (url) => new Promise((resolve, reject) => {
-                const img = new Image();
-                img.src = url;
-                img.onload = () => resolve(url);
-                img.onerror = () => reject(new Error(`图片加载失败: ${url}`));
-            });
-
-            // 优先尝试 gen.pollinations.ai
-            const primaryUrl = `https://gen.pollinations.ai/image/${encodedPrompt}?${queryParams}`;
-
-            return await loadImage(primaryUrl).catch(async () => {
-                console.warn(`[Global Image Gen] 主接口失败，尝试备用接口...`);
-                // 备用接口 pollinations.ai/p/
-                const fallbackUrl = `https://pollinations.ai/p/${encodedPrompt}?${queryParams}`;
-                return await loadImage(fallbackUrl);
-            });
-
-        } catch (error) {
-            console.error(`[Global Image Gen] 生成失败，5秒后自动重试... 错误: ${error.message}`);
-            await new Promise(resolve => setTimeout(resolve, 5000));
-        }
-    }
-};
