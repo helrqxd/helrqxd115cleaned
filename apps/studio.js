@@ -950,12 +950,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     if (sendPlayActionBtn) {
         sendPlayActionBtn.addEventListener('click', handleUserPlayAction);
-        playInput.addEventListener('keypress', e => {
-            if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleUserPlayAction();
-            }
-        });
+        // 回车键换行，仅点击发送按钮才发送（不再用回车发送）
     }
 
     if (summaryModal) {

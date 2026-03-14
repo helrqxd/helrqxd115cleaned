@@ -824,6 +824,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             modalBody.innerHTML = extraHtml + inputHtml;
             const input = document.getElementById(inputId);
 
+            // textarea 模式下：回车换行，不触发表单提交；仅点击确定按钮发送
+            if (type === 'textarea') {
+                input.addEventListener('keydown', (e) => {
+                    if (e.key === 'Enter' && !e.shiftKey) {
+                        e.stopPropagation(); // 阻止冒泡，防止触发确定按钮
+                        // 不 preventDefault，保留回车换行的默认行为
+                    }
+                });
+            }
+
             modalBody.querySelectorAll('.format-btn').forEach((btn) => {
                 btn.addEventListener('click', () => {
                     const templateStr = btn.dataset.template;

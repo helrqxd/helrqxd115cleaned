@@ -10998,13 +10998,13 @@ function stopMinimaxAudio() {
 }
 window.stopMinimaxAudio = stopMinimaxAudio;
 
-async function playMinimaxAudio(text, voiceId, bubblesToAnimate, messagesToPlay) {
+async function playMinimaxAudio(text, voiceId, bubblesToAnimate, messagesToPlay, options = {}) {
     stopMinimaxAudio();
     await new Promise((resolve) => setTimeout(resolve, 50));
 
     const ttsPlayer = document.getElementById('tts-audio-player');
     const firstBubble = bubblesToAnimate[0];
-    if (!firstBubble) return;
+    if (!firstBubble) return Promise.resolve();
 
     window.isTtsPlaying = true;
     window.currentTtsAudioBubble = firstBubble;
@@ -11026,13 +11026,13 @@ async function playMinimaxAudio(text, voiceId, bubblesToAnimate, messagesToPlay)
     if (!groupId || !apiKey) {
         await showCustomAlert('语音播放失败', '尚未配置Minimax的Group ID和API Key。');
         stopMinimaxAudio();
-        return;
+        return Promise.resolve();
     }
 
-    const chat = state.chats[state.activeChatId];
+    const chat = options.chatOverride || state.chats[state.activeChatId];
     if (!chat) {
         stopMinimaxAudio();
-        return;
+        return Promise.resolve();
     }
 
     const speed = chat.settings.speed ?? 1.0;
@@ -11043,6 +11043,10 @@ async function playMinimaxAudio(text, voiceId, bubblesToAnimate, messagesToPlay)
     const cacheKey = messagesToPlay && messagesToPlay.length > 0
         ? `${state.activeChatId}_${messagesToPlay.map((m) => m.timestamp).join('_')}_${voiceId}_${speed}_${pitch}_${vol}_${emotion}`
         : null;
+
+    const playbackEnded = new Promise((resolve) => {
+        window._pendingTtsPlaybackResolve = resolve;
+    });
 
     const cached = cacheKey && window.voiceCache.get(cacheKey);
     if (cached) {
@@ -11061,11 +11065,15 @@ async function playMinimaxAudio(text, voiceId, bubblesToAnimate, messagesToPlay)
                 currentTtsAudioBubble = null;
                 window.currentAnimatingBubbles = null;
             }
+            if (window._pendingTtsPlaybackResolve) {
+                window._pendingTtsPlaybackResolve();
+                window._pendingTtsPlaybackResolve = null;
+            }
         };
         ttsPlayer.onended = cleanupAndReset;
         ttsPlayer.onerror = () => cleanupAndReset();
         await ttsPlayer.play();
-        return;
+        return playbackEnded;
     }
 
     const provider = state.apiConfig.minimaxProvider || 'cn';
@@ -11153,6 +11161,10 @@ async function playMinimaxAudio(text, voiceId, bubblesToAnimate, messagesToPlay)
                 currentTtsAudioBubble = null;
                 window.currentAnimatingBubbles = null;
             }
+            if (window._pendingTtsPlaybackResolve) {
+                window._pendingTtsPlaybackResolve();
+                window._pendingTtsPlaybackResolve = null;
+            }
         };
 
         ttsPlayer.onended = cleanupAndReset;
@@ -11165,10 +11177,16 @@ async function playMinimaxAudio(text, voiceId, bubblesToAnimate, messagesToPlay)
         };
 
         await ttsPlayer.play();
+        return playbackEnded;
     } catch (error) {
         console.error('Minimax TTS 调用失败:', error);
         await showCustomAlert('语音合成失败', `错误信息: ${error.message}`);
         stopMinimaxAudio();
+        if (window._pendingTtsPlaybackResolve) {
+            window._pendingTtsPlaybackResolve();
+            window._pendingTtsPlaybackResolve = null;
+        }
+        return Promise.resolve();
     }
 }
 window.playMinimaxAudio = playMinimaxAudio;

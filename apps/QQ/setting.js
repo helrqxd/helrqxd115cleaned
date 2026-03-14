@@ -3419,7 +3419,8 @@ window.initQQSettings = function (dependencies) {
         backFromMemberBtn.parentNode.replaceChild(newBackBtn, backFromMemberBtn);
 
         newBackBtn.addEventListener('click', () => {
-            document.getElementById('member-management-screen').classList.remove('active');
+            // 先恢复底层聊天界面，再显示群设置弹窗，避免白屏
+            if (window.showScreen) window.showScreen('chat-interface-screen');
             document.getElementById('chat-settings-modal').classList.add('visible');
         });
     }

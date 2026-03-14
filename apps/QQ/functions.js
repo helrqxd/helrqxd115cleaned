@@ -3156,6 +3156,22 @@ window.handleUserJoinCall = function () {
     window.triggerAiInCallAction('[系统提示：用户加入了通话]');
 }
 
+window.handleUserSpeakInCall = async function () {
+    if (!window.videoCallState || !window.videoCallState.isActive) return;
+    const userAvatar = document.querySelector('.participant-avatar-wrapper[data-participant-id="user"] .participant-avatar');
+    if (userAvatar) userAvatar.classList.add('speaking');
+    let userInput = null;
+    if (window.showCustomPrompt) {
+        userInput = await window.showCustomPrompt('你说', '请输入你想说的话...', '', 'textarea');
+    } else {
+        userInput = prompt('请输入你想说的话...');
+    }
+    if (userAvatar) userAvatar.classList.remove('speaking');
+    if (userInput && userInput.trim()) {
+        window.triggerAiInCallAction(userInput.trim());
+    }
+}
+
 window.updateCallTimer = function () {
     if (!window.videoCallState.isActive) return;
     const elapsed = Math.floor((Date.now() - window.videoCallState.startTime) / 1000);
@@ -3329,9 +3345,8 @@ window.triggerAiInCallAction = async function (userInput = null) {
         if (connectingElement) connectingElement.remove();
 
         if (window.videoCallState.isGroupCall) {
-            // FIX for Group Call JSON Parsing
+            const groupBubbles = [];
             try {
-                // Remove markdown code block syntax if present
                 const cleanedJson = sanitizedResponse.replace(/```json\s*|```/gi, '').trim();
                 const robustParse2 = window.repairAndParseJSON || JSON.parse;
                 const turns = robustParse2(cleanedJson);
@@ -3348,8 +3363,45 @@ window.triggerAiInCallAction = async function (userInput = null) {
                         }
                         bubble.appendChild(document.createTextNode(turn.speech));
                         callFeed.appendChild(bubble);
+                        groupBubbles.push(bubble);
                         window.videoCallState.callHistory.push({ role: 'assistant', content: `${turn.name}: ${turn.speech}` });
                     });
+                    if (typeof window.playMinimaxAudio === 'function' && groupBubbles.length > 0) {
+                        const gid = window.state.apiConfig.minimaxGroupId;
+                        const key = window.state.apiConfig.minimaxApiKey;
+                        if (gid && key) {
+                            (async () => {
+                                for (let i = 0; i < turns.length; i++) {
+                                    const turn = turns[i];
+                                    const participant =
+                                        window.videoCallState.participants.find(
+                                            (p) => p.originalName === turn.name || p.groupNickname === turn.name
+                                        ) || chat.members?.find((m) => m.originalName === turn.name || m.groupNickname === turn.name);
+                                    const singleChat = participant
+                                        ? Object.values(window.state.chats).find(
+                                              (c) => !c.isGroup && (c.name === participant.originalName || c.name === participant.groupNickname)
+                                          )
+                                        : null;
+                                    const voiceId = (participant?.settings?.minimaxVoiceId) || (singleChat?.settings?.minimaxVoiceId) || '';
+                                    if (voiceId && turn.speech && String(turn.speech).trim()) {
+                                        const textForTts = String(turn.speech).replace(/\(.*?\)|（.*?）|【.*?】/g, '').trim();
+                                        if (textForTts) {
+                                            const promise = window.playMinimaxAudio(
+                                                textForTts,
+                                                voiceId,
+                                                [groupBubbles[i]],
+                                                null,
+                                                { chatOverride: singleChat || chat }
+                                            );
+                                            if (promise && typeof promise.then === 'function') {
+                                                await promise;
+                                            }
+                                        }
+                                    }
+                                }
+                            })();
+                        }
+                    }
                 }
             } catch (e) {
                 console.error("Failed to parse group call JSON response", e);
@@ -3367,8 +3419,14 @@ window.triggerAiInCallAction = async function (userInput = null) {
             callFeed.appendChild(bubble);
             window.videoCallState.callHistory.push({ role: 'assistant', content: sanitizedResponse });
 
-            // Minimax voice logic (assuming playMinimaxAudio exists or is global)
-            // if (typeof playMinimaxAudio === 'function' && ...)
+            if (chat.settings.videoCallVoiceAccess && typeof window.playMinimaxAudio === 'function') {
+                const gid = window.state.apiConfig.minimaxGroupId;
+                const key = window.state.apiConfig.minimaxApiKey;
+                const voiceId = chat.settings.minimaxVoiceId;
+                if (gid && key && voiceId && sanitizedResponse.trim()) {
+                    window.playMinimaxAudio(sanitizedResponse, voiceId, [bubble], null);
+                }
+            }
         }
 
         callFeed.scrollTop = callFeed.scrollHeight;
@@ -3411,26 +3469,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const joinBtn = document.getElementById('join-call-btn');
     if (joinBtn) joinBtn.addEventListener('click', window.handleUserJoinCall);
 
-    const userSpeakBtn = document.getElementById('user-speak-btn');
-    if (userSpeakBtn) {
-        userSpeakBtn.addEventListener('click', async () => {
-            if (!window.videoCallState.isActive) return;
-            const userAvatar = document.querySelector('.participant-avatar-wrapper[data-participant-id="user"] .participant-avatar');
-            if (userAvatar) userAvatar.classList.add('speaking');
-
-            let userInput = null;
-            if (window.showCustomPrompt) {
-                userInput = await window.showCustomPrompt('你说', '请输入你想说的话...');
-            } else {
-                userInput = prompt('请输入你想说的话...');
-            }
-
-            if (userAvatar) userAvatar.classList.remove('speaking');
-            if (userInput && userInput.trim()) {
-                window.triggerAiInCallAction(userInput.trim());
-            }
-        });
-    }
+    // user-speak-btn 与 user-speak-btn-visual 统一由 handleCallControls 调用 handleUserSpeakInCall 处理
 
     // Initialize bubble drag
     if (typeof window.initVideoBubbleDrag === 'function') window.initVideoBubbleDrag();
@@ -3607,8 +3646,7 @@ window.handleCallControls = function (event) {
     switch (button.id) {
         case 'user-speak-btn':
         case 'user-speak-btn-visual':
-            // 这里调用你原本处理“用户发言”的函数
-            handleUserSpeakInCall(); // 假设你的函数名叫这个
+            if (window.handleUserSpeakInCall) window.handleUserSpeakInCall();
             break;
         case 'hang-up-btn':
         case 'hang-up-btn-visual':
