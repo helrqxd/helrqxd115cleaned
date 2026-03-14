@@ -3817,6 +3817,33 @@
 							<input type="range" id="minimax-speed-slider" min="0.5" max="2" step="0.1" value="1.0" class="moe-slider" />
 						</div>
 
+						<div class="form-group" id="minimax-pitch-group">
+							<label>语音音调: <span id="minimax-pitch-value">0</span></label>
+							<p style="font-size: 12px; font-weight: normal; color: #999; margin-top: 5px; margin-bottom: 10px">调整声音的音高，负值更低沉，正值更尖锐。范围 -12 到 12。</p>
+							<input type="range" id="minimax-pitch-slider" min="-12" max="12" step="1" value="0" class="moe-slider" />
+						</div>
+
+						<div class="form-group" id="minimax-vol-group">
+							<label>语音音量: <span id="minimax-vol-value">1.0</span></label>
+							<input type="range" id="minimax-vol-slider" min="0.1" max="10" step="0.1" value="1.0" class="moe-slider" />
+						</div>
+
+						<div class="form-group" id="minimax-emotion-group">
+							<label for="minimax-emotion-select">语音情绪</label>
+							<p style="font-size: 12px; font-weight: normal; color: #999; margin-top: 5px; margin-bottom: 10px">手动指定情绪风格。默认由模型根据文本自动判断。仅 speech-2.8/2.6/02 系列支持。</p>
+							<select id="minimax-emotion-select">
+								<option value="">自动 (默认)</option>
+								<option value="happy">开心 (happy)</option>
+								<option value="sad">悲伤 (sad)</option>
+								<option value="angry">愤怒 (angry)</option>
+								<option value="fearful">恐惧 (fearful)</option>
+								<option value="disgusted">厌恶 (disgusted)</option>
+								<option value="surprised">惊讶 (surprised)</option>
+								<option value="calm">平静 (calm)</option>
+								<option value="fluent">流畅 (fluent)</option>
+							</select>
+						</div>
+
 						<div class="form-group" id="video-call-settings-group">
 							<div class="moe-divider"></div>
 							<label class="toggle-switch-label">

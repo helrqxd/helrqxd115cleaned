@@ -1555,7 +1555,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             minimaxGroupId: '',
             minimaxApiKey: '',
             minimaxProvider: 'cn',
-            minimaxSpeechModel: 'speech-01-turbo',
+            minimaxSpeechModel: 'speech-2.8-turbo',
             pollinationsApiKey: '',
         };
 
@@ -2003,17 +2003,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         modelSelect.innerHTML = ''; // 清空旧选项
 
         // 从文档中获取的完整模型列表
-        const models = ['speech-2.6-hd', 'speech-2.6-turbo', 'speech-02-hd', 'speech-02-turbo', 'speech-01-hd', 'speech-01-turbo'];
+        const models = [
+            { id: 'speech-2.8-hd', label: 'speech-2.8-hd (最新HD)' },
+            { id: 'speech-2.8-turbo', label: 'speech-2.8-turbo (最新Turbo)' },
+            { id: 'speech-2.6-hd', label: 'speech-2.6-hd' },
+            { id: 'speech-2.6-turbo', label: 'speech-2.6-turbo' },
+            { id: 'speech-02-hd', label: 'speech-02-hd' },
+            { id: 'speech-02-turbo', label: 'speech-02-turbo' },
+            { id: 'speech-01-hd', label: 'speech-01-hd' },
+            { id: 'speech-01-turbo', label: 'speech-01-turbo' },
+        ];
 
-        models.forEach((modelId) => {
+        models.forEach((m) => {
             const option = document.createElement('option');
-            option.value = modelId;
-            option.textContent = modelId;
+            option.value = m.id;
+            option.textContent = m.label;
             modelSelect.appendChild(option);
         });
 
-        // 自动选中当前已保存的模型，如果没有则使用一个推荐的默认值
-        modelSelect.value = state.apiConfig.minimaxSpeechModel || 'speech-01-turbo';
+        modelSelect.value = state.apiConfig.minimaxSpeechModel || 'speech-2.8-turbo';
 
         alert('Minimax 语音模型列表已更新！');
     }

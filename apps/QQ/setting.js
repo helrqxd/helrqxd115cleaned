@@ -1246,19 +1246,42 @@ window.initQQSettings = function (dependencies) {
             document.getElementById('minimax-language-boost-group').style.display = showMinimaxSpecificSettings ? 'block' : 'none';
             document.getElementById('minimax-speed-group').style.display = showMinimaxSpecificSettings ? 'block' : 'none';
 
+            const pitchSlider = document.getElementById('minimax-pitch-slider');
+            const pitchValueDisplay = document.getElementById('minimax-pitch-value');
+            const volSlider = document.getElementById('minimax-vol-slider');
+            const volValueDisplay = document.getElementById('minimax-vol-value');
+            const emotionSelect = document.getElementById('minimax-emotion-select');
+
+            document.getElementById('minimax-pitch-group').style.display = showMinimaxSpecificSettings ? 'block' : 'none';
+            document.getElementById('minimax-vol-group').style.display = showMinimaxSpecificSettings ? 'block' : 'none';
+            document.getElementById('minimax-emotion-group').style.display = showMinimaxSpecificSettings ? 'block' : 'none';
+
             if (showMinimaxSpecificSettings) {
-                // 加载 language_boost，如果不存在则默认为空（即"无"）
                 langBoostSelect.value = chat.settings.language_boost || '';
 
-                // 加载 speed，如果不存在则默认为 1.0
-                const speed = chat.settings.speed ?? 1.0; // 使用 ?? 确保即使值为0也能正确处理
+                const speed = chat.settings.speed ?? 1.0;
                 speedSlider.value = speed;
                 speedValueDisplay.textContent = parseFloat(speed).toFixed(1);
+
+                const pitch = chat.settings.pitch ?? 0;
+                pitchSlider.value = pitch;
+                pitchValueDisplay.textContent = pitch;
+
+                const vol = chat.settings.vol ?? 1.0;
+                volSlider.value = vol;
+                volValueDisplay.textContent = parseFloat(vol).toFixed(1);
+
+                emotionSelect.value = chat.settings.emotion || '';
             }
 
-            // 为语速滑块添加实时更新显示值的事件
             speedSlider.oninput = () => {
                 speedValueDisplay.textContent = parseFloat(speedSlider.value).toFixed(1);
+            };
+            pitchSlider.oninput = () => {
+                pitchValueDisplay.textContent = pitchSlider.value;
+            };
+            volSlider.oninput = () => {
+                volValueDisplay.textContent = parseFloat(volSlider.value).toFixed(1);
             };
 
             const coupleAvatarToggle = document.getElementById('couple-avatar-toggle');
@@ -1528,8 +1551,12 @@ window.initQQSettings = function (dependencies) {
             chat.settings.aiAvatar = document.getElementById('ai-avatar-preview').src;
             chat.settings.minimaxVoiceId = document.getElementById('minimax-voice-id-input').value.trim();
             const langBoost = document.getElementById('minimax-language-boost-select').value;
-            chat.settings.language_boost = langBoost ? langBoost : null; // 如果选择"无"(value为空),则保存为null
+            chat.settings.language_boost = langBoost ? langBoost : null;
             chat.settings.speed = parseFloat(document.getElementById('minimax-speed-slider').value);
+            chat.settings.pitch = parseInt(document.getElementById('minimax-pitch-slider').value) || 0;
+            chat.settings.vol = parseFloat(document.getElementById('minimax-vol-slider').value) || 1.0;
+            const emotion = document.getElementById('minimax-emotion-select').value;
+            chat.settings.emotion = emotion ? emotion : null;
 
             chat.settings.isCoupleAvatar = document.getElementById('couple-avatar-toggle').checked;
             chat.settings.coupleAvatarDescription = document.getElementById('couple-avatar-description').value.trim();

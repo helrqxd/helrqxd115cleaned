@@ -7918,9 +7918,9 @@ function setupChatListeners() {
                                 window.toggleVoiceTranscript(b);
                             }
                         });
-                        // 然后调用播放器
+                        // 然后调用播放器（传入 messagesToPlay 用于缓存命中）
                         const combinedText = messagesToPlay.map((m) => m.content.trim()).join('，');
-                        window.playMinimaxAudio(combinedText, voiceId, bubblesToAnimate);
+                        window.playMinimaxAudio(combinedText, voiceId, bubblesToAnimate, messagesToPlay);
                     } else {
                         // 【只显示文字分支】
                         // 只展开当前点击的这一个语音条的文字
@@ -10969,6 +10969,9 @@ function findConsecutiveAiVoiceMessages(history, startIndex) {
 }
 window.findConsecutiveAiVoiceMessages = findConsecutiveAiVoiceMessages;
 
+const VOICE_CACHE_MAX = 50;
+if (!window.voiceCache) window.voiceCache = new Map();
+
 function stopMinimaxAudio() {
     if (!window.isTtsPlaying) return;
 
@@ -10995,7 +10998,7 @@ function stopMinimaxAudio() {
 }
 window.stopMinimaxAudio = stopMinimaxAudio;
 
-async function playMinimaxAudio(text, voiceId, bubblesToAnimate) {
+async function playMinimaxAudio(text, voiceId, bubblesToAnimate, messagesToPlay) {
     stopMinimaxAudio();
     await new Promise((resolve) => setTimeout(resolve, 50));
 
@@ -11032,27 +11035,63 @@ async function playMinimaxAudio(text, voiceId, bubblesToAnimate) {
         return;
     }
 
+    const speed = chat.settings.speed ?? 1.0;
+    const pitch = chat.settings.pitch ?? 0;
+    const vol = chat.settings.vol ?? 1.0;
+    const emotion = chat.settings.emotion || '';
+
+    const cacheKey = messagesToPlay && messagesToPlay.length > 0
+        ? `${state.activeChatId}_${messagesToPlay.map((m) => m.timestamp).join('_')}_${voiceId}_${speed}_${pitch}_${vol}_${emotion}`
+        : null;
+
+    const cached = cacheKey && window.voiceCache.get(cacheKey);
+    if (cached) {
+        bubblesToAnimate.forEach((b) => {
+            const spinner = b.querySelector('.loading-spinner');
+            if (spinner) spinner.style.display = 'none';
+            b.classList.add('playing');
+        });
+        ttsPlayer.src = cached.blobUrl;
+        const cleanupAndReset = () => {
+            if (window.isTtsPlaying) {
+                window.isTtsPlaying = false;
+                if (window.currentAnimatingBubbles) {
+                    window.currentAnimatingBubbles.forEach((b) => b.classList.remove('playing'));
+                }
+                currentTtsAudioBubble = null;
+                window.currentAnimatingBubbles = null;
+            }
+        };
+        ttsPlayer.onended = cleanupAndReset;
+        ttsPlayer.onerror = () => cleanupAndReset();
+        await ttsPlayer.play();
+        return;
+    }
+
     const provider = state.apiConfig.minimaxProvider || 'cn';
-    const speechModel = state.apiConfig.minimaxSpeechModel || 'speech-01-turbo';
+    const speechModel = state.apiConfig.minimaxSpeechModel || 'speech-2.8-turbo';
     const baseUrl = provider === 'cn' ? 'https://api.minimaxi.com' : 'https://api.minimax.io';
     const requestUrl = `${baseUrl}/v1/t2a_v2`;
-    // 1. 从当前角色的设置中读取语速和语言增强
-    const speed = chat.settings.speed ?? 1.0;
-    const langBoost = chat.settings.language_boost; // 如果是null或undefined, 就让它是null/undefined
+    const langBoost = chat.settings.language_boost;
 
     const textForTts = text.replace(/\(.*?\)|（.*?）|【.*?】/g, '').trim();
 
-    // 2. 构建包含新参数的请求体
+    const voiceSetting = {
+        voice_id: voiceId,
+        speed: speed,
+        vol: vol,
+        pitch: pitch,
+    };
+    if (emotion) {
+        voiceSetting.emotion = emotion;
+    }
+
     const requestBody = {
         model: speechModel,
-        text: textForTts, // <--- 核心修改在这里！使用过滤后的文本
-        voice_setting: {
-            voice_id: voiceId,
-            speed: speed, // ★ 在这里加入语速
-        },
+        text: textForTts,
+        voice_setting: voiceSetting,
     };
 
-    // 3. 如果 language_boost 有效，才将它添加到请求体中
     if (langBoost) {
         requestBody.language_boost = langBoost;
     }
@@ -11084,6 +11123,16 @@ async function playMinimaxAudio(text, voiceId, bubblesToAnimate) {
             throw new Error('Hex音频数据转换失败。');
         }
 
+        if (cacheKey) {
+            while (window.voiceCache.size >= VOICE_CACHE_MAX) {
+                const firstKey = window.voiceCache.keys().next().value;
+                const entry = window.voiceCache.get(firstKey);
+                if (entry) URL.revokeObjectURL(entry.blobUrl);
+                window.voiceCache.delete(firstKey);
+            }
+            window.voiceCache.set(cacheKey, { blobUrl: audioUrl });
+        }
+
         bubblesToAnimate.forEach((b) => {
             const spinner = b.querySelector('.loading-spinner');
             if (spinner) spinner.style.display = 'none';
@@ -11095,7 +11144,9 @@ async function playMinimaxAudio(text, voiceId, bubblesToAnimate) {
         const cleanupAndReset = () => {
             if (window.isTtsPlaying) {
                 window.isTtsPlaying = false;
-                URL.revokeObjectURL(audioUrl);
+                if (!cacheKey || !window.voiceCache.has(cacheKey)) {
+                    URL.revokeObjectURL(audioUrl);
+                }
                 if (window.currentAnimatingBubbles) {
                     window.currentAnimatingBubbles.forEach((b) => b.classList.remove('playing'));
                 }
