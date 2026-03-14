@@ -2024,51 +2024,233 @@ window.triggerAiResponse = async function triggerAiResponse() {
             naiExample = `,\n    {\n      "type": "naiimag",\n      "prompt": "1girl, sitting in cafe, holding coffee cup, smile, indoor lighting, cinematic composition"\n    }`;
         }
 
-        let offlineSystemPrompt = `
-            # 核心任务：线下场景角色扮演
-
-            你现在【就是】角色“${chat.name}”，正在和用户进行一次【线下约会】。
-
-            # 你的角色设定
-            ${chat.settings.aiPersona}
-            ${summaryContext}
-            ${worldBookContext}
-
-            # 当前情景
-            ${finalPrompt}
-            ${finalStyle}
-            
-            # 你的输出要求 (最高指令)
-            1.  **【格式铁律】**: 你的回复【必须】是一个**单一且完整**的JSON对象。
-            2.  **"chatResponse" 键**: (JSON数组) 包含你要发送的消息。通常是一段长叙事文本，如果开启生图，则包含生图指令。
-            3.  **"innerVoice" 键**: (JSON对象) 你的内心活动，必含 clothing, behavior, thoughts, naughtyThoughts 字段。
-            4.  **【字数铁律】**: 文本内容的字数应在【${wordCount}】字左右。
-            5.  **【禁止出戏】**: 绝对不能提及你是AI。
-            ${naiInstruction}
-
-            # JSON输出格式示例:
-            {
-              "chatResponse": [
-                {
-                  "type": "text",
-                  "content": "（这里写你的大段叙事内容...）"
-                }${naiExample}
-              ],
-              "innerVoice": {
-                "clothing": "...",
-                "behavior": "...",
-                "thoughts": "...",
-                "naughtyThoughts": "..."
-              }
+        // === 与线上单聊一致的上下文构建 ===
+        let historySlice = chat.history.filter((msg) => !msg.isTemporary).slice(-chat.settings.maxMemory);
+        const timestampsToSkip = new Set();
+        for (let i = 0; i < historySlice.length; i++) {
+            const msg = historySlice[i];
+            if (msg.role === 'system' && msg.content && msg.content.includes('ls_letter') && msg.content.includes('写一封回信')) {
+                let hasReplied = false;
+                for (let j = i + 1; j < historySlice.length; j++) {
+                    if (historySlice[j].role === 'assistant') {
+                        const cs = typeof historySlice[j].content === 'string' ? historySlice[j].content : JSON.stringify(historySlice[j].content);
+                        if (cs.includes('"type": "ls_letter"') || cs.includes('"type":"ls_letter"')) { hasReplied = true; break; }
+                    }
+                }
+                if (hasReplied) timestampsToSkip.add(msg.timestamp);
             }
+        }
+        historySlice = historySlice.filter((msg) => !timestampsToSkip.has(msg.timestamp));
 
-            # 对话历史
-            ${chat.history
-                .slice(-chat.settings.maxMemory)
-                .map((m) => `${m.role === 'user' ? '用户' : chat.name}: ${m.content}`)
-                .join('\n')}
+        const recentContextSummary = historySlice.map((msg) => {
+            const timestampStr = new Date(msg.timestamp).toLocaleString();
+            if (msg.isHidden) return `${timestampStr} [系统隐藏信息]: ${msg.content}`;
+            if (msg.type === 'share_card') return null;
+            if (msg.type === 'narrative') return `${timestampStr} 【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
+            if (msg.type === 'red_packet') {
+                const isDirect = msg.packetType === 'direct';
+                const target = isDirect ? `专属红包 (指定给: ${msg.receiverName})` : '群红包 (拼手气)';
+                const status = msg.isFullyClaimed ? '已领完' : '未领完';
+                return `${timestampStr} [系统提示: 用户发了一个${target}，金额: ${msg.totalAmount}元。状态: ${status}。]`;
+            }
+            if (msg.role === 'assistant') return formatMessageForContext(msg, chat);
+            if (msg.type === 'poll') return `${timestampStr} [系统提示：用户 (${myNickname}) 发起了一个投票。问题："${msg.question}", 选项："${msg.options.join('", "')}"。你可以使用 'vote' 指令参与投票。]`;
+            let contentStr = '';
+            if (msg.quote) {
+                const quotedSender = msg.quote.senderName || '未知用户';
+                contentStr += `(回复 ${quotedSender} 的消息: "${String(msg.quote.content || '')}"): ${msg.content}`;
+            } else {
+                contentStr += msg.content;
+            }
+            if (msg.type === 'user_photo') contentStr = `[你收到了一张用户描述的照片，内容是：'${msg.content}']`;
+            else if (msg.type === 'voice_message') contentStr = `[用户发来一条语音消息，内容是：'${msg.content}']`;
+            else if (msg.type === 'transfer') {
+                if (msg.status === 'accepted') contentStr = `[系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已收款)]`;
+                else if (msg.status === 'declined') contentStr = `[系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已拒收)]`;
+                else contentStr = `[系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。请你决策并使用 'accept_transfer' 或 'decline_transfer' 指令回应。]`;
+            }
+            else if (msg.type === 'waimai_request') {
+                if (msg.status === 'paid') contentStr = `[系统提示：外卖代付请求已完成，支付者：${msg.paidBy}。商品"${msg.productInfo}"。]`;
+                else if (msg.status === 'rejected') contentStr = `[系统提示：外卖代付请求已被拒绝。商品"${msg.productInfo}"。]`;
+                else contentStr = `[系统提示：用户于时间戳 ${msg.timestamp} 发起了外卖代付请求，商品是"${msg.productInfo}"，金额是 ${msg.amount} 元。请你决策并使用 waimai_response 指令回应。]`;
+            }
+            else if (Array.isArray(msg.content) && msg.content[0]?.type === 'image_url') contentStr = '[用户发送了图片内容]';
+            else if (msg.meaning) contentStr = `[用户发送了一个表情，意思是：'${msg.meaning}']`;
+            else if (msg.type === 'xhs-share' && msg.shareData) {
+                const data = msg.shareData;
+                let xhsContent = `[用户分享了一条小红书笔记]\n标题: ${data.title || '无标题'}\n作者: ${data.authorName || '未知'}\n`;
+                if (data.content) xhsContent += `内容: ${data.content}\n`;
+                if (data.tags && data.tags.length > 0) xhsContent += `标签: ${data.tags.join(' ')}\n`;
+                if (data.location) xhsContent += `地点: ${data.location}\n`;
+                if (data.stats) xhsContent += `互动: ${data.stats.likes || 0}赞 ${data.stats.collects || 0}收藏\n`;
+                if (data.comments && data.comments.length > 0) {
+                    xhsContent += `评论区:\n`;
+                    data.comments.forEach((c, idx) => { xhsContent += `  ${idx + 1}. ${c.user || '匿名'}: ${c.text || ''}\n`; if (c.replies && c.replies.length > 0) c.replies.forEach(r => { xhsContent += `     └ ${r.user || '匿名'}: ${r.text || ''}\n`; }); });
+                }
+                contentStr = xhsContent.trim();
+            }
+            else if (msg.type === 'lofter-share' && msg.shareData) {
+                const data = msg.shareData;
+                let lofterContent = `[用户分享了一篇LOFTER作品]\n标题: ${data.title || '无标题'}\n作者: ${data.authorName || '未知'}\n`;
+                if (data.content) lofterContent += `内容: ${data.content}\n`;
+                if (data.tags && data.tags.length > 0) lofterContent += `标签: ${data.tags.map(t => '#' + t).join(' ')}\n`;
+                if (data.authorNotes) lofterContent += `作者有话说: ${data.authorNotes}\n`;
+                if (data.stats) lofterContent += `互动: ${data.stats.likes || 0}赞 ${data.stats.collects || 0}收藏 ${data.stats.views || 0}阅读\n`;
+                if (data.comments && data.comments.length > 0) {
+                    lofterContent += `评论区:\n`;
+                    data.comments.forEach((c, idx) => { lofterContent += `  ${idx + 1}. ${c.name || '匿名'}: ${c.text || ''}\n`; if (c.replies && c.replies.length > 0) c.replies.forEach(r => { lofterContent += `     └ ${r.name || '匿名'}: ${r.text || ''}\n`; }); });
+                }
+                contentStr = lofterContent.trim();
+            }
+            return `${timestampStr} ${myNickname}: ${contentStr}`;
+        }).filter(Boolean).join('\n');
 
-            现在，请根据用户的最后一句话，开始你的表演。`;
+        // 时间感知
+        let offlineNow;
+        if (chat.settings.timePerceptionEnabled ?? true) {
+            const ln = new Date(); offlineNow = new Date(ln.getTime() + ln.getTimezoneOffset() * 60000 + 3600000 * 8);
+        } else {
+            if (chat.settings.customTime) { offlineNow = new Date(chat.settings.customTime); }
+            else { const ln = new Date(); offlineNow = new Date(ln.getTime() + ln.getTimezoneOffset() * 60000 + 3600000 * 8); }
+        }
+        const offlineCurrentTime = offlineNow.toLocaleString('zh-CN', { dateStyle: 'full', timeStyle: 'short' });
+        let offlineTimeContext = `\n- **当前时间**: ${offlineCurrentTime}`;
+        const offlineLastAiMsg = historySlice.filter((m) => m.role === 'assistant' && !m.isHidden).slice(-1)[0];
+        if (offlineLastAiMsg) {
+            const dm = Math.floor((new Date() - new Date(offlineLastAiMsg.timestamp)) / 60000);
+            if (dm < 5) offlineTimeContext += '\n- **对话状态**: 你们的对话刚刚还在继续。';
+            else if (dm < 60) offlineTimeContext += `\n- **对话状态**: 你们在${dm}分钟前聊过。`;
+            else { const dh = Math.floor(dm / 60); offlineTimeContext += dh < 24 ? `\n- **对话状态**: 你们在${dh}小时前聊过。` : `\n- **对话状态**: 你们已经有${Math.floor(dh / 24)}天没有聊天了。`; }
+        } else { offlineTimeContext += '\n- **对话状态**: 这是你们的第一次对话。'; }
+
+        const offlineCountdownCtx = await getCountdownContext(chatId);
+        const offlineStreakCtx = await window.getStreakContext(chat);
+
+        // 音乐上下文
+        let offlineMusicCtx = '';
+        if (window.state.musicState.isActive && window.state.musicState.activeChatId === chatId) {
+            const ct = window.state.musicState.currentIndex > -1 ? window.state.musicState.playlist[window.state.musicState.currentIndex] : null;
+            if (ct && !ct.isKeepAlive) {
+                const pl = window.state.musicState.playlist.filter((t) => !t.isKeepAlive).map((t) => `"${t.name}"`).join(', ');
+                offlineMusicCtx = `\n\n# 当前音乐情景\n- **正在播放**: ${ct ? `《${ct.name}》 - ${ct.artist}` : '无'}\n- **可用播放列表**: [${pl}]`;
+            }
+        }
+
+        // 记忆互通
+        let offlineLinkedMemCtx = '';
+        if (chat.settings.linkedMemories && chat.settings.linkedMemories.length > 0) {
+            const ctxP = chat.settings.linkedMemories.map(async (link) => {
+                const lc = window.state.chats[link.chatId]; if (!lc) return '';
+                const flc = await window.db.chats.get(link.chatId); if (!flc) return '';
+                const rh = flc.history.filter((m) => !m.isHidden).slice(-link.depth); if (rh.length === 0) return '';
+                const fm = rh.map((m) => `  - ${formatMessageForContext(m, flc)}`).join('\n');
+                const vl = getLinkedMemoryVisibleLabel(chat, lc, flc);
+                return `\n## 附加上下文：来自与"${lc.name}"的最近对话内容 (${vl})\n${fm}`;
+            });
+            offlineLinkedMemCtx = (await Promise.all(ctxP)).filter(Boolean).join('\n');
+        }
+
+        // NPC / 宠物
+        const offlineNpcLib = chat.npcLibrary || [];
+        let offlineNpcCtx = offlineNpcLib.length > 0 ? '\n# 你的社交圈\n' + offlineNpcLib.map((n) => `- **${n.name}**: ${n.persona}`).join('\n') : '';
+        let offlinePetCtx = '';
+        if (chat.settings.pet && chat.settings.pet.type !== '无') {
+            const p = chat.settings.pet;
+            offlinePetCtx = `\n# 关于你们的宠物\n- 你们共同养了一只/一株【${p.type}】，名叫"${p.name}"。状态: 饱食度(${p.status.hunger}/100), 心情值(${p.status.happiness}/100)。`;
+        }
+
+        // 自定义内心独白标签
+        const offlineSavedTags = chat.settings.innerVoiceTags || {};
+        const offlineIvTags = {
+            clothing_label: offlineSavedTags.clothing_label || '服装', clothing_prompt: offlineSavedTags.clothing_prompt || '详细描述你当前从头到脚的全身服装。',
+            behavior_label: offlineSavedTags.behavior_label || '行为', behavior_prompt: offlineSavedTags.behavior_prompt || '描述你当前符合聊天情景的细微动作或表情。',
+            thoughts_label: offlineSavedTags.thoughts_label || '心声', thoughts_prompt: offlineSavedTags.thoughts_prompt || '描述你此刻丰富、细腻的内心真实想法（50字左右）。',
+            naughty_label: offlineSavedTags.naughty_label || '坏心思', naughty_prompt: offlineSavedTags.naughty_prompt || '描述你此刻与情境相关的腹黑或色色的坏心思，必须符合人设。',
+        };
+
+        let offlineSystemPrompt = `### **【第一部分：角色核心设定】**
+
+你现在将扮演一个名为"**${chat.name}**"的角色，正在和用户进行一次【线下约会】。
+
+**1. 角色基本设定:**
+- **核心人设**: ${chat.settings.aiPersona}
+- **总结**:${summaryContext}
+- **世界观/NPC**: ${offlineNpcCtx}
+${offlinePetCtx}
+
+### **【第二部分：输出格式铁律】**
+
+你的每一次回复都【**必须**】是一个**单一且完整**的JSON对象。绝对禁止返回JSON数组或纯文本。
+
+**1. JSON对象结构:**
+该JSON对象【**必须**】包含两个顶级键: "chatResponse" 和 "innerVoice"。
+
+**2. "chatResponse" 键:**
+- **类型**: JSON数组 []。
+- **内容**: 包含你的线下叙事内容。通常是一段长叙事文本，如果开启生图，则包含生图指令。
+
+**3. "innerVoice" 键:**
+- **类型**: JSON对象 {}。
+- **必含字段**:
+    - "clothing": (字符串) 对应标签【${offlineIvTags.clothing_label}】。指令：${offlineIvTags.clothing_prompt}
+    - "behavior": (字符串) 对应标签【${offlineIvTags.behavior_label}】。指令：${offlineIvTags.behavior_prompt}
+    - "thoughts": (字符串) 对应标签【${offlineIvTags.thoughts_label}】。指令：${offlineIvTags.thoughts_prompt}
+    - "naughtyThoughts": (字符串) 对应标签【${offlineIvTags.naughty_label}】。指令：${offlineIvTags.naughty_prompt}
+
+**4. 【字数铁律】**: 文本内容的字数应在【${wordCount}】字左右。
+**5. 【禁止出戏】**: 绝对不能提及你是AI。
+${naiInstruction}
+
+**6. 标准输出格式示例:**
+{
+  "chatResponse": [
+    {
+      "type": "text",
+      "content": "（这里写你的大段叙事内容...）"
+    }${naiExample}
+  ],
+  "innerVoice": {
+    "clothing": "...",
+    "behavior": "...",
+    "thoughts": "...",
+    "naughtyThoughts": "..."
+  }
+}
+
+### **【第三部分：线下约会核心规则】**
+
+**1. 角色一致性**: 你的所有言行举止都必须严格遵循你的角色设定。
+**2. 当前线下情景**:
+${finalPrompt}
+${finalStyle}
+**3. 情景感知**: 你需要感知当前时间(${offlineCurrentTime})以及你的世界观设定。
+
+### **【第四部分：当前上下文信息】**
+
+- **对话者(用户)角色设定**:
+${chat.settings.myPersona || '（未设定）'}
+
+- **当前情景**:
+${offlineTimeContext}
+${offlineStreakCtx}
+- **当前音乐情景**:
+${offlineMusicCtx}
+
+- **近期约定与倒计时**:
+${offlineCountdownCtx}
+
+- **世界观设定集**:
+${worldBookContext}
+
+- **当前对话历史记录**
+${recentContextSummary}
+**紧接【此处】继续行动。如果上方最后一条消息是【旁白】，则需要在回复中对旁白内容进行衔接前文的演绎和推进。**
+
+- **其他相关聊天记录**:
+- 以下聊天记录只能用于【剧情参考】，【绝对不能】在当前聊天中接续行动。
+${offlineLinkedMemCtx}
+
+现在，请根据用户的最后一句话，开始你的表演。`;
 
         // [Fix] 如果是重新生成(reroll)，注入上次输出和重新生成理由（线下模式）
         if (chat._rerollContext) {
@@ -2076,8 +2258,6 @@ window.triggerAiResponse = async function triggerAiResponse() {
             offlineSystemPrompt += `\n\n# 【重要：这是一次重新生成请求】\n用户对你上一次的输出不满意，要求重新生成。\n## 上一次的输出内容：\n\`\`\`\n${rc.previousOutput}\n\`\`\`\n## 用户给出的重新生成理由：\n${rc.reason || '未提供具体理由'}\n## 要求：\n请根据以上理由调整你的输出方向，避免重复上次的问题。生成全新的、改进后的回复。`;
             delete chat._rerollContext;
         }
-
-        const messagesForOfflineMode = chat.history.slice(-chat.settings.maxMemory);
 
         // UI 状态更新
         const chatHeaderTitle = document.getElementById('chat-header-title');
@@ -2092,34 +2272,24 @@ window.triggerAiResponse = async function triggerAiResponse() {
 
         try {
             const { proxyUrl, apiKey, model } = window.state.apiConfig;
+            const messagesPayload = [
+                { role: 'system', content: offlineSystemPrompt },
+                { role: 'user', content: '请严格按照system prompt中的所有规则，特别是输出格式铁律，立即开始你的行动。' },
+            ];
             let isGemini = proxyUrl === GEMINI_API_URL;
-            let requestBody;
-            let requestUrl = isGemini ? `${GEMINI_API_URL}/${model}:generateContent?key=${getRandomValue(apiKey)}` : `${proxyUrl}/v1/chat/completions`;
-            let requestHeaders = isGemini ? { 'Content-Type': 'application/json' } : { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` };
-
-            if (isGemini) {
-                requestBody = {
-                    contents: messagesForOfflineMode.map((item) => ({
-                        role: item.role === 'assistant' ? 'model' : 'user',
-                        parts: [{ text: item.content }],
-                    })),
-                    generationConfig: { temperature: parseFloat(window.state.apiConfig.temperature) || 0.8 },
-                    systemInstruction: { parts: [{ text: offlineSystemPrompt }] },
-                };
-            } else {
-                requestBody = {
-                    model: model,
-                    messages: [{ role: 'system', content: offlineSystemPrompt }, ...messagesForOfflineMode],
-                    temperature: parseFloat(window.state.apiConfig.temperature) || 0.8,
-                    stream: false,
-                };
-            }
-
-            const response = await fetch(requestUrl, {
-                method: 'POST',
-                headers: requestHeaders,
-                body: JSON.stringify(requestBody),
-            });
+            let geminiConfig = toGeminiRequestData(model, apiKey, offlineSystemPrompt, messagesPayload, isGemini);
+            const response = isGemini
+                ? await fetch(geminiConfig.url, geminiConfig.data)
+                : await fetch(`${proxyUrl}/v1/chat/completions`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
+                    body: JSON.stringify({
+                        model: model,
+                        messages: messagesPayload,
+                        temperature: parseFloat(window.state.apiConfig.temperature) || 0.8,
+                        stream: false,
+                    }),
+                });
 
             if (!response.ok) throw new Error(`API 错误: ${await response.text()}`);
 
@@ -6611,7 +6781,7 @@ ${contextSummaryForApproval}
                         role: 'assistant',
                         senderName: msgData.name || chat.name,
                         type: 'recalled_message',
-                        content: `${msgData.name}撤回了一条消息`,
+                        content: `${msgData.name || chat.name}撤回了一条消息`,
                         timestamp: recallTimestamp,
                         recalledData: { originalType: 'text', originalContent: msgData.content },
                     };
@@ -6645,7 +6815,7 @@ ${contextSummaryForApproval}
                         // 用户不在此聊天 → 跳过动画，直接保存记录
                         chat.history.push(recalledMessage, hiddenMemoryMessage);
                         chat.unreadCount = (chat.unreadCount || 0) + 1;
-                        showNotification(chatId, `${msgData.name} 撤回了一条消息`);
+                        showNotification(chatId, `${msgData.name || chat.name} 撤回了一条消息`);
                         renderChatList();
                     }
 
