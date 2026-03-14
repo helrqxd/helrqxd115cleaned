@@ -919,6 +919,7 @@ window.initQQSettings = function (dependencies) {
                 '长期记忆(总结)': '#45B7D1',
                 '短期记忆(用户)': '#96CEB4',
                 '短期记忆(AI)': '#A8E6CF',
+                记忆互通: '#B39DDB',
                 系统格式指令: '#D4A5A5',
             };
 

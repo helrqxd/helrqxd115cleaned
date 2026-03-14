@@ -705,6 +705,7 @@ async function triggerInactiveAiAction(chatId) {
                 }
                 lastUsedTimestamp = statusTimestamp;
 
+                chat.status = chat.status || {};
                 chat.status.text = action.status_text;
                 chat.status.isBusy = action.is_busy || false;
                 chat.status.lastUpdate = statusTimestamp;
@@ -1565,6 +1566,7 @@ async function triggerGroupAiAction(chatId) {
             chat.history.sort((a, b) => a.timestamp - b.timestamp);
 
             // 更新此群聊的最后活动时间戳
+            if (!chat.settings.backgroundActivity) chat.settings.backgroundActivity = {};
             chat.settings.backgroundActivity.lastActivityTimestamp = Date.now();
 
             // 给用户发通知

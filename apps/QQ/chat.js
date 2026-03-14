@@ -11061,6 +11061,25 @@ async function getTokenDetailedBreakdown(chatId) {
 
     breakdown.push({ name: '短期记忆(用户)', count: userMsgLen });
     breakdown.push({ name: '短期记忆(AI)', count: aiMsgLen });
+
+    // 6. 记忆互通
+    let linkedMemoryLen = 0;
+    if (settings.linkedMemories && settings.linkedMemories.length > 0) {
+        for (const link of settings.linkedMemories) {
+            const linkedChat = state.chats[link.chatId];
+            if (!linkedChat) continue;
+            const freshLinkedChat = await db.chats.get(link.chatId);
+            if (!freshLinkedChat) continue;
+            const recentHistory = freshLinkedChat.history.filter((msg) => !msg.isHidden).slice(-link.depth);
+            if (recentHistory.length === 0) continue;
+            const formatted = recentHistory.map((msg) => `  - ${formatMessageForContext(msg, freshLinkedChat)}`).join('\n');
+            const visibleLabel = getLinkedMemoryVisibleLabel(chat, linkedChat, freshLinkedChat);
+            const header = `\n## 附加上下文：来自与"${linkedChat.name}"的最近对话内容 (${visibleLabel})\n`;
+            linkedMemoryLen += calculateTokenCount(header + formatted);
+        }
+    }
+    breakdown.push({ name: '记忆互通', count: linkedMemoryLen });
+
     breakdown.push({ name: '系统格式指令', count: 800 });
 
     // 返回数据增加了 outliers 字段
