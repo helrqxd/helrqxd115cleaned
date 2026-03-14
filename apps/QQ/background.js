@@ -28,6 +28,22 @@ window.stopBackgroundSimulation = function stopBackgroundSimulation() {
 /**
  * 这是模拟器的“心跳”，每次定时器触发时运行
  */
+/**
+ * 带重试的 fetch 封装，处理 Failed to fetch 等网络瞬时错误
+ */
+async function fetchWithRetry(url, options, maxRetries = 2) {
+    for (let attempt = 0; attempt <= maxRetries; attempt++) {
+        try {
+            return await fetch(url, options);
+        } catch (err) {
+            if (attempt === maxRetries) throw err;
+            const delay = 2000 * Math.pow(2, attempt);
+            console.warn(`[Background] Fetch 请求失败 (${err.message})，${delay / 1000}s 后重试 (${attempt + 1}/${maxRetries})...`);
+            await new Promise(r => setTimeout(r, delay));
+        }
+    }
+}
+
 window.runBackgroundSimulationTick = runBackgroundSimulationTick; // 暴露给全局以便手动调用
 function runBackgroundSimulationTick(isManual = false) {
     console.log('模拟器心跳 Tick...');
@@ -50,6 +66,7 @@ function runBackgroundSimulationTick(isManual = false) {
     };
 
     const config = state.globalSettings.backgroundActivityConfig || {};
+    const pendingActions = [];
 
     allChats.forEach((chat) => {
         // 检查1：处理【被用户拉黑】的角色
@@ -109,17 +126,27 @@ function runBackgroundSimulationTick(isManual = false) {
             // 如果这个角色设置了频率，并且随机数小于它的行动概率，就触发行动
             if (probability && Math.random() < probability) {
                 console.log(`角色 "${chat.name}" (频率: ${frequency}) 被唤醒，准备独立行动...`);
-                // 修复：区分群聊和单聊，分别执行不同的逻辑
                 if (chat.isGroup) {
-                    triggerGroupAiAction(chat.id);
+                    pendingActions.push({ name: chat.name, fn: () => triggerGroupAiAction(chat.id) });
                 } else {
-                    triggerInactiveAiAction(chat.id);
+                    pendingActions.push({ name: chat.name, fn: () => triggerInactiveAiAction(chat.id) });
                 }
             }
             // 如果没有设置频率，或者随机数没达到概率，就不会行动。
             // 这就完美地实现了“分组设置”和“不会同时行动”的需求！
         }
     });
+
+    const STAGGER_DELAY_MS = 3000;
+    pendingActions.forEach((action, index) => {
+        setTimeout(() => {
+            console.log(`[Background] 触发角色 "${action.name}" 的后台行动 (${index + 1}/${pendingActions.length})`);
+            action.fn();
+        }, index * STAGGER_DELAY_MS);
+    });
+    if (pendingActions.length > 0) {
+        console.log(`[Background] 本轮共 ${pendingActions.length} 个后台行动，将在 ${((pendingActions.length - 1) * STAGGER_DELAY_MS / 1000).toFixed(0)}s 内依次触发`);
+    }
 }
 
 /**
@@ -485,13 +512,16 @@ async function triggerInactiveAiAction(chatId) {
 
     // add by lrq 251029 添加聊天间隔时间
     const lastMessage = chat.history.slice(-1)[0];
-    const timeSinceLastMessage = lastMessage ? Math.floor((Date.now() - lastMessage.timestamp) / 60000) : Infinity;
-    const lastMessageTimeStr = lastMessage ? new Date(lastMessage.timestamp).toLocaleString('zh-CN', { hour12: false }) : "很久以前";
+    const timeSinceLastMessage = lastMessage ? Math.floor((Date.now() - lastMessage.timestamp) / 60000) : null;
+    const lastMessageTimeStr = lastMessage ? new Date(lastMessage.timestamp).toLocaleString('zh-CN', { hour12: false }) : "无";
+    const timeGapDescription = timeSinceLastMessage !== null
+        ? `已经有${timeSinceLastMessage}分钟没有互动了（上一条消息时间：${lastMessageTimeStr}）`
+        : `还从未互动过，这是你们的第一次交流`;
 
     let systemPrompt = `
         # 任务
         你现在【就是】角色 "${chat.name}"。这是一个秘密的、后台的独立行动。你的所有思考和决策都必须以 "${chat.name}" 的第一人称视角进行。
-        当前日期时间是（${currentFullTime}），你和用户（${userNickname}）已经有${Math.round(timeSinceLastMessage)}分钟没有互动了（上一条消息时间：${lastMessageTimeStr}）。你的任务是回顾你们最近的对话，并根据你的人设，【自然地延续对话】或【开启一个新的、相关的话题】来主动联系用户。
+        当前日期时间是（${currentFullTime}），你和用户（${userNickname}）${timeGapDescription}。你的任务是回顾你们最近的对话，并根据你的人设，【自然地延续对话】或【开启一个新的、相关的话题】来主动联系用户。
         # 【对话节奏铁律 (至关重要！)】
         你的回复【必须】模拟真人的打字和思考习惯。每条消息最好不要超过50个字，并且和聊天记录中保持完全相同的消息风格和格式。这会让对话看起来更自然、更真实。
         # 【时间流与未读消息生成规则 (新)】
@@ -499,7 +529,7 @@ async function triggerInactiveAiAction(chatId) {
         1. **生成多条/多组消息**: 你可以模拟在这段空白期内，分多次发送一段或【多段】消息。例如，刚分开时发几条，中间发几条，现在又发几条。
         2. **时间标记**: 对于每条指令，你【必须】添加一个 \`"sendTime"\` 字段 (字符串)。
            - 代表该消息发送的具体日期和时间，格式推荐为 "YYYY/MM/DD HH:mm:ss" (例如 ${currentFullTime})。
-           - **必须晚于**上一条消息的时间 (${lastMessageTimeStr})。
+           - ${lastMessage ? `**必须晚于**上一条消息的时间 (${lastMessageTimeStr})。` : `这是首次互动，时间可设为接近当前时间。`}
            - **严禁晚于**当前实际时间 (${currentFullTime})。
            - 最后的行动消息 \`sendTime\` **必须**接近当前时间 (${currentFullTime})。
            - **逻辑连贯性**: 所有的消息和指令内容（包括剧情）必须与发送时间相对应，不能发生时空冲突。举例：1. 不能在08:00发送吃晚饭的消息。2. 如果另一聊天中16:00在讨论某事件，这里【必须】也在16:00左右或之后提到该事件，否则会导致逻辑不通。
@@ -507,7 +537,7 @@ async function triggerInactiveAiAction(chatId) {
              - 消息1 ("在吗"): \`sendTime: "2023/10/27 10:30:00"\`
              - 消息2 ("是不是睡着了"): \`sendTime: "2023/10/27 10:40:00"\`
              - 消息3 ("晚安"): \`sendTime: "2023/10/27 12:00:00"\`
-        3. **更新状态**：你现在展示的状态是“${chat.status.text}”。如果聊天内容中涉及到你状态的改变（例如：正在吃饭、出门了、睡觉了），你【必须】在消息中体现出来，并且更新状态指令中的 \`status_text\` 和 \`is_busy\` 字段来反映这种改变。
+        3. **更新状态**：你现在展示的状态是“${chat.status?.text || '在线'}”。如果聊天内容中涉及到你状态的改变（例如：正在吃饭、出门了、睡觉了），你【必须】在消息中体现出来，并且更新状态指令中的 \`status_text\` 和 \`is_busy\` 字段来反映这种改变。
 
         # 【【【输出铁律：这是最高指令】】】
         你的回复【必须且只能】是一个严格的JSON数组格式的字符串，必须多发几条，禁止全部杂糅在一条，是在线上，例如 \`[{"type": "text", "content": "你好呀", "sendTime": "${currentFullTime}"}]\`。
@@ -633,8 +663,8 @@ async function triggerInactiveAiAction(chatId) {
         let isGemini = proxyUrl === GEMINI_API_URL;
         let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesPayload, isGemini);
         const response = isGemini
-            ? await fetch(geminiConfig.url, geminiConfig.data)
-            : await fetch(`${proxyUrl}/v1/chat/completions`, {
+            ? await fetchWithRetry(geminiConfig.url, geminiConfig.data)
+            : await fetchWithRetry(`${proxyUrl}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
                 body: JSON.stringify({
@@ -1039,8 +1069,8 @@ async function triggerAiFriendApplication(chatId) {
         let isGemini = proxyUrl === GEMINI_API_URL;
         let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesForApi, isGemini);
         const response = isGemini
-            ? await fetch(geminiConfig.url, geminiConfig.data)
-            : await fetch(`${proxyUrl}/v1/chat/completions`, {
+            ? await fetchWithRetry(geminiConfig.url, geminiConfig.data)
+            : await fetchWithRetry(`${proxyUrl}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
                 body: JSON.stringify({
@@ -1201,7 +1231,7 @@ async function triggerGroupAiAction(chatId) {
     }
 
         const lastMessage = chat.history.slice(-1)[0];
-        const timeSinceLastMessage = lastMessage ? (Date.now() - lastMessage.timestamp) / 1000 / 60 : Infinity; // in minutes
+        const timeSinceLastMessage = lastMessage ? (Date.now() - lastMessage.timestamp) / 1000 / 60 : null; // in minutes
 
         const membersList = chat.members.map((m) => `- ${m.groupNickname} (人设: ${m.persona})`).join('\n');
         const myNickname = chat.settings.myNickname || '我';
@@ -1232,7 +1262,7 @@ async function triggerGroupAiAction(chatId) {
         const currentTime = now.toLocaleTimeString('zh-CN', { hour: 'numeric', minute: 'numeric', hour12: true });
         const currentFullTime = now.toLocaleString('zh-CN', { hour12: false });
         // 添加获取最后消息时间的逻辑
-        const lastMessageTimeStr = lastMessage ? new Date(lastMessage.timestamp).toLocaleString('zh-CN', { hour12: false }) : "很久以前";
+        const lastMessageTimeStr = lastMessage ? new Date(lastMessage.timestamp).toLocaleString('zh-CN', { hour12: false }) : "无";
 
         const summaryContext = chat.history
             .filter((msg) => msg.type === 'summary')
@@ -1243,16 +1273,16 @@ async function triggerGroupAiAction(chatId) {
         let systemPrompt = `
         # 任务
         你是一个群聊后台模拟器，在当前群聊"${chat.name}"中，负责扮演下方【群成员列表】当中的角色。
-        当前日期时间是（${currentFullTime}），群聊 "${chat.name}" 已经沉寂了 ${Math.round(timeSinceLastMessage)} 分钟(上一条消息时间：${lastMessageTimeStr})，用户(昵称: "${chat.settings.myNickname || '我'}")不在线。
+        当前日期时间是（${currentFullTime}），群聊 "${chat.name}" ${timeSinceLastMessage !== null ? `已经沉寂了 ${Math.round(timeSinceLastMessage)} 分钟(上一条消息时间：${lastMessageTimeStr})` : '还没有任何聊天记录，这是群聊的首次互动'}，用户(昵称: "${chat.settings.myNickname || '我'}")不在线。
         你的任务是根据下方每个角色的人设，在他们之间【自发地】生成一段或【多段】自然的对话。
         # 【对话节奏铁律 (至关重要！)】
         你的回复【必须】模拟真人的打字和思考习惯。 每条消息最好不要超过50个字，并且和聊天记录中保持完全相同的消息风格和格式。这会让对话看起来更自然、更真实。
         **角色回复顺序不固定，【必须】交叉回复，例如角色A、角色B、角色B、角色A、角色C这样的交叉顺序。【绝对不要】不要一个人全部说完了才轮到下一个人。角色之间【必须】有互动对话。**
         # 【时间流与未读消息生成规则 (新)】
-        1. **生成多条/多组消息**: 模拟在这段 ${Math.round(timeSinceLastMessage)} 分钟的空白期内，群成员之间的多轮互动。例如刚刚过去的 ${Math.round(timeSinceLastMessage)} 分钟内，可能发生多轮对话，每轮对话包含不同的但有逻辑顺序且【与其他聊天剧情不冲突】的信息。
+        1. **生成多条/多组消息**: ${timeSinceLastMessage !== null ? `模拟在这段 ${Math.round(timeSinceLastMessage)} 分钟的空白期内，群成员之间的多轮互动。例如刚刚过去的 ${Math.round(timeSinceLastMessage)} 分钟内，可能发生多轮对话，每轮对话包含不同的但有逻辑顺序且【与其他聊天剧情不冲突】的信息。` : `作为群聊的首次互动，请生成群成员之间的多轮自然对话。`}
         2. **时间标记**: 每条指令【必须】添加一个 \`"sendTime"\` 字段 (字符串)。
            - 代表该消息发送的具体日期和时间，格式推荐为 "YYYY/MM/DD HH:mm:ss" (例如 ${currentFullTime})。
-           - **必须晚于**上一条消息的时间 (${lastMessageTimeStr})。
+           - ${lastMessage ? `**必须晚于**上一条消息的时间 (${lastMessageTimeStr})。` : `这是首次互动，时间可设为接近当前时间。`}
            - **严禁晚于**当前实际时间 (${currentFullTime})。
            - 最后的行动消息 \`sendTime\` **必须**接近当前时间 (${currentFullTime})。
            - **逻辑连贯性**: 所有的消息和指令内容（包括剧情）必须与发送时间相对应，不能发生时空冲突。举例：1. 不能在08:00发送吃晚饭的消息。2. 如果另一聊天中16:00在讨论某事件，这里【可以不提到】该事件，但如果提到，则【必须】也在16:00左右或之后，否则会导致逻辑不通。
@@ -1324,8 +1354,8 @@ async function triggerGroupAiAction(chatId) {
         let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesPayload, isGemini);
 
         const response = isGemini
-            ? await fetch(geminiConfig.url, geminiConfig.data)
-            : await fetch(`${proxyUrl}/v1/chat/completions`, {
+            ? await fetchWithRetry(geminiConfig.url, geminiConfig.data)
+            : await fetchWithRetry(`${proxyUrl}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
                 body: JSON.stringify({

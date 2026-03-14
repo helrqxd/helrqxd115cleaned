@@ -6645,7 +6645,7 @@ ${contextSummaryForApproval}
                         // 用户不在此聊天 → 跳过动画，直接保存记录
                         chat.history.push(recalledMessage, hiddenMemoryMessage);
                         chat.unreadCount = (chat.unreadCount || 0) + 1;
-                        showNotification(chatId, `${chat.name}撤回了一条消息`);
+                        showNotification(chatId, `${msgData.name} 撤回了一条消息`);
                         renderChatList();
                     }
 
