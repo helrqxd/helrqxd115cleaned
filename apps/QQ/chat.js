@@ -1,4 +1,4 @@
-﻿
+
 if (!window.videoCallState) {
     window.videoCallState = { isActive: false, activeChatId: null, isAwaitingResponse: false, isGroupCall: false, participants: [], timerId: null, callRequester: null, initiator: null };
 }
@@ -1845,6 +1845,24 @@ window.openChat = async function openChat(chatId) {
 }
 
 /**
+ * 记忆互通附加上下文的可见范围文案（与 background.js 逻辑一致）
+ * @param {Object} chat - 当前聊天
+ * @param {Object} linkedChat - 记忆互通来源聊天
+ * @param {Object} freshLinkedChat - 记忆互通来源聊天（DB 最新，用于 members）
+ * @returns {string} 如 "仅（角色名）可见" 或 "仅（角色名1、角色名2、……）可见"
+ */
+function getLinkedMemoryVisibleLabel(chat, linkedChat, freshLinkedChat) {
+    if (!chat) return '仅你可见';
+    if (!chat.isGroup) return `仅（${chat.name}）可见`;
+    if (!linkedChat.isGroup) return `仅（${linkedChat.name}）可见`;
+    const linkedNames = new Set((freshLinkedChat.members || []).map((m) => m.originalName));
+    const overlap = (chat.members || []).filter((m) => linkedNames.has(m.originalName));
+    const names = overlap.map((m) => m.groupNickname || m.originalName);
+    if (names.length === 0) return '仅（无重合角色）可见';
+    return `仅（${names.join('、')}）可见`;
+}
+
+/**
  * 格式化单条消息，用于记忆互通的上下文
  * @param {object} msg - 消息对象
  * @param {object} chat - 该消息所属的聊天对象
@@ -2873,8 +2891,8 @@ window.triggerAiResponse = async function triggerAiResponse() {
 
                 // 格式化这些消息
                 const formattedMessages = recentHistory.map((msg) => `  - ${formatMessageForContext(msg, freshLinkedChat)}`).join('\n');
-
-                return `\n## 附加上下文：来自与“${linkedChat.name}”的最近对话内容 (仅相关角色可见)\n${formattedMessages}`;
+                const visibleLabel = getLinkedMemoryVisibleLabel(chat, linkedChat, freshLinkedChat);
+                return `\n## 附加上下文：来自与“${linkedChat.name}”的最近对话内容 (${visibleLabel})\n${formattedMessages}`;
             });
 
             // 等待所有链接都处理完毕

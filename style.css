@@ -31428,6 +31428,7 @@ input:checked + .slider::after {
     bottom: 0;
     left: 0;
     width: 100%;
+    min-width: 0; /* 允许在窄屏/键盘弹出时整体参与收缩 */
     height: 50px;
     background: #fff;
     border-top: 1px solid #eee;
@@ -31437,6 +31438,16 @@ input:checked + .slider::after {
     box-sizing: border-box;
     padding-bottom: env(safe-area-inset-bottom);
     height: calc(50px + env(safe-area-inset-bottom));
+    overflow: hidden; /* 防止子元素溢出把评论数挤出视口 */
+}
+/* 输入区可收缩，避免把右侧点赞/收藏/评论数挤出屏幕 */
+.xhs-detail-bottom-bar .input-real-container {
+    min-width: 0;
+    flex: 1 1 auto;
+    max-width: 100%;
+}
+.xhs-detail-bottom-bar .input-real-container input {
+    min-width: 0; /* 部分机型 input 默认 min-width 会撑开，导致右侧被挤出 */
 }
 .xhs-detail-bottom-bar .input-fake {
     width: 200px; /* 固定宽度，给右侧留出更多空间 */
@@ -31452,7 +31463,7 @@ input:checked + .slider::after {
     margin-right: 10px;
 }
 .xhs-detail-bottom-bar .actions {
-    flex: 1;
+    flex: 0 0 auto; /* 不收缩，保证点赞/收藏/评论数始终可见 */
     display: flex;
     align-items: center;
 }
