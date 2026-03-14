@@ -31440,17 +31440,46 @@ input:checked + .slider::after {
     height: calc(50px + env(safe-area-inset-bottom));
     overflow: hidden; /* 防止子元素溢出把评论数挤出视口 */
 }
-/* 输入区可收缩，避免把右侧点赞/收藏/评论数挤出屏幕 */
+/* 输入区：占约一半宽度，可收缩，避免把右侧点赞/收藏/评论数挤出屏幕 */
 .xhs-detail-bottom-bar .input-real-container {
+    flex: 1 1 0;
+    max-width: 50%;
     min-width: 0;
-    flex: 1 1 auto;
-    max-width: 100%;
+    display: flex;
+    align-items: center;
+    background: #f5f5f5;
+    border-radius: 20px;
+    padding: 0 12px;
+    margin-right: 8px;
+    overflow: hidden;
+}
+.xhs-detail-bottom-bar .input-real-container .icon {
+    color: #999;
+    margin-right: 6px;
+    flex-shrink: 0;
 }
 .xhs-detail-bottom-bar .input-real-container input {
-    min-width: 0; /* 部分机型 input 默认 min-width 会撑开，导致右侧被挤出 */
+    border: none;
+    background: transparent;
+    outline: none;
+    flex: 1 1 0;
+    min-width: 0;
+    font-size: 14px;
+    height: 36px;
+}
+.xhs-detail-bottom-bar .input-real-container button {
+    border: none;
+    background: none;
+    color: #ff2442;
+    font-weight: 600;
+    font-size: 14px;
+    display: none;
+    cursor: pointer;
+    flex-shrink: 0;
+    white-space: nowrap;
 }
 .xhs-detail-bottom-bar .input-fake {
-    width: 200px; /* 固定宽度，给右侧留出更多空间 */
+    width: 200px;
     flex: none;
     background: #f5f5f5;
     height: 32px;
@@ -31462,21 +31491,28 @@ input:checked + .slider::after {
     padding-left: 15px;
     margin-right: 10px;
 }
+/* 右侧操作区：占剩余空间，不被压缩 */
 .xhs-detail-bottom-bar .actions {
-    flex: 0 0 auto; /* 不收缩，保证点赞/收藏/评论数始终可见 */
+    flex: 1 0 0;
     display: flex;
     align-items: center;
+    gap: 2px;
 }
 .xhs-detail-bottom-bar .action-item {
     flex: 1;
     display: flex;
     justify-content: center;
     align-items: center;
-    gap: 4px;
-    font-size: 13px;
+    gap: 3px;
+    font-size: 12px;
     color: #333;
     font-weight: 500;
-    white-space: nowrap; /* 防止文字换行 */
+    white-space: nowrap;
+    padding: 0 2px;
+    cursor: pointer;
+}
+.xhs-detail-bottom-bar .action-item svg {
+    flex-shrink: 0;
 }
 
 /* --- 小红书空状态提示 --- */
