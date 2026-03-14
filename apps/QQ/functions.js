@@ -4368,6 +4368,12 @@ window.loadBranchCheckpoint = async function (checkpointId) {
         if (!chat.settings.summary) chat.settings.summary = {};
         chat.settings.summary.lastSummaryIndex = chat.history.length - 1;
 
+        // 6. 清除运行时元数据，防止旧时间线的残留数据干扰后续逻辑
+        delete chat._lastReplyStartIndex;
+        delete chat._lastRawAiOutput;
+        delete chat._isLastReplyBackground;
+        delete chat._rerollContext;
+
         await window.db.chats.put(chat);
         if (typeof window.renderChatInterface === 'function') {
             window.renderChatInterface(window.state.activeChatId); // 刷新聊天界面
@@ -4422,6 +4428,12 @@ async function restartChatBranch() {
         // 5. 重置自动总结计数器
         if (!chat.settings.summary) chat.settings.summary = {};
         chat.settings.summary.lastSummaryIndex = -1;
+
+        // 6. 清除运行时元数据，防止旧时间线的残留数据干扰后续逻辑
+        delete chat._lastReplyStartIndex;
+        delete chat._lastRawAiOutput;
+        delete chat._isLastReplyBackground;
+        delete chat._rerollContext;
 
         await window.db.chats.put(chat);
         if (typeof window.renderChatInterface === 'function') {

@@ -1,4 +1,4 @@
-﻿// TAROT_DECK moved to apps/QQ/functions.js
+// TAROT_DECK moved to apps/QQ/functions.js
 // Ensure db is defined globally to avoid ReferenceError in other scripts or early execution
 window.db = window.db || null;
 
@@ -1320,6 +1320,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                 chat.settings.linkedWorldBookIds = [chat.settings.linkedWorldBookId];
                 delete chat.settings.linkedWorldBookId;
             }
+
+            // 清除可能被意外持久化到数据库的运行时临时属性
+            delete chat._lastReplyStartIndex;
+            delete chat._lastRawAiOutput;
+            delete chat._isLastReplyBackground;
+            delete chat._rerollContext;
 
             // 兼容旧数据，为没有 isPinned 属性的聊天添加默认值
             if (typeof chat.isPinned === 'undefined') {

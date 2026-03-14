@@ -308,6 +308,7 @@ async function triggerInactiveAiAction(chatId) {
     const { proxyUrl, apiKey, model } = state.apiConfig;
     if (!proxyUrl || !apiKey || !model) return;
 
+  try {
     // updated by lrq 251027 当前聊天获取用户设置的记忆条数作为上下文
     const maxMemory = chat.settings.maxMemory || 10;
     const historySlice = chat.history.filter((msg) => !msg.isHidden).slice(-maxMemory);
@@ -487,7 +488,7 @@ async function triggerInactiveAiAction(chatId) {
     const timeSinceLastMessage = lastMessage ? Math.floor((Date.now() - lastMessage.timestamp) / 60000) : Infinity;
     const lastMessageTimeStr = lastMessage ? new Date(lastMessage.timestamp).toLocaleString('zh-CN', { hour12: false }) : "很久以前";
 
-    const systemPrompt = `
+    let systemPrompt = `
         # 任务
         你现在【就是】角色 "${chat.name}"。这是一个秘密的、后台的独立行动。你的所有思考和决策都必须以 "${chat.name}" 的第一人称视角进行。
         当前日期时间是（${currentFullTime}），你和用户（${userNickname}）已经有${Math.round(timeSinceLastMessage)}分钟没有互动了（上一条消息时间：${lastMessageTimeStr}）。你的任务是回顾你们最近的对话，并根据你的人设，【自然地延续对话】或【开启一个新的、相关的话题】来主动联系用户。
@@ -629,7 +630,6 @@ async function triggerInactiveAiAction(chatId) {
         { role: 'system', content: systemPrompt },
         { role: 'user', content: '请严格按照system prompt中的所有规则，特别是输出格式铁律，立即开始你的行动。' },
     ];
-    try {
         let isGemini = proxyUrl === GEMINI_API_URL;
         let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesPayload, isGemini);
         const response = isGemini
@@ -974,8 +974,9 @@ async function triggerInactiveAiAction(chatId) {
                 chat.innerVoiceHistory.push(newInnerVoice);
             }
         }
-    } catch (error) {
+  } catch (error) {
         console.error(`角色 "${chat.name}" 的独立行动失败:`, error);
+        console.error(`[调试信息] chatId=${chatId}, history.length=${chat?.history?.length}, settings keys=${chat?.settings ? Object.keys(chat.settings).join(',') : 'N/A'}, stack:`, error?.stack);
     }
 }
 
@@ -1103,6 +1104,7 @@ async function triggerGroupAiAction(chatId) {
         return;
     }
 
+  try {
     // --- Added by copilot: Sticker Context Logic for Group ---
     // 1. 准备专属表情包列表
     const exclusiveStickers = chat.settings.stickerLibrary || [];
@@ -1198,7 +1200,6 @@ async function triggerGroupAiAction(chatId) {
         linkedMemoryContext = allContexts.filter(Boolean).join('\n');
     }
 
-    try {
         const lastMessage = chat.history.slice(-1)[0];
         const timeSinceLastMessage = lastMessage ? (Date.now() - lastMessage.timestamp) / 1000 / 60 : Infinity; // in minutes
 
@@ -1579,8 +1580,9 @@ async function triggerGroupAiAction(chatId) {
 
             console.log(`群聊 "${chat.name}" 后台互动成功，生成了 ${messagesArray.length} 条新消息。`);
         }
-    } catch (error) {
+  } catch (error) {
         console.error(`群聊 "${chat.name}" 的后台活动失败:`, error);
+        console.error(`[调试信息] chatId=${chatId}, history.length=${chat?.history?.length}, members=${chat?.members?.length}, settings keys=${chat?.settings ? Object.keys(chat.settings).join(',') : 'N/A'}, stack:`, error?.stack);
     }
 }
 
