@@ -1,4 +1,4 @@
-const avatarFrames = [
+window.avatarFrames = [
   { id: "none", url: "", name: "无" },
   {
     id: "frame_cat_ear",
