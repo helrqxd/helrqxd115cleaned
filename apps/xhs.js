@@ -390,10 +390,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // === Pollinations API Key 检查与占位图 ===
     let _xhsPolliKeyAlerted = false; // 防止重复弹窗
     function hasPollinationsApiKey() {
+        if (window.state?.xhsSettings?.enablePollinationsImage === false) return false;
         const key = window.state?.apiConfig?.pollinationsApiKey;
         return !!key;
     }
     function showPollinationsKeyAlert() {
+        if (window.state?.xhsSettings?.enablePollinationsImage === false) return;
         if (_xhsPolliKeyAlerted) return;
         _xhsPolliKeyAlerted = true;
         showXhsConfirmGeneral(
@@ -6439,6 +6441,7 @@ ${memoryContext ? `【角色记忆与近期经历（帮助理解角色关系和�
 
             document.getElementById('xhs-toggle-fans-flux').checked = s.enableFansFluctuation !== false;
             document.getElementById('xhs-toggle-dm').checked = s.enableDMs !== false;
+            document.getElementById('xhs-toggle-pollinations').checked = s.enablePollinationsImage !== false;
 
             // 加载分组和分类数据
             let allGroups = [];
@@ -6586,6 +6589,7 @@ ${memoryContext ? `【角色记忆与近期经历（帮助理解角色关系和�
                 autoRefreshInterval: parseInt(document.getElementById('xhs-refresh-interval-input').value) || 60,
                 enableFansFluctuation: document.getElementById('xhs-toggle-fans-flux').checked,
                 enableDMs: document.getElementById('xhs-toggle-dm').checked,
+                enablePollinationsImage: document.getElementById('xhs-toggle-pollinations').checked,
                 allowedPosters: Array.from(document.querySelectorAll('.xhs-poster-item.selected')).map(el => el.dataset.value),
                 linkedWorldBooks: Array.from(document.querySelectorAll('.xhs-wb-item.selected')).map(el => el.dataset.value)
             };

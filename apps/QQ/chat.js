@@ -2525,7 +2525,7 @@ ${offlineLinkedMemCtx}
                             if (isViewingThisChat) appendMessage(errBubble, chat);
                         } finally {
                             if (chatHeaderTitle) {
-                                chatHeaderTitle.textContent = chat.name;
+                                chatHeaderTitle.textContent = !chat.isGroup && chat.settings.remarkName ? chat.settings.remarkName : chat.name;
                                 chatHeaderTitle.classList.remove('typing-status');
                             }
                         }
@@ -2572,8 +2572,9 @@ ${offlineLinkedMemCtx}
         } finally {
             if (chatHeaderTitle && window.state.chats[chatId]) {
                 chatHeaderTitle.style.opacity = 0;
+                const _c = window.state.chats[chatId];
                 setTimeout(() => {
-                    chatHeaderTitle.textContent = window.state.chats[chatId].name;
+                    chatHeaderTitle.textContent = !_c.isGroup && _c.settings.remarkName ? _c.settings.remarkName : _c.name;
                     chatHeaderTitle.classList.remove('typing-status');
                     chatHeaderTitle.style.opacity = 1;
                 }, 200);
@@ -2746,7 +2747,8 @@ ${offlineLinkedMemCtx}
                 if (typingIndicator) typingIndicator.style.display = 'none';
             } else {
                 if (chatHeaderTitle && window.state.chats[chatId]) {
-                    chatHeaderTitle.textContent = window.state.chats[chatId].name;
+                    const _c = window.state.chats[chatId];
+                    chatHeaderTitle.textContent = !_c.isGroup && _c.settings.remarkName ? _c.settings.remarkName : _c.name;
                     chatHeaderTitle.classList.remove('typing-status');
                 }
             }
@@ -7168,9 +7170,10 @@ ${contextSummaryForApproval}
         } else {
             if (chatHeaderTitle && window.state.chats[chatId] && window.state.activeChatId === chatId) {
                 chatHeaderTitle.style.opacity = 0;
+                const _c = window.state.chats[chatId];
                 setTimeout(() => {
                     if (window.state.activeChatId === chatId) {
-                        chatHeaderTitle.textContent = window.state.chats[chatId].name;
+                        chatHeaderTitle.textContent = !_c.isGroup && _c.settings.remarkName ? _c.settings.remarkName : _c.name;
                         chatHeaderTitle.classList.remove('typing-status');
                         chatHeaderTitle.style.opacity = 1;
                     }
