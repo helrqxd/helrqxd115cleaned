@@ -26,7 +26,26 @@ window.activePostId = null;
  */
 
 
-// ... (Rest of functions will be appended) ...
+function getCharacterNAIPrompts(chatId) {
+    const chat = window.state.chats[chatId];
+    const systemSettings = window.getNovelAISettings ? window.getNovelAISettings() : {};
+    const naiSettings = chat?.settings?.naiSettings || {};
+
+    if (naiSettings.promptSource === 'character' && (naiSettings.characterPositivePrompt || naiSettings.characterNegativePrompt)) {
+        return {
+            positive: naiSettings.characterPositivePrompt || '',
+            negative: naiSettings.characterNegativePrompt || '',
+            source: 'character',
+        };
+    }
+
+    return {
+        positive: systemSettings.default_positive || '',
+        negative: systemSettings.default_negative || '',
+        source: 'system',
+    };
+}
+
 // Core Render Functions
 
 function updateUnreadIndicator(count) {
