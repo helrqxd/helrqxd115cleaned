@@ -46,6 +46,7 @@
 		<script src="apps/QQ/functions.js" defer></script>
 		<script src="apps/QQ/chat.js" defer></script>
 		<script src="apps/QQ/background.js" defer></script>
+		<script src="update-popup.js" defer></script>
 		<script src="main-app.js" defer></script>
 		<script src="apps/game-hall.js" defer></script>
 		<script src="apps/forum.js" defer></script>
@@ -1456,6 +1457,37 @@
 								<input type="range" id="temperature-slider" min="0" max="2" step="0.1" value="0.8" class="moe-slider" />
 							</div>
 							<button id="fetch-models-btn" class="moe-btn-secondary">📡 拉取模型列表</button>
+						</div>
+					</div>
+
+					<!-- 1.5 副API 连接卡片 -->
+					<div class="moe-card">
+						<div class="moe-card-header">
+							<span class="icon">☁️</span>
+							<h3>副API 连接</h3>
+						</div>
+						<div class="moe-card-body">
+							<p style="font-size: 12px; color: #888; margin-bottom: 10px">可用于记忆总结等辅助功能，避免占用主API额度。</p>
+							<div class="form-group">
+								<label>反代地址 (Proxy)</label>
+								<input type="text" id="secondary-proxy-url" placeholder="https://api.openai.com" class="moe-input" />
+							</div>
+							<div class="form-group">
+								<label>密钥 (Key)</label>
+								<input type="password" id="secondary-api-key" placeholder="sk-..." class="moe-input" />
+							</div>
+							<div class="form-group">
+								<label>模型选择 (手动输入 或 拉取后选择)</label>
+								<input type="text" id="secondary-model-select" class="moe-input" placeholder="如 gpt-4o-mini, deepseek-chat" />
+								<select id="secondary-fetched-model-list" class="moe-input" style="margin-top: 5px; display: none; border: 1px dashed var(--accent-color)" onchange="document.getElementById('secondary-model-select').value = this.value">
+									<option value="">▼ 点击此处选择已拉取的模型</option>
+								</select>
+							</div>
+							<div class="form-group">
+								<label>温度 (随机性): <span id="secondary-temperature-value" style="color: var(--accent-color)">0.8</span></label>
+								<input type="range" id="secondary-temperature-slider" min="0" max="2" step="0.1" value="0.8" class="moe-slider" />
+							</div>
+							<button id="secondary-fetch-models-btn" class="moe-btn-secondary">📡 拉取模型列表</button>
 						</div>
 					</div>
 
@@ -3668,6 +3700,13 @@
 							</label>
 						</div>
 						<div id="summary-details-container" class="moe-details-box" style="display: none">
+							<div class="form-group">
+								<label>总结使用的API</label>
+								<select id="summary-api-select" class="moe-input">
+									<option value="main">主API</option>
+									<option value="secondary">副API</option>
+								</select>
+							</div>
 							<div class="form-group">
 								<label>总结模式</label>
 								<div style="display: flex; gap: 20px; margin-top: 5px">
@@ -10339,6 +10378,28 @@
 				</div>
 				<div class="modal-body" id="inner-voice-history-list" style="padding: 0">
 					<!-- 历史记录会由JS动态生成在这里 -->
+				</div>
+			</div>
+		</div>
+
+		<!-- 更新弹窗 -->
+		<div id="update-popup-overlay">
+			<div id="update-popup">
+				<div class="update-popup-header">
+					<span id="update-popup-back-btn" class="update-popup-nav-btn" style="display:none;">← 返回</span>
+					<div class="update-popup-icon">🎉</div>
+					<div class="update-popup-title">版本更新</div>
+					<div class="update-popup-version" id="update-popup-version"></div>
+					<span id="update-popup-history-btn" class="update-popup-nav-btn">📋 历史</span>
+				</div>
+				<div class="update-popup-body" id="update-popup-body"></div>
+				<div class="update-popup-footer">
+					<label class="update-popup-dismiss" id="update-popup-dismiss-label" style="display: none;">
+						<input type="checkbox" id="update-popup-dismiss-check" /> 不再提示此版本
+					</label>
+					<button id="update-popup-close-btn" disabled>
+						<span id="update-popup-countdown">5秒后可关闭</span>
+					</button>
 				</div>
 			</div>
 		</div>

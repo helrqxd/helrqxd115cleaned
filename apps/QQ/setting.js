@@ -913,31 +913,47 @@ window.initQQSettings = function (dependencies) {
 
             // 1. 渲染正常的进度条 (保持不变)
             const colorMap = {
-                核心人设: '#FF6B6B',
-                世界书: '#4ECDC4',
-                表情包定义: '#FFD93D',
-                '长期记忆(总结)': '#45B7D1',
-                '短期记忆(用户)': '#96CEB4',
-                '短期记忆(AI)': '#A8E6CF',
-                记忆互通: '#B39DDB',
-                系统格式指令: '#D4A5A5',
+                '\u6838\u5FC3\u4EBA\u8BBE': '#FF6B6B',
+                '\u4E16\u754C\u4E66': '#4ECDC4',
+                '\u8868\u60C5\u5305\u5B9A\u4E49': '#FFD93D',
+                '\u957F\u671F\u8BB0\u5FC6(\u603B\u7ED3)': '#45B7D1',
+                '\u77ED\u671F\u8BB0\u5FC6(\u7528\u6237)': '#96CEB4',
+                '\u77ED\u671F\u8BB0\u5FC6(AI)': '#A8E6CF',
+                '\u56FE\u7247\u6D88\u606F(\u591A\u6A21\u6001)': '#FF9A76',
+                '\u8BB0\u5FC6\u4E92\u901A': '#B39DDB',
+                '\u7CFB\u7EDF\u683C\u5F0F\u6307\u4EE4': '#D4A5A5',
             };
 
             breakdown.forEach((item) => {
                 if (item.count > 0) {
                     const percent = total > 0 ? Math.round((item.count / total) * 100) : 0;
                     const color = colorMap[item.name] || '#ccc';
-                    htmlContent += `
-                <div style="margin-bottom: 6px;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:2px;">
-                        <span>${item.name}</span>
-                        <span style="color:#888;">${item.count} (${percent}%)</span>
-                    </div>
-                    <div style="width: 100%; background-color: #f0f0f0; height: 6px; border-radius: 3px; overflow: hidden;">
-                        <div style="width: ${percent}%; background-color: ${color}; height: 100%;"></div>
-                    </div>
-                </div>
-            `;
+
+                    if (item.imageCount) {
+                        htmlContent += '<div style="margin-bottom: 6px;">' +
+                            '<div style="display:flex; justify-content:space-between; margin-bottom:2px;">' +
+                                '<span>\uD83D\uDDBC\uFE0F ' + item.name + ' <span style="font-size:11px;color:#999;">(' + item.imageCount + '\u5F20)</span></span>' +
+                                '<span style="color:#888;">' + item.count + ' (' + percent + '%)</span>' +
+                            '</div>' +
+                            '<div style="width:100%;background-color:#f0f0f0;height:6px;border-radius:3px;overflow:hidden;">' +
+                                '<div style="width:' + percent + '%;background-color:' + color + ';height:100%;"></div>' +
+                            '</div>' +
+                            '<div style="font-size:11px;color:#999;margin-top:3px;padding-left:2px;">' +
+                                '\u2139\uFE0F \u4F30\u7B97\u8303\u56F4: ' + item.tokenLow + ' ~ ' + item.tokenHigh + ' tokens (\u53D6\u4E2D\u503C ' + item.tokenEstimate + ')' +
+                                '<br>\u6BCF\u5F20\u56FE\u7247\u7EA6 85(low) ~ 765(high) tokens\uFF0C\u5B9E\u9645\u53D6\u51B3\u4E8E\u6A21\u578B\u548C\u5206\u8FA8\u7387' +
+                            '</div>' +
+                        '</div>';
+                    } else {
+                        htmlContent += '<div style="margin-bottom: 6px;">' +
+                            '<div style="display:flex; justify-content:space-between; margin-bottom:2px;">' +
+                                '<span>' + item.name + '</span>' +
+                                '<span style="color:#888;">' + item.count + ' (' + percent + '%)</span>' +
+                            '</div>' +
+                            '<div style="width:100%;background-color:#f0f0f0;height:6px;border-radius:3px;overflow:hidden;">' +
+                                '<div style="width:' + percent + '%;background-color:' + color + ';height:100%;"></div>' +
+                            '</div>' +
+                        '</div>';
+                    }
                 }
             });
 
@@ -990,6 +1006,17 @@ window.initQQSettings = function (dependencies) {
         document.querySelector(`input[name="summary-mode"][value="${summarySettings.mode || 'auto'}"]`).checked = true;
         document.getElementById('summary-count-input').value = summarySettings.count || 20;
         document.getElementById('summary-prompt-input').value = summarySettings.prompt || '请你以第三人称的视角，客观、冷静、不带任何感情色彩地总结以下对话的核心事件和信息。禁止进行任何角色扮演或添加主观评论。';
+
+        const summaryApiSelect = document.getElementById('summary-api-select');
+        if (summaryApiSelect) {
+            summaryApiSelect.value = summarySettings.apiSource || 'main';
+            const hasSecondary = state.apiConfig.secondaryProxyUrl && state.apiConfig.secondaryApiKey && state.apiConfig.secondaryModel;
+            const secOption = summaryApiSelect.querySelector('option[value="secondary"]');
+            if (secOption) {
+                secOption.disabled = !hasSecondary;
+                secOption.textContent = hasSecondary ? '副API' : '副API (未配置)';
+            }
+        }
 
         // 为开关添加实时交互
         summaryToggle.onchange = () => {
@@ -1626,11 +1653,12 @@ window.initQQSettings = function (dependencies) {
         chat.settings.offlineMode.enableNovelAI = document.getElementById('offline-novelai-toggle').checked;
 
         // --- 保存聊天总结设置 ---
-        if (!chat.settings.summary) chat.settings.summary = {}; // 初始化
+        if (!chat.settings.summary) chat.settings.summary = {};
         chat.settings.summary.enabled = document.getElementById('summary-toggle').checked;
         chat.settings.summary.mode = document.querySelector('input[name="summary-mode"]:checked').value;
         chat.settings.summary.count = parseInt(document.getElementById('summary-count-input').value) || 20;
         chat.settings.summary.prompt = document.getElementById('summary-prompt-input').value.trim();
+        chat.settings.summary.apiSource = document.getElementById('summary-api-select').value || 'main';
 
         const isStreakEnabled = document.getElementById('streak-enabled-toggle').checked;
         const newInitialDays = parseInt(document.getElementById('streak-initial-days-input').value) || 0;
@@ -2050,13 +2078,25 @@ window.initQQSettings = function (dependencies) {
 
     async function generateSummary(chatId, specificMessages = null) {
         const chat = state.chats[chatId];
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const summarySettings = chat.settings.summary;
+        const apiSource = summarySettings.apiSource || 'main';
 
-        if (!proxyUrl || !apiKey || !model) {
-            throw new Error('API未配置，无法生成总结。');
+        let proxyUrl, apiKey, model, temperature;
+        if (apiSource === 'secondary' && state.apiConfig.secondaryProxyUrl && state.apiConfig.secondaryApiKey && state.apiConfig.secondaryModel) {
+            proxyUrl = state.apiConfig.secondaryProxyUrl;
+            apiKey = state.apiConfig.secondaryApiKey;
+            model = state.apiConfig.secondaryModel;
+            temperature = state.apiConfig.secondaryTemperature;
+        } else {
+            proxyUrl = state.apiConfig.proxyUrl;
+            apiKey = state.apiConfig.apiKey;
+            model = state.apiConfig.model;
+            temperature = state.apiConfig.temperature;
         }
 
-        const summarySettings = chat.settings.summary;
+        if (!proxyUrl || !apiKey || !model) {
+            throw new Error(`${apiSource === 'secondary' ? '副' : '主'}API未配置，无法生成总结。`);
+        }
         let messagesToSummarize;
 
         if (specificMessages && specificMessages.length > 0) {
@@ -2110,7 +2150,7 @@ window.initQQSettings = function (dependencies) {
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
-                        temperature: parseFloat(state.apiConfig.temperature) || 0.3,
+                        temperature: parseFloat(temperature) || 0.3,
                     }),
                 });
 

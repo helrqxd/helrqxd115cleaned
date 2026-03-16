@@ -137,13 +137,176 @@ async function sendSticker(sticker) {
     document.getElementById('sticker-panel').classList.remove('visible');
 }
 
+async function readTextFromFile(file) {
+    const ext = file.name.split('.').pop().toLowerCase();
+    if (ext === 'docx') return await parseDocxFile(file);
+    if (ext === 'doc') throw new Error('\u4E0D\u652F\u6301\u65E7\u7248 .doc \u683C\u5F0F\uFF0C\u8BF7\u5C06\u6587\u4EF6\u53E6\u5B58\u4E3A .txt \u6216 .docx \u540E\u91CD\u8BD5\u3002');
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = (e) => resolve(e.target.result);
+        reader.onerror = () => reject(new Error('\u6587\u4EF6\u8BFB\u53D6\u5931\u8D25'));
+        reader.readAsText(file, 'UTF-8');
+    });
+}
+
+async function parseDocxFile(file) {
+    const arrayBuffer = await file.arrayBuffer();
+    const uint8 = new Uint8Array(arrayBuffer);
+    let offset = 0;
+    while (offset < uint8.length - 30) {
+        if (uint8[offset] !== 0x50 || uint8[offset + 1] !== 0x4B ||
+            uint8[offset + 2] !== 0x03 || uint8[offset + 3] !== 0x04) {
+            offset++;
+            continue;
+        }
+        const compressionMethod = uint8[offset + 8] | (uint8[offset + 9] << 8);
+        const compressedSize = uint8[offset + 18] | (uint8[offset + 19] << 8) |
+            (uint8[offset + 20] << 16) | (uint8[offset + 21] << 24);
+        const filenameLength = uint8[offset + 26] | (uint8[offset + 27] << 8);
+        const extraFieldLength = uint8[offset + 28] | (uint8[offset + 29] << 8);
+        const filename = new TextDecoder().decode(
+            uint8.slice(offset + 30, offset + 30 + filenameLength)
+        );
+        const dataOffset = offset + 30 + filenameLength + extraFieldLength;
+        if (filename === 'word/document.xml') {
+            const compressedData = uint8.slice(dataOffset, dataOffset + compressedSize);
+            let xmlText;
+            if (compressionMethod === 0) {
+                xmlText = new TextDecoder('utf-8').decode(compressedData);
+            } else if (compressionMethod === 8) {
+                try {
+                    const ds = new DecompressionStream('deflate-raw');
+                    const writer = ds.writable.getWriter();
+                    writer.write(compressedData);
+                    writer.close();
+                    const chunks = [];
+                    const streamReader = ds.readable.getReader();
+                    while (true) {
+                        const { done, value } = await streamReader.read();
+                        if (done) break;
+                        chunks.push(value);
+                    }
+                    const totalLen = chunks.reduce((a, c) => a + c.length, 0);
+                    const merged = new Uint8Array(totalLen);
+                    let pos = 0;
+                    for (const chunk of chunks) {
+                        merged.set(chunk, pos);
+                        pos += chunk.length;
+                    }
+                    xmlText = new TextDecoder('utf-8').decode(merged);
+                } catch (e) {
+                    throw new Error('\u89E3\u538B docx \u5185\u5BB9\u5931\u8D25\uFF0C\u6587\u4EF6\u53EF\u80FD\u5DF2\u635F\u574F\u3002');
+                }
+            } else {
+                throw new Error('docx \u4F7F\u7528\u4E86\u4E0D\u652F\u6301\u7684\u538B\u7F29\u65B9\u5F0F\u3002');
+            }
+            if (xmlText) {
+                const paragraphs = xmlText.split(/<\/w:p>/);
+                const lines = [];
+                for (const para of paragraphs) {
+                    const textMatches = para.match(/<w:t[^>]*>([^<]*)<\/w:t>/g);
+                    if (textMatches) {
+                        const lineText = textMatches.map(m => m.replace(/<[^>]+>/g, '')).join('');
+                        if (lineText.trim()) lines.push(lineText);
+                    }
+                }
+                return lines.join('\n');
+            }
+            return '';
+        }
+        offset = dataOffset + (compressedSize > 0 ? compressedSize : 1);
+    }
+    throw new Error('\u672A\u80FD\u4ECE docx \u6587\u4EF6\u4E2D\u63D0\u53D6\u6587\u672C\uFF0C\u6587\u4EF6\u53EF\u80FD\u5DF2\u635F\u574F\u3002');
+}
+
+function buildFileImportHtml(inputId) {
+    return '<div style="margin-bottom:12px;padding:10px 12px;border-radius:10px;background:linear-gradient(135deg,#f0f4ff 0%,#e8f0fe 100%);border:1px dashed rgba(0,123,255,0.3);display:flex;align-items:center;gap:10px;flex-wrap:wrap;transition:all .2s ease;">' +
+        '<button type="button" id="' + inputId + '-btn" style="' +
+            'display:inline-flex;align-items:center;gap:6px;' +
+            'padding:8px 16px;border-radius:20px;border:none;' +
+            'background:var(--accent-color,#007bff);color:#fff;' +
+            'font-size:13px;font-weight:500;cursor:pointer;' +
+            'white-space:nowrap;box-shadow:0 2px 8px rgba(0,123,255,0.25);' +
+            'transition:all .2s ease;' +
+        '">' +
+            '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0;">' +
+                '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>' +
+                '<polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><line x1="9" y1="15" x2="12" y2="12"/><line x1="15" y1="15" x2="12" y2="12"/>' +
+            '</svg>' +
+            '\u4ECE\u6587\u4EF6\u5BFC\u5165' +
+        '</button>' +
+        '<span id="' + inputId + '-status" style="font-size:12px;color:#666;word-break:break-all;flex:1;min-width:0;"></span>' +
+        '<input type="file" id="' + inputId + '" accept=".txt,.text,.csv,.md,.log,.tsv,.docx" style="display:none">' +
+    '</div>' +
+    '<div style="margin-bottom:8px;font-size:11px;color:#999;text-align:center;line-height:1.4;">\u652F\u6301 txt\u3001csv\u3001md\u3001docx \u7B49\u6587\u672C\u683C\u5F0F</div>';
+}
+
+function attachFileImportHandler(inputId) {
+    setTimeout(() => {
+        const fileBtn = document.getElementById(inputId + '-btn');
+        const fileInput = document.getElementById(inputId);
+        const statusSpan = document.getElementById(inputId + '-status');
+        const wrapper = fileBtn ? fileBtn.closest('div') : null;
+        if (!fileBtn || !fileInput) return;
+
+        fileBtn.addEventListener('mousedown', () => {
+            fileBtn.style.transform = 'scale(0.96)';
+            fileBtn.style.boxShadow = '0 1px 4px rgba(0,123,255,0.2)';
+        });
+        fileBtn.addEventListener('mouseup', () => {
+            fileBtn.style.transform = '';
+            fileBtn.style.boxShadow = '';
+        });
+        fileBtn.addEventListener('mouseleave', () => {
+            fileBtn.style.transform = '';
+            fileBtn.style.boxShadow = '';
+        });
+
+        fileBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            if (statusSpan) {
+                statusSpan.textContent = '\u6B63\u5728\u8BFB\u53D6...';
+                statusSpan.style.color = '#888';
+            }
+            try {
+                const text = await readTextFromFile(file);
+                const textarea = document.getElementById('custom-prompt-input');
+                if (textarea) {
+                    textarea.value = text;
+                    textarea.dispatchEvent(new Event('input'));
+                }
+                if (statusSpan) {
+                    statusSpan.innerHTML = '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:#e8f5e9;color:#2e7d32;font-size:12px;">\u2705 ' + file.name + '</span>';
+                }
+                if (wrapper) {
+                    wrapper.style.borderColor = 'rgba(76,175,80,0.4)';
+                    wrapper.style.background = 'linear-gradient(135deg,#f0fff0 0%,#e8f5e9 100%)';
+                }
+            } catch (err) {
+                if (statusSpan) {
+                    statusSpan.innerHTML = '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:6px;background:#fce4ec;color:#c62828;font-size:12px;">\u274C ' + (err.message || '\u6587\u4EF6\u8BFB\u53D6\u5931\u8D25') + '</span>';
+                }
+                if (wrapper) {
+                    wrapper.style.borderColor = 'rgba(229,57,53,0.4)';
+                    wrapper.style.background = 'linear-gradient(135deg,#fff5f5 0%,#fce4ec 100%)';
+                }
+            }
+            fileInput.value = null;
+        });
+    }, 50);
+}
+
 /**
  * 批量添加表情包
  */
 async function openBulkAddStickersModal() {
+    const fileImportHtml = buildFileImportHtml('batch-user-sticker-file');
+    attachFileImportHandler('batch-user-sticker-file');
     const placeholder = `在这里粘贴表情包，每行一个，格式如下：\n\n猫猫喝水：https://..../cat.gif\n狗狗摇头：https://..../dog.png\n\n(支持用中文冒号“：”、英文冒号“:”或空格分隔)`;
 
-    const textInput = await showCustomPrompt('批量添加表情(URL)', '一行一个，名称和链接用冒号或空格隔开', '', 'textarea');
+    const textInput = await showCustomPrompt('批量添加表情(URL)', '一行一个，名称和链接用冒号或空格隔开', '', 'textarea', fileImportHtml);
 
     if (!textInput || !textInput.trim()) {
         return;
@@ -218,7 +381,11 @@ async function openBulkAddStickersModal() {
  * 批量添加角色表情
  */
 async function bulkAddCharStickers(type) {
-    const textInput = await showCustomPrompt(`批量添加${type === 'exclusive' ? '专属' : '通用'}表情`, '一行一个，格式：\n猫猫喝水 https://..../cat.gif', '', 'textarea');
+    const fileImportHtml = buildFileImportHtml('batch-char-sticker-file');
+    attachFileImportHandler('batch-char-sticker-file');
+
+    const typeLabel = type === 'exclusive' ? '\u4E13\u5C5E' : '\u901A\u7528';
+    const textInput = await showCustomPrompt('\u6279\u91CF\u6DFB\u52A0' + typeLabel + '\u8868\u60C5', '\u4E00\u884C\u4E00\u4E2A\uFF0C\u683C\u5F0F\uFF1A\n\u732B\u732B\u559D\u6C34 https://..../cat.gif', '', 'textarea', fileImportHtml);
     if (!textInput || !textInput.trim()) return;
 
     const lines = textInput.trim().split('\n');

@@ -340,6 +340,9 @@ async function triggerInactiveAiAction(chatId) {
     const maxMemory = chat.settings.maxMemory || 10;
     const historySlice = chat.history.filter((msg) => !msg.isHidden).slice(-maxMemory);
 
+    const bgTimeConfig = window.getChatTimeConfig ? window.getChatTimeConfig(chat) : { mode: 'realtime', showTimestampInHistory: true, showTimestampInMemory: true };
+    const bgShowTs = bgTimeConfig.showTimestampInHistory;
+
     // 2. 格式化这些记录，让AI能看懂
     const recentContextSummary = historySlice
         .map((msg) => {
@@ -349,7 +352,7 @@ async function triggerInactiveAiAction(chatId) {
 
             // [Fix] 优先处理旁白消息 (单聊后台活动)
             if (msg.type === 'narrative') {
-                return `[${formattedDate}] 【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
+                return bgShowTs ? `[${formattedDate}] 【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)` : `【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
             }
 
             // 判断是谁说的话
@@ -367,7 +370,7 @@ async function triggerInactiveAiAction(chatId) {
                 contentText = String(msg.content);
             }
 
-            return `[${formattedDate}] ${sender}: ${contentText}`;
+            return bgShowTs ? `[${formattedDate}] ${sender}: ${contentText}` : `${sender}: ${contentText}`;
         })
         .join('\n');
 
@@ -385,7 +388,7 @@ async function triggerInactiveAiAction(chatId) {
 
             if (recentHistory.length === 0) return '';
 
-            const formattedMessages = recentHistory.map((msg) => `  - ${formatMessageForContext(msg, freshLinkedChat)}`).join('\n');
+            const formattedMessages = recentHistory.map((msg) => `  - ${formatMessageForContext(msg, freshLinkedChat, bgTimeConfig.showTimestampInMemory)}`).join('\n');
             const visibleLabel = getLinkedMemoryVisibleLabel(chat, linkedChat, freshLinkedChat);
             return `\n## 附加上下文：来自与“${linkedChat.name}”的最近对话内容 (${visibleLabel})\n${formattedMessages}`;
         });
@@ -393,9 +396,20 @@ async function triggerInactiveAiAction(chatId) {
         const allContexts = await Promise.all(contextPromises);
         linkedMemoryContext = allContexts.filter(Boolean).join('\n');
     }
-    const now = new Date();
-    const currentTime = now.toLocaleTimeString('zh-CN', { hour: 'numeric', minute: 'numeric', hour12: true });
-    const currentFullTime = now.toLocaleString('zh-CN', { hour12: false });
+    let now, currentTime, currentFullTime;
+    if (bgTimeConfig.mode === 'notime') {
+        now = new Date();
+        currentTime = '';
+        currentFullTime = '';
+    } else if (bgTimeConfig.mode === 'custom') {
+        now = bgTimeConfig.now;
+        currentTime = bgTimeConfig.currentTime;
+        currentFullTime = bgTimeConfig.currentFullTime;
+    } else {
+        now = new Date();
+        currentTime = now.toLocaleTimeString('zh-CN', { hour: 'numeric', minute: 'numeric', hour12: true });
+        currentFullTime = now.toLocaleString('zh-CN', { hour12: false });
+    }
     const userNickname = state.qzoneSettings.nickname;
     const countdownContext = await getCountdownContext();
 
@@ -513,7 +527,7 @@ async function triggerInactiveAiAction(chatId) {
     // add by lrq 251029 添加聊天间隔时间
     const lastMessage = chat.history.slice(-1)[0];
     const timeSinceLastMessage = lastMessage ? Math.floor((Date.now() - lastMessage.timestamp) / 60000) : null;
-    const lastMessageTimeStr = lastMessage ? new Date(lastMessage.timestamp).toLocaleString('zh-CN', { hour12: false }) : "无";
+    const lastMessageTimeStr = (bgTimeConfig.mode !== 'notime' && lastMessage) ? new Date(lastMessage.timestamp).toLocaleString('zh-CN', { hour12: false }) : "无";
     const timeGapDescription = timeSinceLastMessage !== null
         ? `已经有${timeSinceLastMessage}分钟没有互动了（上一条消息时间：${lastMessageTimeStr}）`
         : `还从未互动过，这是你们的第一次交流`;
@@ -521,7 +535,7 @@ async function triggerInactiveAiAction(chatId) {
     let systemPrompt = `
         # 任务
         你现在【就是】角色 "${chat.name}"。这是一个秘密的、后台的独立行动。你的所有思考和决策都必须以 "${chat.name}" 的第一人称视角进行。
-        当前日期时间是（${currentFullTime}），你和用户（${userNickname}）${timeGapDescription}。你的任务是回顾你们最近的对话，并根据你的人设，【自然地延续对话】或【开启一个新的、相关的话题】来主动联系用户。
+        ${bgTimeConfig.mode !== 'notime' ? `当前日期时间是（${currentFullTime}），` : ''}你和用户（${userNickname}）${timeGapDescription}。你的任务是回顾你们最近的对话，并根据你的人设，【自然地延续对话】或【开启一个新的、相关的话题】来主动联系用户。
         # 【对话节奏铁律 (至关重要！)】
         你的回复【必须】模拟真人的打字和思考习惯。每条消息最好不要超过50个字，并且和聊天记录中保持完全相同的消息风格和格式。这会让对话看起来更自然、更真实。
         # 【时间流与未读消息生成规则 (新)】
@@ -1176,6 +1190,9 @@ async function triggerGroupAiAction(chatId) {
     const maxMemory = chat.settings.maxMemory || 10;
     const historySlice = chat.history.filter((msg) => !msg.isHidden).slice(-maxMemory);
 
+    const bgGrpTimeConfig = window.getChatTimeConfig ? window.getChatTimeConfig(chat) : { mode: 'realtime', showTimestampInHistory: true, showTimestampInMemory: true };
+    const bgGrpShowTs = bgGrpTimeConfig.showTimestampInHistory;
+
     // 2. 格式化这些记录，让AI能看懂
     const recentContextSummary = historySlice
         .map((msg) => {
@@ -1185,7 +1202,7 @@ async function triggerGroupAiAction(chatId) {
 
             // [Fix] 优先处理旁白消息 (群聊后台活动)
             if (msg.type === 'narrative') {
-                return `[${formattedDate}] 【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
+                return bgGrpShowTs ? `[${formattedDate}] 【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)` : `【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
             }
 
             // 判断是谁说的话
@@ -1203,7 +1220,7 @@ async function triggerGroupAiAction(chatId) {
                 contentText = String(msg.content);
             }
 
-            return `[${formattedDate}] ${sender}: ${contentText}`;
+            return bgGrpShowTs ? `[${formattedDate}] ${sender}: ${contentText}` : `${sender}: ${contentText}`;
         })
         .join('\n');
 
@@ -1221,7 +1238,7 @@ async function triggerGroupAiAction(chatId) {
 
             if (recentHistory.length === 0) return '';
 
-            const formattedMessages = recentHistory.map((msg) => `  - ${formatMessageForContext(msg, freshLinkedChat)}`).join('\n');
+            const formattedMessages = recentHistory.map((msg) => `  - ${formatMessageForContext(msg, freshLinkedChat, bgGrpTimeConfig.showTimestampInMemory)}`).join('\n');
             const visibleLabel = getLinkedMemoryVisibleLabel(chat, linkedChat, freshLinkedChat);
             return `\n## 附加上下文：来自与“${linkedChat.name}”的最近对话内容 (${visibleLabel})\n${formattedMessages}`;
         });
@@ -1258,11 +1275,22 @@ async function triggerGroupAiAction(chatId) {
         let sharedContext = '';
         // 后台群聊活动中不存在用户分享聊天记录的上下文，因此这里为空。
 
-        const now = new Date();
-        const currentTime = now.toLocaleTimeString('zh-CN', { hour: 'numeric', minute: 'numeric', hour12: true });
-        const currentFullTime = now.toLocaleString('zh-CN', { hour12: false });
+        let now, currentTime, currentFullTime;
+        if (bgGrpTimeConfig.mode === 'notime') {
+            now = new Date();
+            currentTime = '';
+            currentFullTime = '';
+        } else if (bgGrpTimeConfig.mode === 'custom') {
+            now = bgGrpTimeConfig.now;
+            currentTime = bgGrpTimeConfig.currentTime;
+            currentFullTime = bgGrpTimeConfig.currentFullTime;
+        } else {
+            now = new Date();
+            currentTime = now.toLocaleTimeString('zh-CN', { hour: 'numeric', minute: 'numeric', hour12: true });
+            currentFullTime = now.toLocaleString('zh-CN', { hour12: false });
+        }
         // 添加获取最后消息时间的逻辑
-        const lastMessageTimeStr = lastMessage ? new Date(lastMessage.timestamp).toLocaleString('zh-CN', { hour12: false }) : "无";
+        const lastMessageTimeStr = (bgGrpTimeConfig.mode !== 'notime' && lastMessage) ? new Date(lastMessage.timestamp).toLocaleString('zh-CN', { hour12: false }) : "无";
 
         const summaryContext = chat.history
             .filter((msg) => msg.type === 'summary')
@@ -1273,7 +1301,7 @@ async function triggerGroupAiAction(chatId) {
         let systemPrompt = `
         # 任务
         你是一个群聊后台模拟器，在当前群聊"${chat.name}"中，负责扮演下方【群成员列表】当中的角色。
-        当前日期时间是（${currentFullTime}），群聊 "${chat.name}" ${timeSinceLastMessage !== null ? `已经沉寂了 ${Math.round(timeSinceLastMessage)} 分钟(上一条消息时间：${lastMessageTimeStr})` : '还没有任何聊天记录，这是群聊的首次互动'}，用户(昵称: "${chat.settings.myNickname || '我'}")不在线。
+        ${bgGrpTimeConfig.mode !== 'notime' ? `当前日期时间是（${currentFullTime}），` : ''}群聊 "${chat.name}" ${timeSinceLastMessage !== null ? `已经沉寂了 ${Math.round(timeSinceLastMessage)} 分钟(上一条消息时间：${lastMessageTimeStr})` : '还没有任何聊天记录，这是群聊的首次互动'}，用户(昵称: "${chat.settings.myNickname || '我'}")不在线。
         你的任务是根据下方每个角色的人设，在他们之间【自发地】生成一段或【多段】自然的对话。
         # 【对话节奏铁律 (至关重要！)】
         你的回复【必须】模拟真人的打字和思考习惯。 每条消息最好不要超过50个字，并且和聊天记录中保持完全相同的消息风格和格式。这会让对话看起来更自然、更真实。

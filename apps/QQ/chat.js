@@ -25,6 +25,37 @@ window.activePostId = null;
  * newGlobalBgBase64, unreadPostsCount, currentRenderedCount, window.videoCallState
  */
 
+function collectRecentUserImages(historySlice, maxImages) {
+    if (!maxImages) maxImages = 3;
+    const images = [];
+    for (let i = historySlice.length - 1; i >= 0 && images.length < maxImages; i--) {
+        const msg = historySlice[i];
+        if (msg.role !== 'user') continue;
+        if (Array.isArray(msg.content)) {
+            for (const part of msg.content) {
+                if (part.type === 'image_url' && part.image_url && part.image_url.url) {
+                    images.unshift(part.image_url.url);
+                }
+            }
+        }
+    }
+    return images.slice(-maxImages);
+}
+
+function attachImagesToPayload(messagesPayload, imageUrls) {
+    if (!imageUrls || imageUrls.length === 0) return;
+    var lastIdx = messagesPayload.length - 1;
+    var lastMsg = messagesPayload[lastIdx];
+    if (!lastMsg) return;
+    var textContent = typeof lastMsg.content === 'string'
+        ? lastMsg.content
+        : JSON.stringify(lastMsg.content);
+    var contentParts = [{ type: 'text', text: textContent }];
+    for (var j = 0; j < imageUrls.length; j++) {
+        contentParts.push({ type: 'image_url', image_url: { url: imageUrls[j] } });
+    }
+    lastMsg.content = contentParts;
+}
 
 function getCharacterNAIPrompts(chatId) {
     const chat = window.state.chats[chatId];
@@ -1882,17 +1913,68 @@ function getLinkedMemoryVisibleLabel(chat, linkedChat, freshLinkedChat) {
 }
 
 /**
+ * 根据聊天的时间感知设置，返回时间配置对象
+ * mode: 'realtime' | 'notime' | 'custom'
+ */
+function getChatTimeConfig(chat) {
+    const timePerceptionEnabled = chat.settings.timePerceptionEnabled ?? true;
+
+    if (timePerceptionEnabled) {
+        const localNow = new Date();
+        const utcMs = localNow.getTime() + localNow.getTimezoneOffset() * 60000;
+        const now = new Date(utcMs + 3600000 * 8);
+        return {
+            mode: 'realtime',
+            now,
+            currentTime: now.toLocaleString('zh-CN', { dateStyle: 'full', timeStyle: 'short' }),
+            currentFullTime: now.toLocaleString('zh-CN', { hour12: false }),
+            showTimestampInHistory: true,
+            showTimestampInMemory: true,
+            getMessageTimestamp: () => Date.now(),
+        };
+    }
+
+    if (chat.settings.customTime) {
+        const now = new Date(chat.settings.customTime);
+        return {
+            mode: 'custom',
+            now,
+            currentTime: now.toLocaleString('zh-CN', { dateStyle: 'full', timeStyle: 'short' }),
+            currentFullTime: now.toLocaleString('zh-CN', { hour12: false }),
+            showTimestampInHistory: true,
+            showTimestampInMemory: true,
+            getMessageTimestamp: () => now.getTime(),
+        };
+    }
+
+    return {
+        mode: 'notime',
+        now: null,
+        currentTime: '',
+        currentFullTime: '',
+        showTimestampInHistory: false,
+        showTimestampInMemory: false,
+        getMessageTimestamp: () => Date.now(),
+    };
+}
+window.getChatTimeConfig = getChatTimeConfig;
+
+/**
  * 格式化单条消息，用于记忆互通的上下文
  * @param {object} msg - 消息对象
  * @param {object} chat - 该消息所属的聊天对象
+ * @param {boolean} [showTimestamp=true] - 是否在消息前添加时间戳
  * @returns {string} - 格式化后的文本，例如 "张三: 你好"
  */
-function formatMessageForContext(msg, chat) {
+function formatMessageForContext(msg, chat, showTimestamp = true) {
     // [Fix] 优先处理旁白，赋予最高权重
     if (msg.type === 'narrative') {
-        const date = new Date(msg.timestamp);
-        const formattedDate = date.toLocaleString();
-        return `[${formattedDate}] 【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
+        if (showTimestamp) {
+            const date = new Date(msg.timestamp);
+            const formattedDate = date.toLocaleString();
+            return `[${formattedDate}] 【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
+        }
+        return `【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
     }
 
     let senderName = '';
@@ -1978,10 +2060,12 @@ function formatMessageForContext(msg, chat) {
         contentText = String(msg.content || '');
     }
 
-    // added by lrq 251029 在每条消息记录前添加发送日期时间
-    const date = new Date(msg.timestamp);
-    const formattedDate = date.toLocaleString(); // 格式化为本地时间字符串
-    return `${formattedDate} ${senderName}: ${contentText}`;
+    if (showTimestamp) {
+        const date = new Date(msg.timestamp);
+        const formattedDate = date.toLocaleString();
+        return `${formattedDate} ${senderName}: ${contentText}`;
+    }
+    return `${senderName}: ${contentText}`;
 }
 window.formatMessageForContext = formatMessageForContext;
 
@@ -2061,19 +2145,23 @@ window.triggerAiResponse = async function triggerAiResponse() {
         }
         historySlice = historySlice.filter((msg) => !timestampsToSkip.has(msg.timestamp));
 
+        const offlineTimeConfig = getChatTimeConfig(chat);
+        const offlineShowTs = offlineTimeConfig.showTimestampInHistory;
+
         const recentContextSummary = historySlice.map((msg) => {
-            const timestampStr = new Date(msg.timestamp).toLocaleString();
-            if (msg.isHidden) return `${timestampStr} [系统隐藏信息]: ${msg.content}`;
+            const timestampStr = offlineShowTs ? new Date(msg.timestamp).toLocaleString() : '';
+            const tsPrefix = offlineShowTs ? `${timestampStr} ` : '';
+            if (msg.isHidden) return `${tsPrefix}[系统隐藏信息]: ${msg.content}`;
             if (msg.type === 'share_card') return null;
-            if (msg.type === 'narrative') return `${timestampStr} 【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
+            if (msg.type === 'narrative') return `${tsPrefix}【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
             if (msg.type === 'red_packet') {
                 const isDirect = msg.packetType === 'direct';
                 const target = isDirect ? `专属红包 (指定给: ${msg.receiverName})` : '群红包 (拼手气)';
                 const status = msg.isFullyClaimed ? '已领完' : '未领完';
-                return `${timestampStr} [系统提示: 用户发了一个${target}，金额: ${msg.totalAmount}元。状态: ${status}。]`;
+                return `${tsPrefix}[系统提示: 用户发了一个${target}，金额: ${msg.totalAmount}元。状态: ${status}。]`;
             }
-            if (msg.role === 'assistant') return formatMessageForContext(msg, chat);
-            if (msg.type === 'poll') return `${timestampStr} [系统提示：用户 (${myNickname}) 发起了一个投票。问题："${msg.question}", 选项："${msg.options.join('", "')}"。你可以使用 'vote' 指令参与投票。]`;
+            if (msg.role === 'assistant') return formatMessageForContext(msg, chat, offlineShowTs);
+            if (msg.type === 'poll') return `${tsPrefix}[系统提示：用户 (${myNickname}) 发起了一个投票。问题："${msg.question}", 选项："${msg.options.join('", "')}"。你可以使用 'vote' 指令参与投票。]`;
             let contentStr = '';
             if (msg.quote) {
                 const quotedSender = msg.quote.senderName || '未知用户';
@@ -2084,17 +2172,17 @@ window.triggerAiResponse = async function triggerAiResponse() {
             if (msg.type === 'user_photo') contentStr = `[你收到了一张用户描述的照片，内容是：'${msg.content}']`;
             else if (msg.type === 'voice_message') contentStr = `[用户发来一条语音消息，内容是：'${msg.content}']`;
             else if (msg.type === 'transfer') {
-                if (msg.status === 'accepted') contentStr = `[系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已收款)]`;
-                else if (msg.status === 'declined') contentStr = `[系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已拒收)]`;
-                else contentStr = `[系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。请你决策并使用 'accept_transfer' 或 'decline_transfer' 指令回应。]`;
+                if (msg.status === 'accepted') contentStr = `[系统提示：收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已收款)]`;
+                else if (msg.status === 'declined') contentStr = `[系统提示：收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已拒收)]`;
+                else contentStr = `[系统提示：收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。请你决策并使用 'accept_transfer' 或 'decline_transfer' 指令回应。]`;
             }
             else if (msg.type === 'waimai_request') {
                 if (msg.status === 'paid') contentStr = `[系统提示：外卖代付请求已完成，支付者：${msg.paidBy}。商品"${msg.productInfo}"。]`;
                 else if (msg.status === 'rejected') contentStr = `[系统提示：外卖代付请求已被拒绝。商品"${msg.productInfo}"。]`;
-                else contentStr = `[系统提示：用户于时间戳 ${msg.timestamp} 发起了外卖代付请求，商品是"${msg.productInfo}"，金额是 ${msg.amount} 元。请你决策并使用 waimai_response 指令回应。]`;
+                else contentStr = `[系统提示：用户发起了外卖代付请求，商品是"${msg.productInfo}"，金额是 ${msg.amount} 元。请你决策并使用 waimai_response 指令回应。]`;
             }
-            else if (Array.isArray(msg.content) && msg.content[0]?.type === 'image_url') contentStr = '[用户发送了图片内容]';
-            else if (msg.meaning) contentStr = `[用户发送了一个表情，意思是：'${msg.meaning}']`;
+            else if (Array.isArray(msg.content) && msg.content[0]?.type === 'image_url') contentStr = '[\u7528\u6237\u53D1\u9001\u4E86\u4E00\u5F20\u56FE\u7247\uFF0C\u56FE\u7247\u6570\u636E\u5DF2\u9644\u5728\u672C\u6B21\u8BF7\u6C42\u4E2D\uFF0C\u8BF7\u67E5\u770B\u5E76\u8BC6\u522B\u56FE\u7247\u5185\u5BB9]';
+            else if (msg.meaning) contentStr = `[\u7528\u6237\u53D1\u9001\u4E86\u4E00\u4E2A\u8868\u60C5\uFF0C\u610F\u601D\u662F\uFF1A'${msg.meaning}']`;
             else if (msg.type === 'xhs-share' && msg.shareData) {
                 const data = msg.shareData;
                 let xhsContent = `[用户分享了一条小红书笔记]\n标题: ${data.title || '无标题'}\n作者: ${data.authorName || '未知'}\n`;
@@ -2121,26 +2209,22 @@ window.triggerAiResponse = async function triggerAiResponse() {
                 }
                 contentStr = lofterContent.trim();
             }
-            return `${timestampStr} ${myNickname}: ${contentStr}`;
+            return `${tsPrefix}${myNickname}: ${contentStr}`;
         }).filter(Boolean).join('\n');
 
-        // 时间感知
-        let offlineNow;
-        if (chat.settings.timePerceptionEnabled ?? true) {
-            const ln = new Date(); offlineNow = new Date(ln.getTime() + ln.getTimezoneOffset() * 60000 + 3600000 * 8);
-        } else {
-            if (chat.settings.customTime) { offlineNow = new Date(chat.settings.customTime); }
-            else { const ln = new Date(); offlineNow = new Date(ln.getTime() + ln.getTimezoneOffset() * 60000 + 3600000 * 8); }
+        const offlineCurrentTime = offlineTimeConfig.currentTime;
+        let offlineTimeContext = '';
+        if (offlineTimeConfig.mode !== 'notime') {
+            offlineTimeContext = `\n- **当前时间**: ${offlineCurrentTime}`;
+            const offlineLastAiMsg = historySlice.filter((m) => m.role === 'assistant' && !m.isHidden).slice(-1)[0];
+            if (offlineLastAiMsg) {
+                const refTime = offlineTimeConfig.now;
+                const dm = Math.floor((refTime - new Date(offlineLastAiMsg.timestamp)) / 60000);
+                if (dm < 5) offlineTimeContext += '\n- **对话状态**: 你们的对话刚刚还在继续。';
+                else if (dm < 60) offlineTimeContext += `\n- **对话状态**: 你们在${dm}分钟前聊过。`;
+                else { const dh = Math.floor(dm / 60); offlineTimeContext += dh < 24 ? `\n- **对话状态**: 你们在${dh}小时前聊过。` : `\n- **对话状态**: 你们已经有${Math.floor(dh / 24)}天没有聊天了。`; }
+            } else { offlineTimeContext += '\n- **对话状态**: 这是你们的第一次对话。'; }
         }
-        const offlineCurrentTime = offlineNow.toLocaleString('zh-CN', { dateStyle: 'full', timeStyle: 'short' });
-        let offlineTimeContext = `\n- **当前时间**: ${offlineCurrentTime}`;
-        const offlineLastAiMsg = historySlice.filter((m) => m.role === 'assistant' && !m.isHidden).slice(-1)[0];
-        if (offlineLastAiMsg) {
-            const dm = Math.floor((new Date() - new Date(offlineLastAiMsg.timestamp)) / 60000);
-            if (dm < 5) offlineTimeContext += '\n- **对话状态**: 你们的对话刚刚还在继续。';
-            else if (dm < 60) offlineTimeContext += `\n- **对话状态**: 你们在${dm}分钟前聊过。`;
-            else { const dh = Math.floor(dm / 60); offlineTimeContext += dh < 24 ? `\n- **对话状态**: 你们在${dh}小时前聊过。` : `\n- **对话状态**: 你们已经有${Math.floor(dh / 24)}天没有聊天了。`; }
-        } else { offlineTimeContext += '\n- **对话状态**: 这是你们的第一次对话。'; }
 
         const offlineCountdownCtx = await getCountdownContext(chatId);
         const offlineStreakCtx = await window.getStreakContext(chat);
@@ -2156,13 +2240,14 @@ window.triggerAiResponse = async function triggerAiResponse() {
         }
 
         // 记忆互通
+        const offlineShowMemTs = offlineTimeConfig.showTimestampInMemory;
         let offlineLinkedMemCtx = '';
         if (chat.settings.linkedMemories && chat.settings.linkedMemories.length > 0) {
             const ctxP = chat.settings.linkedMemories.map(async (link) => {
                 const lc = window.state.chats[link.chatId]; if (!lc) return '';
                 const flc = await window.db.chats.get(link.chatId); if (!flc) return '';
                 const rh = flc.history.filter((m) => !m.isHidden).slice(-link.depth); if (rh.length === 0) return '';
-                const fm = rh.map((m) => `  - ${formatMessageForContext(m, flc)}`).join('\n');
+                const fm = rh.map((m) => `  - ${formatMessageForContext(m, flc, offlineShowMemTs)}`).join('\n');
                 const vl = getLinkedMemoryVisibleLabel(chat, lc, flc);
                 return `\n## 附加上下文：来自与"${lc.name}"的最近对话内容 (${vl})\n${fm}`;
             });
@@ -2242,7 +2327,7 @@ ${naiInstruction}
 **2. 当前线下情景**:
 ${finalPrompt}
 ${finalStyle}
-**3. 情景感知**: 你需要感知当前时间(${offlineCurrentTime})以及你的世界观设定。
+**3. 情景感知**: ${offlineTimeConfig.mode !== 'notime' ? `你需要感知当前时间(${offlineCurrentTime})以及你的世界观设定。` : `你需要感知你的世界观设定。`}
 
 ### **【第四部分：当前上下文信息】**
 
@@ -2293,8 +2378,10 @@ ${offlineLinkedMemCtx}
             const { proxyUrl, apiKey, model } = window.state.apiConfig;
             const messagesPayload = [
                 { role: 'system', content: offlineSystemPrompt },
-                { role: 'user', content: '请严格按照system prompt中的所有规则，特别是输出格式铁律，立即开始你的行动。' },
+                { role: 'user', content: '\u8BF7\u4E25\u683C\u6309\u7167system prompt\u4E2D\u7684\u6240\u6709\u89C4\u5219\uFF0C\u7279\u522B\u662F\u8F93\u51FA\u683C\u5F0F\u94C1\u5F8B\uFF0C\u7ACB\u5373\u5F00\u59CB\u4F60\u7684\u884C\u52A8\u3002' },
             ];
+            var offlineImages = collectRecentUserImages(historySlice);
+            attachImagesToPayload(messagesPayload, offlineImages);
             let isGemini = proxyUrl === GEMINI_API_URL;
             let geminiConfig = toGeminiRequestData(model, apiKey, offlineSystemPrompt, messagesPayload, isGemini);
             const response = isGemini
@@ -2354,7 +2441,7 @@ ${offlineLinkedMemCtx}
 
             // 2. 处理消息数组 (支持 naiimag)
             const isViewingThisChat = document.getElementById('chat-interface-screen').classList.contains('active') && window.state.activeChatId === chatId;
-            let messageTimestamp = Date.now();
+            let messageTimestamp = offlineTimeConfig.getMessageTimestamp();
             let isFirstOfflineAiMsg = true;
 
             for (const msgData of messagesArray) {
@@ -2961,52 +3048,32 @@ ${offlineLinkedMemCtx}
         }
         // --- 红包状态播报模块结束 ---
 
-        let now;
-        // 2. 检查时间感知开关是否打开 (北京时间转换逻辑)
-        if (chat.settings.timePerceptionEnabled ?? true) {
-            // 开关打开，使用真实的北京时间
-            const localNow = new Date();
-            const utcMilliseconds = localNow.getTime() + localNow.getTimezoneOffset() * 60000;
-            const beijingMilliseconds = utcMilliseconds + 3600000 * 8;
-            now = new Date(beijingMilliseconds);
-        } else {
-            // 开关关闭，尝试使用自定义时间
-            if (chat.settings.customTime) {
-                now = new Date(chat.settings.customTime);
-            } else {
-                // 如果自定义时间为空，则安全地退回到真实的北京时间
-                const localNow = new Date();
-                const utcMilliseconds = localNow.getTime() + localNow.getTimezoneOffset() * 60000;
-                const beijingMilliseconds = utcMilliseconds + 3600000 * 8;
-                now = new Date(beijingMilliseconds);
-            }
-        }
+        const onlineTimeConfig = getChatTimeConfig(chat);
+        const currentTime = onlineTimeConfig.currentTime;
 
-        // 3. 后续的时间差计算逻辑 (这部分保持不变)
-        const currentTime = now.toLocaleString('zh-CN', { dateStyle: 'full', timeStyle: 'short' });
-        let timeContext = `\n- **当前时间**: ${currentTime}`;
-        const lastAiMessage = historySlice.filter((m) => m.role === 'assistant' && !m.isHidden).slice(-1)[0];
-
-        if (lastAiMessage) {
-            const lastTime = new Date(lastAiMessage.timestamp);
-            const realNow = new Date();
-            const diffMinutes = Math.floor((realNow - lastTime) / (1000 * 60));
-
-            if (diffMinutes < 5) {
-                timeContext += '\n- **对话状态**: 你们的对话刚刚还在继续。';
-            } else if (diffMinutes < 60) {
-                timeContext += `\n- **对话状态**: 你们在${diffMinutes}分钟前聊过。`;
-            } else {
-                const diffHours = Math.floor(diffMinutes / 60);
-                if (diffHours < 24) {
-                    timeContext += `\n- **对话状态**: 你们在${diffHours}小时前聊过。`;
+        let timeContext = '';
+        if (onlineTimeConfig.mode !== 'notime') {
+            timeContext = `\n- **当前时间**: ${currentTime}`;
+            const lastAiMessage = historySlice.filter((m) => m.role === 'assistant' && !m.isHidden).slice(-1)[0];
+            if (lastAiMessage) {
+                const refTime = onlineTimeConfig.now;
+                const diffMinutes = Math.floor((refTime - new Date(lastAiMessage.timestamp)) / (1000 * 60));
+                if (diffMinutes < 5) {
+                    timeContext += '\n- **对话状态**: 你们的对话刚刚还在继续。';
+                } else if (diffMinutes < 60) {
+                    timeContext += `\n- **对话状态**: 你们在${diffMinutes}分钟前聊过。`;
                 } else {
-                    const diffDays = Math.floor(diffHours / 24);
-                    timeContext += `\n- **对话状态**: 你们已经有${diffDays}天没有聊天了。`;
+                    const diffHours = Math.floor(diffMinutes / 60);
+                    if (diffHours < 24) {
+                        timeContext += `\n- **对话状态**: 你们在${diffHours}小时前聊过。`;
+                    } else {
+                        const diffDays = Math.floor(diffHours / 24);
+                        timeContext += `\n- **对话状态**: 你们已经有${diffDays}天没有聊天了。`;
+                    }
                 }
+            } else {
+                timeContext += '\n- **对话状态**: 这是你们的第一次对话。';
             }
-        } else {
-            timeContext += '\n- **对话状态**: 这是你们的第一次对话。';
         }
 
         let worldBookContent = '';
@@ -3081,7 +3148,7 @@ ${offlineLinkedMemCtx}
                 if (recentHistory.length === 0) return '';
 
                 // 格式化这些消息
-                const formattedMessages = recentHistory.map((msg) => `  - ${formatMessageForContext(msg, freshLinkedChat)}`).join('\n');
+                const formattedMessages = recentHistory.map((msg) => `  - ${formatMessageForContext(msg, freshLinkedChat, onlineTimeConfig.showTimestampInMemory)}`).join('\n');
                 const visibleLabel = getLinkedMemoryVisibleLabel(chat, linkedChat, freshLinkedChat);
                 return `\n## 附加上下文：来自与“${linkedChat.name}”的最近对话内容 (${visibleLabel})\n${formattedMessages}`;
             });
@@ -3230,24 +3297,25 @@ ${offlineLinkedMemCtx}
             // updated by lrq 251027
 
             // [New Logic] Prepare Context Variables for Group Chat
+            const groupShowTs = onlineTimeConfig.showTimestampInHistory;
             const recentContextSummary = historySlice
                 .map((msg) => {
-                    const date = new Date(msg.timestamp);
-                    const timestampStr = date.toLocaleString();
+                    const timestampStr = groupShowTs ? new Date(msg.timestamp).toLocaleString() : '';
+                    const tsPrefix = groupShowTs ? `${timestampStr} ` : '';
 
                     if (msg.isHidden) {
-                        return `${timestampStr} [系统隐藏信息]: ${msg.content}`;
+                        return `${tsPrefix}[系统隐藏信息]: ${msg.content}`;
                     }
 
                     if (msg.type === 'share_card') return null;
 
                     // [Fix] 优化旁白格式，提高权重
                     if (msg.type === 'narrative') {
-                        return `${timestampStr} 【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
+                        return `${tsPrefix}【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
                     }
 
                     if (msg.role === 'assistant') {
-                        return formatMessageForContext(msg, chat);
+                        return formatMessageForContext(msg, chat, groupShowTs);
                     }
 
                     const myNickname = chat.settings.myNickname || '我';
@@ -3255,7 +3323,7 @@ ${offlineLinkedMemCtx}
 
                     // 1. Polls
                     if (msg.type === 'poll') {
-                        return `${timestampStr} [系统提示：用户 (${myNickname}) 发起了一个投票。问题：“${msg.question}”, 选项：“${msg.options.join('", "')}”。你可以使用 'vote' 指令参与投票。]`;
+                        return `${tsPrefix}[系统提示：用户 (${myNickname}) 发起了一个投票。问题：“${msg.question}”, 选项：“${msg.options.join('", "')}”。你可以使用 'vote' 指令参与投票。]`;
                     }
 
                     // 2. Quotes and Content
@@ -3275,11 +3343,11 @@ ${offlineLinkedMemCtx}
                         contentStr = `[用户发来一条语音消息，内容是：'${msg.content}']`;
                     else if (msg.type === 'transfer') {
                         if (msg.status === 'accepted') {
-                            contentStr = `[系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已收款)]`;
+                            contentStr = `[系统提示：收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已收款)]`;
                         } else if (msg.status === 'declined') {
-                            contentStr = `[系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已拒收)]`;
+                            contentStr = `[系统提示：收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已拒收)]`;
                         } else {
-                            contentStr = `[系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。请你决策并使用 'accept_transfer' 或 'decline_transfer' 指令回应。]`;
+                            contentStr = `[系统提示：收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。请你决策并使用 'accept_transfer' 或 'decline_transfer' 指令回应。]`;
                         }
                     }
                     else if (msg.type === 'waimai_request') {
@@ -3288,11 +3356,11 @@ ${offlineLinkedMemCtx}
                         } else if (msg.status === 'rejected') {
                             contentStr = `[系统提示：外卖代付请求已被拒绝。商品“${msg.productInfo}”。]`;
                         } else {
-                            contentStr = `[系统提示：用户于时间戳 ${msg.timestamp} 发起了外卖代付请求，商品是“${msg.productInfo}”，金额是 ${msg.amount} 元。请你决策并使用 waimai_response 指令回应。]`;
+                            contentStr = `[系统提示：用户发起了外卖代付请求，商品是“${msg.productInfo}”，金额是 ${msg.amount} 元。请你决策并使用 waimai_response 指令回应。]`;
                         }
                     }
                     else if (Array.isArray(msg.content) && msg.content[0]?.type === 'image_url') {
-                        contentStr = `[用户发送了图片内容]`;
+                        contentStr = '[\u7528\u6237\u53D1\u9001\u4E86\u4E00\u5F20\u56FE\u7247\uFF0C\u56FE\u7247\u6570\u636E\u5DF2\u9644\u5728\u672C\u6B21\u8BF7\u6C42\u4E2D\uFF0C\u8BF7\u67E5\u770B\u5E76\u8BC6\u522B\u56FE\u7247\u5185\u5BB9]';
                     }
                     else if (msg.type === 'sticker' || msg.meaning || (typeof msg.content === 'string' && STICKER_REGEX.test(msg.content))) {
                         let stickerMeaning = msg.meaning;
@@ -3350,7 +3418,7 @@ ${offlineLinkedMemCtx}
                         contentStr = lofterContent.trim();
                     }
 
-                    return `${timestampStr} ${myNickname}: ${contentStr}`;
+                    return `${tsPrefix}${myNickname}: ${contentStr}`;
                 })
                 .filter(Boolean)
                 .join('\n');
@@ -3374,7 +3442,7 @@ ${offlineLinkedMemCtx}
 			    -   缺少 "name" 字段的回复是无效的，会被系统拒绝。
 			5.  **角色扮演**: 严格遵守“群成员列表及人设”中的每一个角色的设定。
 			6.  **禁止出戏**: 绝不能透露你是AI、模型，或提及“扮演”、“生成”等词语。并且不能一直要求和用户见面，这是线上聊天，决不允许出现或者发展线下剧情！！
-			7.  **情景感知**: 注意当前时间是 ${currentTime}。
+			7.  **情景感知**: ${onlineTimeConfig.mode !== 'notime' ? `注意当前时间是 ${currentTime}。` : ''}
 			8.  **红包互动**:
 			    - **抢红包**: 当群里出现红包时，你可以根据自己的性格决定是否使用 \`open_red_packet\` 指令去抢。在这个世界里，发红包的人自己也可以参与抢红包，这是一种活跃气氛的有趣行为！
 			    - **【【【重要：对结果做出反应】】】**: 当你执行抢红包指令后，系统会通过一条隐藏的 \`[系统提示：你抢到了XX元...]\` 来告诉你结果。你【必须】根据你抢到的金额、以及系统是否告知你“手气王”是谁，来发表符合你人设的评论。例如，抢得少可以自嘲，抢得多可以炫耀，看到别人是手气王可以祝贺或嫉妒。
@@ -3487,6 +3555,8 @@ ${offlineLinkedMemCtx}
             messagesPayload = [
                 { role: 'user', content: systemPrompt },
             ];
+            var groupImages = collectRecentUserImages(historySlice);
+            attachImagesToPayload(messagesPayload, groupImages);
 
             console.log(systemPrompt);
         } else {
@@ -3640,36 +3710,36 @@ ${libraryList}
             // ==================================================================================
 
             // 1. History Summary
+            const singleShowTs = onlineTimeConfig.showTimestampInHistory;
             const recentContextSummary = historySlice
                 .map((msg) => {
                     const myNickname = chat.isGroup ? chat.settings.myNickname || '我' : '我';
 
-                    // Modified to match linkedMemoryContext format
-                    const date = new Date(msg.timestamp);
-                    const timestampStr = date.toLocaleString();
+                    const timestampStr = singleShowTs ? new Date(msg.timestamp).toLocaleString() : '';
+                    const tsPrefix = singleShowTs ? `${timestampStr} ` : '';
 
                     if (msg.isHidden) {
-                        return `${timestampStr} [系统隐藏信息]: ${msg.content}`;
+                        return `${tsPrefix}[系统隐藏信息]: ${msg.content}`;
                     }
                     if (msg.type === 'share_card') return null;
 
                     // [Fix] 优先处理旁白，避免被误判为用户发言
                     if (msg.type === 'narrative') {
-                        return `${timestampStr} 【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
+                        return `${tsPrefix}【🔴 场景旁白/系统提示】: ${msg.content} (请务必基于此环境描述进行行动)`;
                     }
 
                     if (msg.type === 'red_packet') {
                         const isDirect = msg.packetType === 'direct';
                         const target = isDirect ? `专属红包 (指定给: ${msg.receiverName})` : '群红包 (拼手气)';
                         const status = msg.isFullyClaimed ? '已领完' : '未领完';
-                        return `${timestampStr} [系统提示: 用户发了一个${target}，金额: ${msg.totalAmount}元。状态: ${status}。]`;
+                        return `${tsPrefix}[系统提示: 用户发了一个${target}，金额: ${msg.totalAmount}元。状态: ${status}。]`;
                     }
                     if (msg.role === 'assistant') {
                         // Use standard format for assistant lines
-                        return formatMessageForContext(msg, chat);
+                        return formatMessageForContext(msg, chat, singleShowTs);
                     }
                     if (msg.type === 'poll') {
-                        return `${timestampStr} [系统提示：用户 (${myNickname}) 发起了一个投票。问题：“${msg.question}”, 选项：“${msg.options.join('", "')}”。你可以使用 'vote' 指令参与投票。]`;
+                        return `${tsPrefix}[系统提示：用户 (${myNickname}) 发起了一个投票。问题：“${msg.question}”, 选项：“${msg.options.join('", "')}”。你可以使用 'vote' 指令参与投票。]`;
                     }
                     let contentStr = '';
                     if (msg.quote) {
@@ -3685,11 +3755,11 @@ ${libraryList}
                         contentStr = `[用户发来一条语音消息，内容是：'${msg.content}']`;
                     else if (msg.type === 'transfer') {
                         if (msg.status === 'accepted') {
-                            contentStr = `[系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已收款)]`;
+                            contentStr = `[系统提示：收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已收款)]`;
                         } else if (msg.status === 'declined') {
-                            contentStr = `[系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已拒收)]`;
+                            contentStr = `[系统提示：收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已拒收)]`;
                         } else {
-                            contentStr = `[系统提示：你于时间戳 ${msg.timestamp} 收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。请你决策并使用 'accept_transfer' 或 'decline_transfer' 指令回应。]`;
+                            contentStr = `[系统提示：收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。请你决策并使用 'accept_transfer' 或 'decline_transfer' 指令回应。]`;
                         }
                     } else if (msg.type === 'waimai_request') {
                         if (msg.status === 'paid') {
@@ -3697,12 +3767,12 @@ ${libraryList}
                         } else if (msg.status === 'rejected') {
                             contentStr = `[系统提示：外卖代付请求已被拒绝。商品“${msg.productInfo}”。]`;
                         } else {
-                            contentStr = `[系统提示：用户于时间戳 ${msg.timestamp} 发起了外卖代付请求，商品是“${msg.productInfo}”，金额是 ${msg.amount} 元。请你决策并使用 waimai_response 指令回应。]`;
+                            contentStr = `[系统提示：用户发起了外卖代付请求，商品是“${msg.productInfo}”，金额是 ${msg.amount} 元。请你决策并使用 waimai_response 指令回应。]`;
                         }
                     } else if (Array.isArray(msg.content) && msg.content[0]?.type === 'image_url') {
-                        contentStr = `[用户发送了图片内容]`;
+                        contentStr = '[\u7528\u6237\u53D1\u9001\u4E86\u4E00\u5F20\u56FE\u7247\uFF0C\u56FE\u7247\u6570\u636E\u5DF2\u9644\u5728\u672C\u6B21\u8BF7\u6C42\u4E2D\uFF0C\u8BF7\u67E5\u770B\u5E76\u8BC6\u522B\u56FE\u7247\u5185\u5BB9]';
                     } else if (msg.meaning) {
-                        contentStr = `[用户发送了一个表情，意思是：'${msg.meaning}']`;
+                        contentStr = `[\u7528\u6237\u53D1\u9001\u4E86\u4E00\u4E2A\u8868\u60C5\uFF0C\u610F\u601D\u662F\uFF1A'${msg.meaning}']`;
                     } else if (msg.type === 'xhs-share' && msg.shareData) {
                         // 小红书笔记分享 - 包含完整信息
                         const data = msg.shareData;
@@ -3747,7 +3817,7 @@ ${libraryList}
                         }
                         contentStr = lofterContent.trim();
                     }
-                    return `${timestampStr} ${myNickname}: ${contentStr}`;
+                    return `${tsPrefix}${myNickname}: ${contentStr}`;
                 })
                 .filter(Boolean)
                 .join('\n');
@@ -3916,7 +3986,7 @@ ${contextSummaryForApproval}
 			   - 你们的互动**仅限于线上聊天软件**，严禁发展为线下见面。
 			   - 这**不是电话通话**。你们是通过类似微信/QQ的软件进行交流，因此【**绝对禁止**】使用“挂电话”、“挂了”等与通话相关的词语。
 
-			**4. 情景感知**: 你需要感知当前时间(${currentTime})、共同收听的歌曲以及你的世界观。
+			**4. 情景感知**: ${onlineTimeConfig.mode !== 'notime' ? `你需要感知当前时间(${currentTime})、共同收听的歌曲以及你的世界观。` : `你需要感知共同收听的歌曲以及你的世界观。`}
 			   - **一起听歌**: 当处于“一起听歌”状态时，你可以根据对话氛围，【**主动切换**】到播放列表中的另一首歌。
 
 			**5. 状态更新**: 你可以在对话中自然地改变你的状态。例如，说“我先去洗个澡”，然后使用\`update_status\`指令更新。如果聊天内容中涉及到你状态的改变（例如：正在吃饭、出门了、睡觉了），你【必须】在消息中体现出来，并且更新状态指令中的 \`status_text\` 字段来反映这种改变。
@@ -4137,9 +4207,11 @@ ${contextSummaryForApproval}
 
         messagesPayload = [
             { role: 'system', content: systemPrompt },
-            { role: 'user', content: '请严格按照system prompt中的所有规则，特别是输出格式铁律，立即开始你的行动。' }
+            { role: 'user', content: '\u8BF7\u4E25\u683C\u6309\u7167system prompt\u4E2D\u7684\u6240\u6709\u89C4\u5219\uFF0C\u7279\u522B\u662F\u8F93\u51FA\u683C\u5F0F\u94C1\u5F8B\uFF0C\u7ACB\u5373\u5F00\u59CB\u4F60\u7684\u884C\u52A8\u3002' }
         ];
-        console.log(`发送给AI '${chat.name}' 的消息负载:`, systemPrompt);
+        var singleImages = collectRecentUserImages(historySlice);
+        attachImagesToPayload(messagesPayload, singleImages);
+        console.log(`\u53D1\u9001\u7ED9AI '${chat.name}' \u7684\u6D88\u606F\u8D1F\u8F7D:`, systemPrompt);
 
         let isGemini = proxyUrl === GEMINI_API_URL;
         let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesPayload, isGemini);
@@ -4267,7 +4339,7 @@ ${contextSummaryForApproval}
 
         let callHasBeenHandled = false;
 
-        let messageTimestamp = Date.now();
+        let messageTimestamp = onlineTimeConfig.getMessageTimestamp();
 
         // 初始化一个新数组，用于收集需要渲染的消息
         let newMessagesToRender = [];
@@ -11290,38 +11362,65 @@ async function getTokenDetailedBreakdown(chatId) {
         .join('');
     breakdown.push({ name: '长期记忆(总结)', count: calculateTokenCount(summaryText) });
 
-    // 5. 短期记忆 (对话) - 【核心修改部分】
+    // 5. 短期记忆 (对话)
     const history = chat.history.filter((msg) => !msg.isHidden);
     const memoryDepth = settings.maxMemory || 10;
     const contextMessages = history.slice(-memoryDepth);
 
     let userMsgLen = 0;
     let aiMsgLen = 0;
+    let imageCount = 0;
+    var IMAGE_TOKEN_LOW = 85;
+    var IMAGE_TOKEN_HIGH = 765;
+    var IMAGE_TOKEN_ESTIMATE = 258;
 
     contextMessages.forEach((msg) => {
+        var isImageMsg = Array.isArray(msg.content) && msg.content.some(function(p) { return p.type === 'image_url'; });
+
+        if (isImageMsg) {
+            var imgParts = msg.content.filter(function(p) { return p.type === 'image_url'; });
+            var textParts = msg.content.filter(function(p) { return p.type === 'text'; });
+            imageCount += imgParts.length;
+            var textLen = 0;
+            textParts.forEach(function(p) { textLen += calculateTokenCount(p.text || ''); });
+            if (msg.role === 'user') userMsgLen += textLen;
+            else aiMsgLen += textLen;
+            return;
+        }
+
         let content = typeof msg.content === 'string' ? msg.content : JSON.stringify(msg.content);
         let len = calculateTokenCount(content);
 
-        // --- 异常检测逻辑 ---
         if (len > outlierThreshold) {
             outliers.push({
                 role: msg.role,
-                preview: content.substring(0, 15) + '...', // 预览前15个字
+                preview: content.substring(0, 15) + '...',
                 count: len,
-                timestamp: msg.timestamp, // 用于跳转
+                timestamp: msg.timestamp,
             });
         }
-        // ------------------
 
         if (msg.role === 'user') userMsgLen += len;
         else aiMsgLen += len;
     });
 
-    // 对异常消息按大小排序 (最大的在前面)
     outliers.sort((a, b) => b.count - a.count);
 
-    breakdown.push({ name: '短期记忆(用户)', count: userMsgLen });
-    breakdown.push({ name: '短期记忆(AI)', count: aiMsgLen });
+    breakdown.push({ name: '\u77ED\u671F\u8BB0\u5FC6(\u7528\u6237)', count: userMsgLen });
+    breakdown.push({ name: '\u77ED\u671F\u8BB0\u5FC6(AI)', count: aiMsgLen });
+
+    var recentImages = collectRecentUserImages(contextMessages);
+    var actualImageCount = recentImages.length;
+    if (actualImageCount > 0) {
+        breakdown.push({
+            name: '\u56FE\u7247\u6D88\u606F(\u591A\u6A21\u6001)',
+            count: actualImageCount * IMAGE_TOKEN_ESTIMATE,
+            imageCount: actualImageCount,
+            tokenLow: actualImageCount * IMAGE_TOKEN_LOW,
+            tokenHigh: actualImageCount * IMAGE_TOKEN_HIGH,
+            tokenEstimate: actualImageCount * IMAGE_TOKEN_ESTIMATE
+        });
+    }
 
     // 6. 记忆互通
     let linkedMemoryLen = 0;

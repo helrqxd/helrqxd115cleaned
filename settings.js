@@ -446,36 +446,59 @@ window.renderAppNameSettings = function () {
 }
 
 /**
- * 处理图标上传的核心逻辑
+ * 处理图标上传的核心逻辑：弹出选择框让用户选择本地上传或网络URL
  * @param {string} iconId - App的唯一标识符
  */
-window.handleIconUpload = function (iconId) {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
+window.handleIconUpload = async function (iconId) {
+    const choiceFunc = window.showChoiceModal;
+    const promptFunc = window.showCustomPrompt || showCustomPrompt;
 
-        try {
-            const base64 = await window.handleImageUploadAndCompress(file);
-            if (!state.globalSettings.appIcons) {
-                state.globalSettings.appIcons = {};
+    const choice = await choiceFunc('更换图标', [
+        { text: '从本地上传', value: 'local' },
+        { text: '使用网络URL', value: 'url' },
+    ]);
+
+    if (choice === 'local') {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'image/*';
+        input.onchange = async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+            try {
+                const base64 = await window.handleImageUploadAndCompress(file);
+                window._applyIconChange(iconId, base64);
+            } catch (error) {
+                console.error('更换图标失败:', error);
+                alert('更换图标失败: ' + error.message);
             }
-            state.globalSettings.appIcons[iconId] = base64;
-
-            // 刷新显示
-            window.renderIconSettings();
-            // 实时应用
-            window.applyAppIcons();
-
-            alert('图标已更新！记得保存设置哦。');
+        };
+        input.click();
+    } else if (choice === 'url') {
+        const url = await promptFunc('网络图标', '请粘贴图标的图片URL地址：');
+        if (!url || !url.trim()) return;
+        try {
+            await new Promise((resolve, reject) => {
+                const img = new Image();
+                img.onload = resolve;
+                img.onerror = () => reject(new Error('无法加载该URL的图片，请检查链接是否正确'));
+                img.src = url.trim();
+            });
+            window._applyIconChange(iconId, url.trim());
         } catch (error) {
-            console.error('更换图标失败:', error);
-            alert('更换图标失败: ' + error.message);
+            alert(error.message);
         }
-    };
-    input.click();
+    }
+};
+
+window._applyIconChange = function (iconId, imageData) {
+    if (!state.globalSettings.appIcons) {
+        state.globalSettings.appIcons = {};
+    }
+    state.globalSettings.appIcons[iconId] = imageData;
+    window.renderIconSettings();
+    window.applyAppIcons();
+    alert('图标已更新！记得保存设置哦。');
 };
 
 window.saveAppLabels = function () {
@@ -966,6 +989,12 @@ window.initSettingsListeners = function () {
 
             state.apiConfig.pollinationsApiKey = document.getElementById('pollinations-api-key').value.trim();
 
+            // 副API 设置保存
+            state.apiConfig.secondaryProxyUrl = document.getElementById('secondary-proxy-url').value.trim();
+            state.apiConfig.secondaryApiKey = document.getElementById('secondary-api-key').value.trim();
+            state.apiConfig.secondaryModel = document.getElementById('secondary-model-select').value.trim();
+            state.apiConfig.secondaryTemperature = parseFloat(document.getElementById('secondary-temperature-slider').value);
+
             window.handleAutoBackupTimer();
             await db.apiConfig.put(state.apiConfig);
             state.globalSettings.enableSystemNotifications = document.getElementById('system-notification-switch').checked;
@@ -1074,6 +1103,50 @@ window.initSettingsListeners = function () {
             } catch (error) {
                 alert(`拉取模型失败: ${error.message}`);
             }
+        });
+    }
+
+    // 副API 拉取模型列表
+    const secFetchModelsBtn = document.getElementById('secondary-fetch-models-btn');
+    if (secFetchModelsBtn) {
+        secFetchModelsBtn.addEventListener('click', async () => {
+            const url = document.getElementById('secondary-proxy-url').value.trim();
+            const key = document.getElementById('secondary-api-key').value.trim();
+            if (!url || !key) return alert('请先填写副API的反代地址和密钥');
+            try {
+                let isGemini = url === 'https://generativelanguage.googleapis.com/v1beta/models';
+                const response = await fetch(isGemini ? `${url}?key=${key}` : `${url}/v1/models`, isGemini ? undefined : { headers: { Authorization: `Bearer ${key}` } });
+                if (!response.ok) throw new Error('无法获取模型列表');
+                const data = await response.json();
+                let models = isGemini ? data.models : data.data;
+                if (isGemini) {
+                    models = models.map((model) => {
+                        const parts = model.name.split('/');
+                        return { id: parts.length > 1 ? parts[1] : model.name };
+                    });
+                }
+                const picker = document.getElementById('secondary-fetched-model-list');
+                picker.innerHTML = '<option value="">▼ 请选择模型 (点击自动填入上方)</option>';
+                models.forEach((model) => {
+                    const option = document.createElement('option');
+                    option.value = model.id;
+                    option.textContent = model.id;
+                    picker.appendChild(option);
+                });
+                picker.style.display = 'block';
+                alert(`成功拉取 ${models.length} 个模型！\n请点击下方的下拉框选择。`);
+            } catch (error) {
+                alert(`拉取模型失败: ${error.message}`);
+            }
+        });
+    }
+
+    // 副API 温度滑块实时显示
+    const secTempSliderEl = document.getElementById('secondary-temperature-slider');
+    const secTempValueEl = document.getElementById('secondary-temperature-value');
+    if (secTempSliderEl && secTempValueEl) {
+        secTempSliderEl.addEventListener('input', () => {
+            secTempValueEl.textContent = secTempSliderEl.value;
         });
     }
 
@@ -2358,41 +2431,41 @@ window.saveCurrentHomeScreenAsPreset = async function () {
     // 核心：构建一个包含所有主屏幕元素的完整数据对象
     const presetData = {
         // --- 个人资料卡片 ---
-        'profile-banner-img': document.getElementById('profile-banner-img').src,
-        'profile-avatar-img': document.getElementById('profile-avatar-img').src,
-        homeAvatarFrame: document.getElementById('profile-avatar-frame').src, // 保存头像框
-        'profile-username': document.getElementById('profile-username').textContent,
-        'profile-sub-username': document.getElementById('profile-sub-username').textContent,
-        'profile-bio': document.getElementById('profile-bio').textContent,
-        'profile-location': document.getElementById('profile-location').innerHTML,
+        'profile-banner-img': document.getElementById('profile-banner-img')?.src || '',
+        'profile-avatar-img': document.getElementById('profile-avatar-img')?.src || '',
+        homeAvatarFrame: document.getElementById('profile-avatar-frame')?.src || '',
+        'profile-username': document.getElementById('profile-username')?.textContent || '',
+        'profile-sub-username': document.getElementById('profile-sub-username')?.textContent || '',
+        'profile-bio': document.getElementById('profile-bio')?.textContent || '',
+        'profile-location': document.getElementById('profile-location')?.innerHTML || '',
 
         // --- 第一页小组件 ---
-        'widget-bubble-1': document.getElementById('widget-bubble-1').textContent,
-        'widget-image-1': document.getElementById('widget-image-1').src,
-        'widget-subtext-1': document.getElementById('widget-subtext-1').textContent,
-        'widget-bubble-2': document.getElementById('widget-bubble-2').textContent,
-        'widget-image-2': document.getElementById('widget-image-2').src,
-        'widget-subtext-2': document.getElementById('widget-subtext-2').textContent,
+        'widget-bubble-1': document.getElementById('widget-bubble-1')?.textContent || '',
+        'widget-image-1': document.getElementById('widget-image-1')?.src || '',
+        'widget-subtext-1': document.getElementById('widget-subtext-1')?.textContent || '',
+        'widget-bubble-2': document.getElementById('widget-bubble-2')?.textContent || '',
+        'widget-image-2': document.getElementById('widget-image-2')?.src || '',
+        'widget-subtext-2': document.getElementById('widget-subtext-2')?.textContent || '',
 
         // --- 第二页小组件 ---
-        'widget-image-3': document.getElementById('widget-image-3').src,
-        'second-page-bubble': document.getElementById('second-page-bubble').textContent,
-        'flat-capsule-bubble': document.getElementById('flat-capsule-bubble').textContent,
-        'circular-bubble': document.getElementById('circular-bubble').textContent,
-        'widget-image-4': document.getElementById('widget-image-4').src,
-        'avatar-subtitle': document.getElementById('avatar-subtitle').textContent,
-        'bubble-top-left': document.getElementById('bubble-top-left').textContent,
-        'bubble-top-right': document.getElementById('bubble-top-right').textContent,
-        'bubble-bottom-left': document.getElementById('bubble-bottom-left').textContent,
-        'bubble-bottom-right': document.getElementById('bubble-bottom-right').textContent,
-        'new-widget-avatar': document.getElementById('new-widget-avatar').src,
-        'new-widget-text-1': document.getElementById('new-widget-text-1').textContent,
-        'new-widget-text-2': document.getElementById('new-widget-text-2').textContent,
-        'new-widget-text-3': document.getElementById('new-widget-text-3').textContent,
-        'widget-month-display': document.getElementById('widget-month-display').textContent,
-        'music-rect-img': document.getElementById('music-rect-img').src,
-        'music-record-img': document.getElementById('music-record-img').src,
-        'music-text-line': document.getElementById('music-text-line').textContent,
+        'widget-image-3': document.getElementById('widget-image-3')?.src || '',
+        'second-page-bubble': document.getElementById('second-page-bubble')?.textContent || '',
+        'flat-capsule-bubble': document.getElementById('flat-capsule-bubble')?.textContent || '',
+        'circular-bubble': document.getElementById('circular-bubble')?.textContent || '',
+        'widget-image-4': document.getElementById('widget-image-4')?.src || '',
+        'avatar-subtitle': document.getElementById('avatar-subtitle')?.textContent || '',
+        'bubble-top-left': document.getElementById('bubble-top-left')?.textContent || '',
+        'bubble-top-right': document.getElementById('bubble-top-right')?.textContent || '',
+        'bubble-bottom-left': document.getElementById('bubble-bottom-left')?.textContent || '',
+        'bubble-bottom-right': document.getElementById('bubble-bottom-right')?.textContent || '',
+        'new-widget-avatar': document.getElementById('new-widget-avatar')?.src || '',
+        'new-widget-text-1': document.getElementById('new-widget-text-1')?.textContent || '',
+        'new-widget-text-2': document.getElementById('new-widget-text-2')?.textContent || '',
+        'new-widget-text-3': document.getElementById('new-widget-text-3')?.textContent || '',
+        'widget-month-display': document.getElementById('widget-month-display')?.textContent || '',
+        'music-rect-img': document.getElementById('music-rect-img')?.src || '',
+        'music-record-img': document.getElementById('music-record-img')?.src || '',
+        'music-text-line': document.getElementById('music-text-line')?.textContent || '',
 
         // --- App图标和壁纸 ---
         appIcons: { ...state.globalSettings.appIcons },
@@ -2423,37 +2496,37 @@ window.updateSelectedHomeScreenPreset = async function () {
     if (confirmed) {
         // 构建与保存时完全相同的完整数据对象
         const presetData = {
-            'profile-banner-img': document.getElementById('profile-banner-img').src,
-            'profile-avatar-img': document.getElementById('profile-avatar-img').src,
-            homeAvatarFrame: document.getElementById('profile-avatar-frame').src,
-            'profile-username': document.getElementById('profile-username').textContent,
-            'profile-sub-username': document.getElementById('profile-sub-username').textContent,
-            'profile-bio': document.getElementById('profile-bio').textContent,
-            'profile-location': document.getElementById('profile-location').innerHTML,
-            'widget-bubble-1': document.getElementById('widget-bubble-1').textContent,
-            'widget-image-1': document.getElementById('widget-image-1').src,
-            'widget-subtext-1': document.getElementById('widget-subtext-1').textContent,
-            'widget-bubble-2': document.getElementById('widget-bubble-2').textContent,
-            'widget-image-2': document.getElementById('widget-image-2').src,
-            'widget-subtext-2': document.getElementById('widget-subtext-2').textContent,
-            'widget-image-3': document.getElementById('widget-image-3').src,
-            'second-page-bubble': document.getElementById('second-page-bubble').textContent,
-            'flat-capsule-bubble': document.getElementById('flat-capsule-bubble').textContent,
-            'circular-bubble': document.getElementById('circular-bubble').textContent,
-            'widget-image-4': document.getElementById('widget-image-4').src,
-            'avatar-subtitle': document.getElementById('avatar-subtitle').textContent,
-            'bubble-top-left': document.getElementById('bubble-top-left').textContent,
-            'bubble-top-right': document.getElementById('bubble-top-right').textContent,
-            'bubble-bottom-left': document.getElementById('bubble-bottom-left').textContent,
-            'bubble-bottom-right': document.getElementById('bubble-bottom-right').textContent,
-            'new-widget-avatar': document.getElementById('new-widget-avatar').src,
-            'new-widget-text-1': document.getElementById('new-widget-text-1').textContent,
-            'new-widget-text-2': document.getElementById('new-widget-text-2').textContent,
-            'new-widget-text-3': document.getElementById('new-widget-text-3').textContent,
-            'widget-month-display': document.getElementById('widget-month-display').textContent,
-            'music-rect-img': document.getElementById('music-rect-img').src,
-            'music-record-img': document.getElementById('music-record-img').src,
-            'music-text-line': document.getElementById('music-text-line').textContent,
+            'profile-banner-img': document.getElementById('profile-banner-img')?.src || '',
+            'profile-avatar-img': document.getElementById('profile-avatar-img')?.src || '',
+            homeAvatarFrame: document.getElementById('profile-avatar-frame')?.src || '',
+            'profile-username': document.getElementById('profile-username')?.textContent || '',
+            'profile-sub-username': document.getElementById('profile-sub-username')?.textContent || '',
+            'profile-bio': document.getElementById('profile-bio')?.textContent || '',
+            'profile-location': document.getElementById('profile-location')?.innerHTML || '',
+            'widget-bubble-1': document.getElementById('widget-bubble-1')?.textContent || '',
+            'widget-image-1': document.getElementById('widget-image-1')?.src || '',
+            'widget-subtext-1': document.getElementById('widget-subtext-1')?.textContent || '',
+            'widget-bubble-2': document.getElementById('widget-bubble-2')?.textContent || '',
+            'widget-image-2': document.getElementById('widget-image-2')?.src || '',
+            'widget-subtext-2': document.getElementById('widget-subtext-2')?.textContent || '',
+            'widget-image-3': document.getElementById('widget-image-3')?.src || '',
+            'second-page-bubble': document.getElementById('second-page-bubble')?.textContent || '',
+            'flat-capsule-bubble': document.getElementById('flat-capsule-bubble')?.textContent || '',
+            'circular-bubble': document.getElementById('circular-bubble')?.textContent || '',
+            'widget-image-4': document.getElementById('widget-image-4')?.src || '',
+            'avatar-subtitle': document.getElementById('avatar-subtitle')?.textContent || '',
+            'bubble-top-left': document.getElementById('bubble-top-left')?.textContent || '',
+            'bubble-top-right': document.getElementById('bubble-top-right')?.textContent || '',
+            'bubble-bottom-left': document.getElementById('bubble-bottom-left')?.textContent || '',
+            'bubble-bottom-right': document.getElementById('bubble-bottom-right')?.textContent || '',
+            'new-widget-avatar': document.getElementById('new-widget-avatar')?.src || '',
+            'new-widget-text-1': document.getElementById('new-widget-text-1')?.textContent || '',
+            'new-widget-text-2': document.getElementById('new-widget-text-2')?.textContent || '',
+            'new-widget-text-3': document.getElementById('new-widget-text-3')?.textContent || '',
+            'widget-month-display': document.getElementById('widget-month-display')?.textContent || '',
+            'music-rect-img': document.getElementById('music-rect-img')?.src || '',
+            'music-record-img': document.getElementById('music-record-img')?.src || '',
+            'music-text-line': document.getElementById('music-text-line')?.textContent || '',
             appIcons: { ...state.globalSettings.appIcons },
             appLabels: { ...state.globalSettings.appLabels },
             wallpaper: state.globalSettings.wallpaper,
@@ -2629,6 +2702,22 @@ window.renderApiSettings = function () {
             speechModelSelect.value = state.apiConfig.minimaxSpeechModel;
         }
     }
+
+    // 2.5 副API 设置回显
+    const secProxyInput = document.getElementById('secondary-proxy-url');
+    if (secProxyInput) secProxyInput.value = state.apiConfig.secondaryProxyUrl || '';
+
+    const secApiKeyInput = document.getElementById('secondary-api-key');
+    if (secApiKeyInput) secApiKeyInput.value = state.apiConfig.secondaryApiKey || '';
+
+    const secModelSelect = document.getElementById('secondary-model-select');
+    if (secModelSelect) secModelSelect.value = state.apiConfig.secondaryModel || '';
+
+    const secTemp = typeof state.apiConfig.secondaryTemperature !== 'undefined' ? state.apiConfig.secondaryTemperature : 0.8;
+    const secTempSlider = document.getElementById('secondary-temperature-slider');
+    if (secTempSlider) secTempSlider.value = secTemp;
+    const secTempValue = document.getElementById('secondary-temperature-value');
+    if (secTempValue) secTempValue.textContent = secTemp;
 
     // 3. GitHub 备份设置
     const ghToken = document.getElementById('github-token');
@@ -2984,6 +3073,7 @@ window.uploadBackupToGitHub = async function (isAuto = false) {
             backupObj.apiConfig.apiKey = '';
             backupObj.apiConfig.githubToken = '';
             backupObj.apiConfig.minimaxApiKey = '';
+            backupObj.apiConfig.secondaryApiKey = '';
         }
         const jsonContent = JSON.stringify(backupObj, null, 2);
         const fullBase64 = btoa(unescape(encodeURIComponent(jsonContent)));
@@ -3061,7 +3151,7 @@ window.uploadBackupToGitHubStream = async function (isAuto = false) {
             } else {
                 data = await db[task.name].get('main');
                 if (data && task.name === 'apiConfig') {
-                    data.apiKey = ''; data.githubToken = ''; data.minimaxApiKey = '';
+                    data.apiKey = ''; data.githubToken = ''; data.minimaxApiKey = ''; data.secondaryApiKey = '';
                 }
             }
             if (!data) continue;
@@ -3353,6 +3443,7 @@ window.repairAllData = async function () {
                     mode: 'auto',
                     count: 20,
                     lastSummaryIndex: -1,
+                    apiSource: 'main',
                 };
                 needSave = true;
             }

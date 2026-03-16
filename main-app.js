@@ -565,12 +565,26 @@ window.toGeminiRequestData = function (model, apiKey, systemInstruction, message
         // 处理消息内容，兼容多模态 (图片) 和纯文本
         let parts = [];
         if (Array.isArray(item.content)) {
-            // 检查是否包含图片
             const hasImage = item.content.some((sub) => sub.type === 'image_url');
             if (hasImage) {
-                parts = isImage(item.content[0], item.content[1]);
+                parts = [];
+                item.content.forEach(function(sub) {
+                    if (sub.type === 'text' && sub.text) {
+                        parts.push({ text: sub.text });
+                    } else if (sub.type === 'image_url' && sub.image_url && sub.image_url.url) {
+                        var imgUrl = sub.image_url.url;
+                        if (imgUrl.startsWith('data:')) {
+                            var base64Data = imgUrl.split(',')[1];
+                            var mimeMatch = imgUrl.match(/^data:(.*?);base64/);
+                            var mimeType = mimeMatch ? mimeMatch[1] : 'image/jpeg';
+                            parts.push({ inline_data: { mime_type: mimeType, data: base64Data } });
+                        } else {
+                            parts.push({ text: '[image: ' + imgUrl + ']' });
+                        }
+                    }
+                });
+                if (parts.length === 0) parts = [{ text: '[image content]' }];
             } else {
-                // 纯文本数组转字符串
                 parts = [{ text: JSON.stringify(item.content) }];
             }
         } else {
@@ -1308,7 +1322,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     mode: 'auto',
                     count: 20,
                     prompt: '请你以第三人称的视角，客观、冷静、不带任何感情色彩地总结以下对话的核心事件和信息。禁止进行任何角色扮演或添加主观评论。',
-                    lastSummaryIndex: -1, // -1表示从未总结过
+                    lastSummaryIndex: -1,
+                    apiSource: 'main',
                 };
             }
 
@@ -1572,6 +1587,14 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 兼容旧数据，如果加载的设置里没有温度，也给一个默认值
         if (typeof state.apiConfig.temperature === 'undefined') {
             state.apiConfig.temperature = 0.8;
+        }
+
+        // 兼容旧数据：为副API设置默认值
+        if (typeof state.apiConfig.secondaryProxyUrl === 'undefined') {
+            state.apiConfig.secondaryProxyUrl = '';
+            state.apiConfig.secondaryApiKey = '';
+            state.apiConfig.secondaryModel = '';
+            state.apiConfig.secondaryTemperature = 0.8;
         }
 
         state.globalSettings = globalSettings || {
@@ -5863,6 +5886,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
                 // 启动 App
                 init();
+                if (window.showUpdatePopup) setTimeout(window.showUpdatePopup, 1200);
             } else {
                 // --- 验证失败 (业务逻辑拒绝，如密码错误) ---
                 throw new Error(data.message || '账号或密码错误');
@@ -5930,10 +5954,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     clearTimeout(timeoutId);
 
                     if (resp.status === 401 || resp.status === 403) {
-                        // 认证失败，不重试，直接报错
                         const errMsg = pollApiKey
                             ? 'Pollinations API Key 无效或已过期，请在设置中更新。'
                             : 'Pollinations 现在需要 API Key 才能生图。请到 enter.pollinations.ai 免费注册获取，然后在设置中填写。';
+                        console.error(`[Global Image Gen] ${errMsg}`);
+                        throw new Error(errMsg);
+                    }
+
+                    if (resp.status === 402) {
+                        const errMsg = 'Pollinations API 额度已用尽（HTTP 402），请检查账户余额或更换 API Key。';
                         console.error(`[Global Image Gen] ${errMsg}`);
                         throw new Error(errMsg);
                     }
@@ -5955,8 +5984,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                     throw e;
                 }
             } catch (error) {
-                // 401/403 认证错误不重试，直接抛出
-                if (error.message.includes('API Key') || error.message.includes('enter.pollinations.ai')) {
+                // 401/402/403 认证或额度错误不重试，直接抛出
+                if (error.message.includes('API Key') || error.message.includes('enter.pollinations.ai') || error.message.includes('额度已用尽')) {
                     throw error;
                 }
                 retries++;
@@ -6386,6 +6415,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         // 直接初始化数据库和应用，跳过登录页
         initDatabase(savedUid);
         init();
+        if (window.showUpdatePopup) setTimeout(window.showUpdatePopup, 800);
     } else {
         // 未登录，显示登录页
         renderLoginOverlay();
