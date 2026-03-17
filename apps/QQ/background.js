@@ -1396,7 +1396,11 @@ async function triggerGroupAiAction(chatId) {
         if (!response.ok) throw new Error(`API请求失败: ${response.status}`);
 
         const data = await response.json();
-        const aiResponseContent = (isGemini ? data.candidates[0].content.parts[0].text : data.choices[0].message.content).replace(/^```json\s*|```$/g, '');
+        const aiResponseContent = (isGemini ? data?.candidates?.[0]?.content?.parts?.[0]?.text : data?.choices?.[0]?.message?.content)?.replace(/^```json\s*|```$/g, '');
+        if (!aiResponseContent) {
+            console.warn(`API为空回或格式不正确（可能因安全设置被拦截），群聊 "${chat.name}" 的本次后台活动跳过。返回数据:`, data);
+            return;
+        }
 
         const messagesArray = parseAiResponse(aiResponseContent);
         console.log(`【后台群聊互动 - AI 原始输出】\n群聊 "${chat.name}" 的原始回复:\n`, aiResponseContent);
