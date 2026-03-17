@@ -99,7 +99,8 @@ function runBackgroundSimulationTick(isManual = false) {
             // 添加最后一条聊天记录时间的检查，避免频繁行动
             const lastMessage = chat.history.slice(-1)[0];
             if (lastMessage) {
-                const timeSinceLastMessage = lastMessage ? Date.now() - lastMessage.timestamp : Infinity;
+                const chatNowTs = window.getUserMessageTimestamp ? window.getUserMessageTimestamp(chat) : Date.now();
+                const timeSinceLastMessage = chatNowTs - lastMessage.timestamp;
 
                 // 默认使用全局设置
                 let minInterval = (state.globalSettings.backgroundActivityInterval || 10) * 1000;
@@ -341,6 +342,7 @@ async function triggerInactiveAiAction(chatId) {
     const historySlice = chat.history.filter((msg) => !msg.isHidden).slice(-maxMemory);
 
     const bgTimeConfig = window.getChatTimeConfig ? window.getChatTimeConfig(chat) : { mode: 'realtime', showTimestampInHistory: true, showTimestampInMemory: true };
+    const bgNowTs = bgTimeConfig.getMessageTimestamp ? bgTimeConfig.getMessageTimestamp() : Date.now();
     const bgShowTs = bgTimeConfig.showTimestampInHistory;
 
     // 2. 格式化这些记录，让AI能看懂
@@ -526,7 +528,7 @@ async function triggerInactiveAiAction(chatId) {
 
     // add by lrq 251029 添加聊天间隔时间
     const lastMessage = chat.history.slice(-1)[0];
-    const timeSinceLastMessage = lastMessage ? Math.floor((Date.now() - lastMessage.timestamp) / 60000) : null;
+    const timeSinceLastMessage = lastMessage ? Math.floor((bgNowTs - lastMessage.timestamp) / 60000) : null;
     const lastMessageTimeStr = (bgTimeConfig.mode !== 'notime' && lastMessage) ? new Date(lastMessage.timestamp).toLocaleString('zh-CN', { hour12: false }) : "无";
     const timeGapDescription = timeSinceLastMessage !== null
         ? `已经有${timeSinceLastMessage}分钟没有互动了（上一条消息时间：${lastMessageTimeStr}）`
@@ -721,7 +723,7 @@ async function triggerInactiveAiAction(chatId) {
                     behavior: action.behavior || '...',
                     thoughts: action.thoughts || '...',
                     naughtyThoughts: action.naughtyThoughts || '...',
-                    timestamp: Date.now()
+                    timestamp: bgNowTs
                 };
 
                 chat.latestInnerVoice = innerVoiceData;
@@ -737,13 +739,13 @@ async function triggerInactiveAiAction(chatId) {
 
             if (action.type === 'update_status' && action.status_text) {
                 // [Fix] 计算状态更新的时间戳，优先使用 sendTime
-                let statusTimestamp = Date.now();
+                let statusTimestamp = bgNowTs;
                 if (action.sendTime) {
                     const parsedTime = new Date(action.sendTime).getTime();
                     if (!isNaN(parsedTime)) statusTimestamp = parsedTime;
                 }
                 const startTimestamp = lastMessage ? lastMessage.timestamp : 0;
-                statusTimestamp = Math.min(Date.now(), Math.max(startTimestamp + 1000, statusTimestamp));
+                statusTimestamp = Math.min(bgNowTs, Math.max(startTimestamp + 1000, statusTimestamp));
                 if (statusTimestamp <= lastUsedTimestamp) {
                     statusTimestamp = lastUsedTimestamp + 1;
                 }
@@ -770,13 +772,13 @@ async function triggerInactiveAiAction(chatId) {
 
             // [Fix] 处理后台活动中的撤回消息
             if (action.type === 'send_and_recall' && action.content) {
-                let recallTimestamp = Date.now();
+                let recallTimestamp = bgNowTs;
                 if (action.sendTime) {
                     const parsedTime = new Date(action.sendTime).getTime();
                     if (!isNaN(parsedTime)) recallTimestamp = parsedTime;
                 }
                 const startTimestamp = lastMessage ? lastMessage.timestamp : 0;
-                recallTimestamp = Math.min(Date.now(), Math.max(startTimestamp + 1000, recallTimestamp));
+                recallTimestamp = Math.min(bgNowTs, Math.max(startTimestamp + 1000, recallTimestamp));
                 if (recallTimestamp <= lastUsedTimestamp) {
                     recallTimestamp = lastUsedTimestamp + 1;
                 }
@@ -813,7 +815,7 @@ async function triggerInactiveAiAction(chatId) {
 
             if (isChatMessage) {
                 // 计算消息时间戳
-                let msgTimestamp = Date.now();
+                let msgTimestamp = bgNowTs;
 
                 // 优先使用 sendTime (新版)
                 if (action.sendTime) {
@@ -829,11 +831,9 @@ async function triggerInactiveAiAction(chatId) {
                     msgTimestamp = calculatedTime;
                 }
 
-                // 确保时间合法性：不能早于上一条消息(太多)，不能晚于现在
+                // 确保时间合法性：不能早于上一条消息(太多)，不能晚于当前感知时间
                 const startTimestamp = lastMessage ? lastMessage.timestamp : 0;
-                // 限制: timestamp 必须 > startTimestamp
-                // 限制: timestamp 必须 <= Date.now()
-                msgTimestamp = Math.min(Date.now(), Math.max(startTimestamp + 1000, msgTimestamp));
+                msgTimestamp = Math.min(bgNowTs, Math.max(startTimestamp + 1000, msgTimestamp));
 
                 // [Fix] 强校验：确保时间戳递增，解决多选时的冲突问题
                 if (msgTimestamp <= lastUsedTimestamp) {
@@ -1005,7 +1005,7 @@ async function triggerInactiveAiAction(chatId) {
                 const innerVoiceData = action;
                 console.log('解析成功：已成功捕获到心声(innerVoice)数据。', innerVoiceData);
                 const newInnerVoice = innerVoiceData;
-                newInnerVoice.timestamp = Date.now();
+                newInnerVoice.timestamp = bgGrpNowTs;
                 chat.latestInnerVoice = newInnerVoice;
                 if (!chat.innerVoiceHistory) {
                     chat.innerVoiceHistory = [];
@@ -1191,6 +1191,7 @@ async function triggerGroupAiAction(chatId) {
     const historySlice = chat.history.filter((msg) => !msg.isHidden).slice(-maxMemory);
 
     const bgGrpTimeConfig = window.getChatTimeConfig ? window.getChatTimeConfig(chat) : { mode: 'realtime', showTimestampInHistory: true, showTimestampInMemory: true };
+    const bgGrpNowTs = bgGrpTimeConfig.getMessageTimestamp ? bgGrpTimeConfig.getMessageTimestamp() : Date.now();
     const bgGrpShowTs = bgGrpTimeConfig.showTimestampInHistory;
 
     // 2. 格式化这些记录，让AI能看懂
@@ -1248,7 +1249,7 @@ async function triggerGroupAiAction(chatId) {
     }
 
         const lastMessage = chat.history.slice(-1)[0];
-        const timeSinceLastMessage = lastMessage ? (Date.now() - lastMessage.timestamp) / 1000 / 60 : null; // in minutes
+        const timeSinceLastMessage = lastMessage ? (bgGrpNowTs - lastMessage.timestamp) / 1000 / 60 : null; // in minutes
 
         const membersList = chat.members.map((m) => `- ${m.groupNickname} (人设: ${m.persona})`).join('\n');
         const myNickname = chat.settings.myNickname || '我';
@@ -1409,7 +1410,7 @@ async function triggerGroupAiAction(chatId) {
         chat._isLastReplyBackground = true; // 标记此次回复来自后台行动
 
         if (Array.isArray(messagesArray) && messagesArray.length > 0) {
-            let messageTimestamp = Date.now();
+            let messageTimestamp = bgGrpNowTs;
             let firstMessageContent = '';
 
             // [Fix] 引入 lastUsedTimestamp
@@ -1419,7 +1420,7 @@ async function triggerGroupAiAction(chatId) {
                 // 必须要有 type 和 name (或者部分指令不需要name，但群聊通常需要)
                 if (!msgData || !msgData.type) return;
 
-                let msgTimestamp = Date.now();
+                let msgTimestamp = bgGrpNowTs;
 
                 // 优先使用 sendTime (新版)
                 if (msgData.sendTime) {
@@ -1439,9 +1440,9 @@ async function triggerGroupAiAction(chatId) {
                     msgTimestamp = messageTimestamp++;
                 }
 
-                // 确保时间合法性：不能早于上一条消息(太多)，不能晚于现在
+                // 确保时间合法性：不能早于上一条消息(太多)，不能晚于当前感知时间
                 const startTimestamp = lastMessage ? lastMessage.timestamp : 0;
-                msgTimestamp = Math.min(Date.now(), Math.max(startTimestamp + 1000, msgTimestamp));
+                msgTimestamp = Math.min(bgGrpNowTs, Math.max(startTimestamp + 1000, msgTimestamp));
 
                 // [Fix] 强校验：确保时间戳递增
                 if (msgTimestamp <= lastUsedTimestamp) {
@@ -1560,7 +1561,7 @@ async function triggerGroupAiAction(chatId) {
                             chat.status = chat.status || {};
                             chat.status.text = msgData.status_text;
                             chat.status.isBusy = msgData.is_busy || false;
-                            chat.status.lastUpdate = Date.now();
+                            chat.status.lastUpdate = bgGrpNowTs;
                         }
                         // 创建一条系统提示消息记录状态变更
                         const statusMsg = {

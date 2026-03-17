@@ -1641,7 +1641,13 @@ window.initQQSettings = function (dependencies) {
         chat.settings.maxMemory = parseInt(document.getElementById('max-memory').value) || 10;
 
         chat.settings.timePerceptionEnabled = document.getElementById('time-perception-toggle').checked;
-        chat.settings.customTime = document.getElementById('custom-time-input').value;
+        const newCustomTime = document.getElementById('custom-time-input').value;
+        if (newCustomTime && newCustomTime !== chat.settings.customTime) {
+            chat.settings.customTimeSetAt = Date.now();
+        } else if (!newCustomTime) {
+            delete chat.settings.customTimeSetAt;
+        }
+        chat.settings.customTime = newCustomTime;
 
         // --- 保存线下模式设置 ---
         if (!chat.settings.offlineMode) chat.settings.offlineMode = {}; // 初始化

@@ -1916,6 +1916,18 @@ function getLinkedMemoryVisibleLabel(chat, linkedChat, freshLinkedChat) {
  * 根据聊天的时间感知设置，返回时间配置对象
  * mode: 'realtime' | 'notime' | 'custom'
  */
+function getFlowingCustomTime(chat) {
+    if (!chat.settings?.customTime) return null;
+    const baseTs = new Date(chat.settings.customTime).getTime();
+    if (isNaN(baseTs)) return null;
+    const setAt = chat.settings.customTimeSetAt;
+    if (setAt && !isNaN(setAt)) {
+        return baseTs + (Date.now() - setAt);
+    }
+    return baseTs;
+}
+window.getFlowingCustomTime = getFlowingCustomTime;
+
 function getChatTimeConfig(chat) {
     const timePerceptionEnabled = chat.settings.timePerceptionEnabled ?? true;
 
@@ -1935,7 +1947,8 @@ function getChatTimeConfig(chat) {
     }
 
     if (chat.settings.customTime) {
-        const now = new Date(chat.settings.customTime);
+        const flowingTs = getFlowingCustomTime(chat);
+        const now = new Date(flowingTs);
         return {
             mode: 'custom',
             now,
@@ -1943,7 +1956,7 @@ function getChatTimeConfig(chat) {
             currentFullTime: now.toLocaleString('zh-CN', { hour12: false }),
             showTimestampInHistory: true,
             showTimestampInMemory: true,
-            getMessageTimestamp: () => now.getTime(),
+            getMessageTimestamp: () => getFlowingCustomTime(chat),
         };
     }
 
@@ -1962,8 +1975,8 @@ window.getChatTimeConfig = getChatTimeConfig;
 function getUserMessageTimestamp(chat) {
     const timePerceptionEnabled = chat.settings?.timePerceptionEnabled ?? true;
     if (!timePerceptionEnabled && chat.settings?.customTime) {
-        const ts = new Date(chat.settings.customTime).getTime();
-        if (!isNaN(ts)) return ts;
+        const ts = getFlowingCustomTime(chat);
+        if (ts !== null) return ts;
     }
     return Date.now();
 }
