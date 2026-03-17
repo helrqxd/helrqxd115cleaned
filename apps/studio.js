@@ -866,7 +866,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 description: '点击查看我们共同创作的故事！',
                 source_name: '小剧场',
                 content: novelText,
-                timestamp: Date.now(),
+                timestamp: window.getUserMessageTimestamp(chat),
             };
 
             chat.history.push(shareMessage);

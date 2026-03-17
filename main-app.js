@@ -3600,11 +3600,12 @@ document.addEventListener('DOMContentLoaded', async () => {
             chat.loversSpaceData = null;
 
             // 2. 创建您发出的、在右侧的“解除卡片”
+            const disconnectBaseTs = window.getUserMessageTimestamp(chat);
             const userDisconnectCardMessage = {
                 role: 'user',
                 type: 'lovers_space_disconnect', // 一个新类型，用于渲染卡片
                 content: `情侣空间已解除`, // 卡片底层可编辑的文字
-                timestamp: Date.now(),
+                timestamp: disconnectBaseTs,
             };
             chat.history.push(userDisconnectCardMessage);
 
@@ -3613,7 +3614,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 role: 'system',
                 type: 'pat_message', // 复用“拍一拍”的居中灰色气泡样式
                 content: `你和 ${chat.name} 的情侣空间已解除`,
-                timestamp: Date.now() + 1, // 时间戳+1确保在卡片之后
+                timestamp: disconnectBaseTs + 1, // 时间戳+1确保在卡片之后
             };
             chat.history.push(systemNotification);
 
@@ -3621,7 +3622,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             const hiddenMessageForAI = {
                 role: 'system',
                 content: `[系统指令：用户刚刚解除了与你的情侣关系。]`,
-                timestamp: Date.now() + 2, // 时间戳再+1
+                timestamp: disconnectBaseTs + 2, // 时间戳再+1
                 isHidden: true,
             };
             chat.history.push(hiddenMessageForAI);

@@ -128,7 +128,7 @@ function renderStickerPanel() {
 async function sendSticker(sticker) {
     if (!state.activeChatId) return;
     const chat = state.chats[state.activeChatId];
-    const msg = { role: 'user', content: sticker.url, meaning: sticker.name, timestamp: Date.now() };
+    const msg = { role: 'user', content: sticker.url, meaning: sticker.name, timestamp: window.getUserMessageTimestamp(chat) };
     chat.history.push(msg);
     await window.db.chats.put(chat);
     window.checkAndTriggerSummary(window.state.activeChatId);
@@ -2032,7 +2032,7 @@ async function sendQuickReply(item) {
     const myNickname = chat.isGroup ? chat.settings.myNickname || '我' : '我';
     const msg = {
         role: 'user',
-        timestamp: Date.now(),
+        timestamp: window.getUserMessageTimestamp(chat),
     };
 
     if (type === 'voice_message') {
@@ -2252,7 +2252,7 @@ function initPhotoFunctions() {
                 const msg = {
                     role: 'user',
                     content: [{ type: 'image_url', image_url: { url: base64Url } }],
-                    timestamp: Date.now(),
+                    timestamp: window.getUserMessageTimestamp(chat),
                 };
                 if (chat.history) chat.history.push(msg);
                 if (window.db && window.db.chats) await window.db.chats.put(chat);
@@ -2275,7 +2275,7 @@ function initPhotoFunctions() {
             const description = await promptFunc('发送照片', '请用文字描述您要发送的照片：');
             if (description && description.trim()) {
                 const chat = window.state.chats[window.state.activeChatId];
-                const msg = { role: 'user', type: 'user_photo', content: description.trim(), timestamp: Date.now() };
+                const msg = { role: 'user', type: 'user_photo', content: description.trim(), timestamp: window.getUserMessageTimestamp(chat) };
 
                 if (chat.history) chat.history.push(msg);
                 if (window.db && window.db.chats) await window.db.chats.put(chat);
@@ -2345,7 +2345,7 @@ async function sendUserTransfer() {
         note: note,
         senderName,
         receiverName,
-        timestamp: Date.now(),
+        timestamp: window.getUserMessageTimestamp(chat),
     };
 
     if (chat.history) {
@@ -2449,7 +2449,7 @@ async function sendGroupRedPacket() {
         senderName: myNickname,
         type: 'red_packet',
         packetType: 'lucky', // 'lucky' for group, 'direct' for one-on-one
-        timestamp: Date.now(),
+        timestamp: window.getUserMessageTimestamp(chat),
         totalAmount: amount,
         count: count,
         greeting: greeting || '恭喜发财，大吉大利！',
@@ -2508,7 +2508,7 @@ async function sendDirectRedPacket() {
         senderName: myNickname,
         type: 'red_packet',
         packetType: 'direct',
-        timestamp: Date.now(),
+        timestamp: window.getUserMessageTimestamp(chat),
         totalAmount: amount,
         count: 1,
         greeting: greeting || '给你准备了一个红包',
@@ -2612,7 +2612,7 @@ function initVoiceMessageFunctions() {
             const text = await window.showCustomPrompt('发送语音', '请输入你想说的内容：');
             if (text && text.trim()) {
                 const chat = window.state.chats[window.state.activeChatId];
-                const msg = { role: 'user', type: 'voice_message', content: text.trim(), timestamp: Date.now() };
+                const msg = { role: 'user', type: 'voice_message', content: text.trim(), timestamp: window.getUserMessageTimestamp(chat) };
                 chat.history.push(msg);
                 await window.db.chats.put(chat);
 
@@ -2763,7 +2763,7 @@ window.initWaimaiListeners = function () {
                 amount: amount,
                 status: 'pending',
                 countdownEndTime: now + 15 * 60 * 1000,
-                timestamp: now,
+                timestamp: window.getUserMessageTimestamp(chat),
             };
 
             chat.history.push(msg);
@@ -3141,7 +3141,7 @@ window.endVideoCall = async function () {
         let summaryMessage = {
             role: videoCallState.initiator === 'user' ? 'user' : 'assistant',
             content: endCallText,
-            timestamp: Date.now(),
+            timestamp: window.getUserMessageTimestamp(chat),
         };
 
         if (chat.isGroup && summaryMessage.role === 'assistant') {
@@ -3986,7 +3986,7 @@ async function sendPoll() {
         role: 'user',
         senderName: myNickname,
         type: 'poll',
-        timestamp: Date.now(),
+        timestamp: window.getUserMessageTimestamp(chat),
         question: question,
         options: options,
         votes: {}, // 初始投票为空
@@ -4237,7 +4237,7 @@ async function sendUserLinkShare() {
     const linkMessage = {
         role: 'user', // 角色是 'user'
         type: 'share_link',
-        timestamp: Date.now(),
+        timestamp: window.getUserMessageTimestamp(chat),
         title: title,
         description: description,
         source_name: sourceName,
@@ -4379,7 +4379,7 @@ async function sendUserLocation() {
     const locationMessage = {
         role: 'user',
         type: 'location',
-        timestamp: Date.now(),
+        timestamp: window.getUserMessageTimestamp(chat),
         userLocation: userLocation,
         aiLocation: aiLocation,
         distance: distance,

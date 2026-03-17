@@ -1320,7 +1320,7 @@ ${chapterSummaries || '暂无摘要'}
             role: 'user',
             senderName: targetChat.isGroup ? targetChat.settings.myNickname || '我' : '我',
             type: 'series_share',
-            timestamp: Date.now(),
+            timestamp: window.getUserMessageTimestamp(targetChat),
             content: messageContent,
             payload: {
                 seriesId,
@@ -1340,7 +1340,7 @@ ${chapterSummaries || '暂无摘要'}
         const hiddenInstruction = {
             role: 'system',
             isHidden: true,
-            timestamp: Date.now() + 1,
+            timestamp: window.getUserMessageTimestamp(targetChat) + 1,
             content: `[系统指令] 请阅读用户分享的连载信息，并基于摘要与最新章节节选给出你的看法/建议。连载状态：${statusText}。`,
         };
         targetChat.history.push(hiddenInstruction);
@@ -1493,7 +1493,7 @@ ${chapterSummaries || '暂无摘要'}
             role: 'user',
             senderName: myNickname, // 确保群聊里显示正确的发送者名字
             type: 'repost_forum_post',
-            timestamp: Date.now(),
+            timestamp: window.getUserMessageTimestamp(targetChat),
             content: `[转载的帖子]\nID为${post.id}\n标题: 《${post.title}》\n作者: ${post.author}\n内容: ${post.content}\n请对这个帖子发表评论。`,
             payload: {
                 postId: post.id,
@@ -1513,7 +1513,7 @@ ${chapterSummaries || '暂无摘要'}
         const hiddenInstructionMessage = {
             role: 'system',
             content: instructionContent,
-            timestamp: Date.now() + 1,
+            timestamp: window.getUserMessageTimestamp(targetChat) + 1,
             isHidden: true,
         };
         targetChat.history.push(hiddenInstructionMessage);

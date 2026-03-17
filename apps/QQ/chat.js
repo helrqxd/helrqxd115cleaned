@@ -1959,6 +1959,16 @@ function getChatTimeConfig(chat) {
 }
 window.getChatTimeConfig = getChatTimeConfig;
 
+function getUserMessageTimestamp(chat) {
+    const timePerceptionEnabled = chat.settings?.timePerceptionEnabled ?? true;
+    if (!timePerceptionEnabled && chat.settings?.customTime) {
+        const ts = new Date(chat.settings.customTime).getTime();
+        if (!isNaN(ts)) return ts;
+    }
+    return Date.now();
+}
+window.getUserMessageTimestamp = getUserMessageTimestamp;
+
 /**
  * 格式化单条消息，用于记忆互通的上下文
  * @param {object} msg - 消息对象
@@ -7829,7 +7839,7 @@ function setupChatListeners() {
                     role: 'system', // 设置为 system 角色，不属于用户
                     type: 'narrative', // 设置专门的类型
                     content: narrativeContent,
-                    timestamp: Date.now(),
+                    timestamp: getUserMessageTimestamp(chat),
                 };
 
                 chat.history.push(msg);
@@ -7909,7 +7919,7 @@ function setupChatListeners() {
         const msg = {
             role: 'user',
             content,
-            timestamp: Date.now(),
+            timestamp: getUserMessageTimestamp(chat),
         };
 
         // 检查当前是否处于引用回复模式
@@ -8225,7 +8235,7 @@ function setupChatListeners() {
             role: 'user',
             senderName: sourceChat.isGroup ? sourceChat.settings.myNickname || '我' : '我',
             type: 'share_card',
-            timestamp: Date.now(),
+            timestamp: getUserMessageTimestamp(sourceChat),
             payload: {
                 sourceChatName: sourceChat.name,
                 title: `来自“${sourceChat.name}”的聊天记录`,
@@ -8297,7 +8307,7 @@ function setupChatListeners() {
             await window.db.chats.put(chat);
             renderChatInterface(chat.id);
             renderChatList();
-            const msg = { role: 'user', content: '我通过了你的好友请求', timestamp: Date.now() };
+            const msg = { role: 'user', content: '我通过了你的好友请求', timestamp: getUserMessageTimestamp(chat) };
             chat.history.push(msg);
             await window.db.chats.put(chat);
             appendMessage(msg, chat);
@@ -8553,7 +8563,7 @@ async function handleUserTransferResponse(choice) {
             isRefund: true, // 这是一个关键标记，用于UI显示这是退款
             amount: originalMessage.amount,
             note: '已拒收对方转账',
-            timestamp: Date.now(),
+            timestamp: getUserMessageTimestamp(chat),
         };
         chat.history.push(refundMessage);
 

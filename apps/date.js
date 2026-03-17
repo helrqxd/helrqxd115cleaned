@@ -713,7 +713,7 @@ async function requestToBorrowMoney(scene, dateTargetCharId, lenderChatId, amoun
     const borrowRequestMessage = {
         role: 'user',
         type: 'borrow_money_request',
-        timestamp: Date.now(),
+        timestamp: window.getUserMessageTimestamp(lenderChat),
         payload: payloadData, // payload 用于渲染借条卡片
         content: textContent, // content 用于显示为文本消息
     };
@@ -728,7 +728,7 @@ async function requestToBorrowMoney(scene, dateTargetCharId, lenderChatId, amoun
             }" 约会。你的钱包余额是 ${lenderChat.characterPhoneData.bank.balance.toFixed(
                 2,
             )} 金币。请根据你的人设、你和用户的关系以及你的钱包余额，决定是否借钱。你【必须】使用 'lend_money_response' 指令，并设置 "decision" 为 "accept" 或 "reject" 来回应，并可以在文本消息中说明理由。]`,
-        timestamp: Date.now() + 1, // 确保时间戳在后
+        timestamp: window.getUserMessageTimestamp(lenderChat) + 1, // 确保时间戳在后
         isHidden: true,
     };
     lenderChat.history.push(hiddenMessage);
@@ -2452,7 +2452,7 @@ async function shareDatingSummary() {
     const summaryMessage = {
         role: 'user', // 标记为用户发出的消息
         type: 'dating_summary_card', // 自定义的新消息类型，用于识别
-        timestamp: Date.now(),
+        timestamp: window.getUserMessageTimestamp(chat),
 
         // 这个 content 字段就是你想要的，当编辑这条消息时，就会显示这里的文本
         content: contentForEditing,

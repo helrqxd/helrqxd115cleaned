@@ -3123,7 +3123,7 @@ ${unrepliedUserComments.length > 0 ? `★★★ 最高优先级：必须为上�
             id: Date.now().toString() + Math.random().toString(36).substr(2, 5),
             role: 'user',
             content: `[分享Lofter作品] ${article.title}`,
-            timestamp: Date.now(),
+            timestamp: window.getUserMessageTimestamp(chat),
             type: 'lofter-share',
             shareData: {
                 articleId: article.id,

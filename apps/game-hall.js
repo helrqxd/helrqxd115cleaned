@@ -1010,10 +1010,11 @@ ${formattedLog}
             if (chat) {
                 // 1. 创建对用户可见的【复盘卡片】消息
                 // 创建对用户可见的复盘消息
+                const gameBaseTs = window.getUserMessageTimestamp(chat);
                 const visibleMessage = {
                     role: 'user',
                     type: 'share_link',
-                    timestamp: Date.now(),
+                    timestamp: gameBaseTs,
                     title: '狼人杀 - 游戏复盘',
                     description: '点击查看详细复盘记录',
                     source_name: '游戏中心',
@@ -1024,7 +1025,7 @@ ${formattedLog}
                 const hiddenInstruction = {
                     role: 'system',
                     content: aiContext,
-                    timestamp: Date.now() + 1,
+                    timestamp: gameBaseTs + 1,
                     isHidden: true,
                 };
 
@@ -2217,10 +2218,11 @@ ${gameLogText}
             const chat = state.chats[chatId];
             if (chat) {
                 // 创建对用户可见的复盘卡片消息
+                const gameBaseTs = window.getUserMessageTimestamp(chat);
                 const visibleMessage = {
                     role: 'user',
                     type: 'share_link',
-                    timestamp: Date.now(),
+                    timestamp: gameBaseTs,
                     title: '海龟汤 - 游戏复盘',
                     description: '点击查看详细复盘记录',
                     source_name: '游戏中心',
@@ -2231,7 +2233,7 @@ ${gameLogText}
                 const hiddenInstruction = {
                     role: 'system',
                     content: aiContext,
-                    timestamp: Date.now() + 1,
+                    timestamp: gameBaseTs + 1,
                     isHidden: true,
                 };
 
@@ -3781,10 +3783,11 @@ ${formattedLog}
         for (const chatId of targetIds) {
             const chat = state.chats[chatId];
             if (chat) {
+                const gameBaseTs = window.getUserMessageTimestamp(chat);
                 const visibleMessage = {
                     role: 'user',
                     type: 'share_link',
-                    timestamp: Date.now(),
+                    timestamp: gameBaseTs,
                     title: '剧本杀 - 游戏复盘',
                     description: '点击查看详细复盘记录',
                     source_name: '游戏中心',
@@ -3794,7 +3797,7 @@ ${formattedLog}
                 const hiddenInstruction = {
                     role: 'system',
                     content: aiContext,
-                    timestamp: Date.now() + 1,
+                    timestamp: gameBaseTs + 1,
                     isHidden: true,
                 };
 
@@ -4522,10 +4525,11 @@ ${formattedLog}
         document.getElementById('guess-what-summary-modal').classList.remove('visible');
 
         // 创建对用户可见的复盘消息
+        const gameBaseTs = window.getUserMessageTimestamp(chat);
         const visibleMessage = {
             role: 'user',
             type: 'share_link',
-            timestamp: Date.now(),
+            timestamp: gameBaseTs,
             title: '你说我猜 - 游戏复盘',
             description: '点击查看详细复盘记录',
             source_name: '游戏中心',
@@ -4537,7 +4541,7 @@ ${formattedLog}
         const hiddenInstruction = {
             role: 'system',
             content: aiContext,
-            timestamp: Date.now() + 1,
+            timestamp: gameBaseTs + 1,
             isHidden: true,
         };
 
@@ -5822,7 +5826,7 @@ ${eventPrompt}
         const visibleMessage = {
             role: 'user',
             type: 'share_link',
-            timestamp: Date.now(),
+            timestamp: window.getUserMessageTimestamp(chat),
             title: '心动飞行棋 - 游戏复盘',
             description: '点击查看详细复盘记录',
             source_name: '游戏中心',
@@ -5834,7 +5838,7 @@ ${eventPrompt}
         const hiddenInstruction = {
             role: 'system',
             content: aiContext,
-            timestamp: Date.now() + 1,
+            timestamp: window.getUserMessageTimestamp(chat) + 1,
             isHidden: true,
         };
 
@@ -6759,7 +6763,7 @@ ${jsonFormat}
                 const visibleMessage = {
                     role: 'user',
                     type: 'share_link',
-                    timestamp: Date.now(),
+                    timestamp: window.getUserMessageTimestamp(chat),
                     title: '谁是卧底 - 游戏复盘',
                     description: '点击查看详细复盘记录',
                     source_name: '游戏中心',
@@ -6769,7 +6773,7 @@ ${jsonFormat}
                 const hiddenInstruction = {
                     role: 'system',
                     content: aiContext,
-                    timestamp: Date.now() + 1,
+                    timestamp: window.getUserMessageTimestamp(chat) + 1,
                     isHidden: true,
                 };
 

@@ -1276,7 +1276,7 @@ async function sendElemeOrderNotificationToChar(targetChatId, food, remark) {
     const notificationMessage = {
         role: 'user', // 由用户发出
         type: 'eleme_order_notification',
-        timestamp: Date.now(),
+        timestamp: window.getUserMessageTimestamp(chat),
         // content 字段现在用于AI理解上下文，而不是UI渲染
         content: `我给你点了份外卖：${food.name} `,
         payload: notificationPayload,
@@ -1287,7 +1287,7 @@ async function sendElemeOrderNotificationToChar(targetChatId, food, remark) {
     const hiddenMessage = {
         role: 'system',
         content: textContentForAI,
-        timestamp: Date.now() + 1,
+        timestamp: window.getUserMessageTimestamp(chat) + 1,
         isHidden: true,
     };
     chat.history.push(hiddenMessage);
@@ -2864,7 +2864,7 @@ async function sendGiftNotificationToChar(targetChatId, products, cartItems, tot
 
         // 同时保留 type 和 payload，它们告诉渲染器“把这条消息画成卡片”
         type: 'gift_notification',
-        timestamp: Date.now(),
+        timestamp: window.getUserMessageTimestamp(chat),
         payload: {
             senderName: state.qzoneSettings.nickname || '我',
             itemSummary: itemsSummary,
@@ -2880,7 +2880,7 @@ async function sendGiftNotificationToChar(targetChatId, products, cartItems, tot
         content: `[系统指令：用户刚刚为你购买了${cartItems.length}件商品，总价值为${totalPrice.toFixed(
             2,
         )}元。商品包括：${itemsSummary}。请根据你的人设对此表示感谢或作出其他反应。]`,
-        timestamp: Date.now() + 1,
+        timestamp: window.getUserMessageTimestamp(chat) + 1,
         isHidden: true,
     };
     chat.history.push(hiddenMessage);
@@ -2946,7 +2946,7 @@ async function handleShareCartRequest() {
     const requestMessage = {
         role: 'user', // 由用户发出
         type: 'cart_share_request', // 类型保持不变，用于UI渲染
-        timestamp: Date.now(),
+        timestamp: window.getUserMessageTimestamp(chat),
         content: requestContent, // 将包含所有信息的文本作为内容
         payload: {
             // payload 依然保留，用于UI渲染卡片

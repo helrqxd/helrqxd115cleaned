@@ -2029,7 +2029,7 @@ async function handleSaveUserDiary() {
                 userEmoji: userEmoji, // 把用户选择的表情也带上
                 text: "我刚刚写了今天的心情日记哦，你也快去看看吧！",
             },
-            timestamp: Date.now(),
+            timestamp: window.getUserMessageTimestamp(targetChat),
         };
         targetChat.history.push(notificationMessage);
 
@@ -2042,7 +2042,7 @@ async function handleSaveUserDiary() {
             你的任务:
             1.  【必须】根据你的人设和今天的聊天记录，也写一篇你自己的心情日记，并使用 'ls_diary_entry' 指令发送。
             2.  【必须】在写完日记后，立刻就用户今天的日记内容，以你的角色口吻，主动开启一段新的对话。]`,
-            timestamp: Date.now() + 1, // 确保时间戳在后
+            timestamp: window.getUserMessageTimestamp(targetChat) + 1, // 确保时间戳在后
             isHidden: true, // 这个标记能让消息对用户隐藏，但AI能看见
         };
         targetChat.history.push(hiddenMessage);
@@ -3637,7 +3637,7 @@ async function sendLoversSpaceInvitation(targetChatId) {
         senderName: myNickname,
         type: "lovers_space_invitation",
         content: `${myNickname} 对 ${chat.name} 发送了一个情侣空间邀请`,
-        timestamp: Date.now(),
+        timestamp: window.getUserMessageTimestamp(chat),
         status: "pending", // 状态：pending, accepted, rejected
     };
     chat.history.push(visibleMessage);
@@ -3646,7 +3646,7 @@ async function sendLoversSpaceInvitation(targetChatId) {
     const hiddenMessage = {
         role: "system",
         content: `[系统指令：用户刚刚向你发起了"开启情侣空间"的邀请。请你根据人设，决定是否同意，并使用 'lovers_space_response' 指令回应。]`,
-        timestamp: Date.now() + 1,
+        timestamp: window.getUserMessageTimestamp(chat) + 1,
         isHidden: true,
     };
     chat.history.push(hiddenMessage);

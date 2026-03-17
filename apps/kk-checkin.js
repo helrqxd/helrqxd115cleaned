@@ -444,7 +444,7 @@ async function shareKkItemToChat(areaName, itemName, content) {
     const msg = {
         role: 'user', // 这是用户发出的
         type: 'kk_item_share',
-        timestamp: Date.now(),
+        timestamp: window.getUserMessageTimestamp(chat),
         payload: {
             areaName: areaName,
             itemName: itemName,
