@@ -4497,6 +4497,34 @@ document.addEventListener('DOMContentLoaded', async () => {
 
 
 
+        // 好友分组管理
+        document.getElementById('manage-groups-btn').addEventListener('click', openGroupManager);
+        document.getElementById('add-new-group-btn').addEventListener('click', addNewGroup);
+        document.getElementById('close-group-manager-btn').addEventListener('click', async () => {
+            document.getElementById('group-management-modal').classList.remove('visible');
+            const select = document.getElementById('assign-group-select');
+            if (select) {
+                const chat = state.chats[state.activeChatId];
+                const currentGroupId = chat ? chat.groupId : null;
+                select.innerHTML = '<option value="">未分组</option>';
+                const groups = await db.qzoneGroups.toArray();
+                groups.forEach((group) => {
+                    const option = document.createElement('option');
+                    option.value = group.id;
+                    option.textContent = group.name;
+                    if (currentGroupId === group.id) option.selected = true;
+                    select.appendChild(option);
+                });
+            }
+        });
+        document.getElementById('existing-groups-list').addEventListener('click', (e) => {
+            const deleteBtn = e.target.closest('.delete-group-btn');
+            if (deleteBtn) {
+                const groupId = parseInt(deleteBtn.dataset.id);
+                if (!isNaN(groupId)) deleteGroup(groupId);
+            }
+        });
+
         document.getElementById('custom-modal-cancel').addEventListener('click', hideCustomModal);
         document.getElementById('custom-modal-overlay').addEventListener('click', (e) => {
             if (e.target === modalOverlay) hideCustomModal();
