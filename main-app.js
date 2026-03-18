@@ -928,8 +928,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function initDatabase(userId) {
         // 数据库名带上用户ID，实现每个人数据隔离
         db = new Dexie('GeminiChatDB');
-        db.version(61).stores({
-            // 版本号升级到 61，添加 lofterArticles 表
+        db.version(62).stores({
             chats: '&id, isGroup, groupId, ownerId, isPinned, characterPhoneData, latestInnerVoice, innerVoiceHistory, loversSpaceData.emotionDiaries, settings.summary, settings.weiboNickname, settings.innerVoiceHideHeaderBorder, settings.innerVoiceAdopterLabelFormat, interactionStats, unlockedSymbols, settings.selectedIntimacyBadge',
             apiConfig: '&id',
             globalSettings: '&id, activeThemeId',
@@ -993,6 +992,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             xhsSettings: '&id',
             xhsNotes: '++id, timestamp',
             lofterArticles: '&id, timestamp, authorId',
+            voiceCache: '&key, createdAt',
         });
         window.db = db;
         console.log(`[System] 已加载用户 ${userId} 的数据库`);
@@ -1595,6 +1595,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             state.apiConfig.secondaryApiKey = '';
             state.apiConfig.secondaryModel = '';
             state.apiConfig.secondaryTemperature = 0.8;
+        }
+        if (!Array.isArray(state.apiConfig.secondaryApiFunctions)) {
+            state.apiConfig.secondaryApiFunctions = [];
         }
 
         state.globalSettings = globalSettings || {
@@ -3178,6 +3181,267 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
     }
+
+    // ========== 副API预设功能 ==========
+
+    const SECONDARY_API_FUNCTION_OPTIONS = [
+        { key: 'summary', label: '记忆总结' },
+        { key: 'background', label: '后台活动' },
+        { key: 'voice_call', label: '视频通话' },
+        { key: 'tarot', label: '塔罗解读' },
+        { key: 'pet', label: '宠物对话' },
+        { key: 'persona_gen', label: 'AI生成群成员' },
+        { key: 'checkin', label: 'KK查岗' },
+        { key: 'accounting', label: '兔兔记账' },
+        { key: 'xhs', label: '小红薯' },
+        { key: 'lofter', label: 'Lofter' },
+        { key: 'studio', label: 'lrq小剧场' },
+        { key: 'date', label: '约会大作战' },
+        { key: 'weibo', label: '微博' },
+        { key: 'forum', label: '圈子' },
+        { key: 'game', label: '游戏大厅' },
+        { key: 'cphone', label: '查手机' },
+        { key: 'amap', label: '高德地图（还没做）' },
+    ];
+    window.SECONDARY_API_FUNCTION_OPTIONS = SECONDARY_API_FUNCTION_OPTIONS;
+
+    /**
+     * 根据功能key返回应使用的API配置（主或副）
+     */
+    function getApiConfigForFunction(functionKey) {
+        const cfg = state.apiConfig;
+        const funcs = cfg.secondaryApiFunctions || [];
+        const useSecondary = funcs.includes(functionKey) &&
+            cfg.secondaryProxyUrl && cfg.secondaryApiKey && cfg.secondaryModel;
+        if (useSecondary) {
+            return {
+                proxyUrl: cfg.secondaryProxyUrl,
+                apiKey: cfg.secondaryApiKey,
+                model: cfg.secondaryModel,
+                temperature: cfg.secondaryTemperature ?? 0.8,
+            };
+        }
+        return {
+            proxyUrl: cfg.proxyUrl,
+            apiKey: cfg.apiKey,
+            model: cfg.model,
+            temperature: cfg.temperature ?? 0.8,
+        };
+    }
+    window.getApiConfigForFunction = getApiConfigForFunction;
+
+    function renderSecondaryApiPresetSelector() {
+        const selectEl = document.getElementById('secondary-api-preset-select');
+        if (!selectEl) return;
+
+        selectEl.innerHTML = '<option value="">-- 自定义配置 --</option>';
+
+        if (state.apiPresets) {
+            state.apiPresets.forEach((preset) => {
+                const option = document.createElement('option');
+                option.value = preset.id;
+                option.textContent = preset.name;
+                selectEl.appendChild(option);
+            });
+        }
+
+        const { secondaryProxyUrl, secondaryApiKey } = state.apiConfig;
+        const matchingPreset = state.apiPresets
+            ? state.apiPresets.find((p) => p.proxyUrl === secondaryProxyUrl && p.apiKey === secondaryApiKey)
+            : null;
+
+        selectEl.value = matchingPreset ? matchingPreset.id : '';
+    }
+    window.renderSecondaryApiPresetSelector = renderSecondaryApiPresetSelector;
+
+    function handleSecondaryApiPresetSelectChange() {
+        const selectEl = document.getElementById('secondary-api-preset-select');
+        const proxyUrlInput = document.getElementById('secondary-proxy-url');
+        const apiKeyInput = document.getElementById('secondary-api-key');
+        const selectedId = parseInt(selectEl.value);
+
+        if (selectedId && state.apiPresets) {
+            const selectedPreset = state.apiPresets.find((p) => p.id === selectedId);
+            if (selectedPreset) {
+                proxyUrlInput.value = selectedPreset.proxyUrl;
+                apiKeyInput.value = selectedPreset.apiKey;
+            }
+        }
+    }
+
+    async function openSecondaryApiPresetManager() {
+        const selectEl = document.getElementById('secondary-api-preset-select');
+        const selectedId = parseInt(selectEl.value);
+        const selectedPreset = state.apiPresets ? state.apiPresets.find((p) => p.id === selectedId) : null;
+
+        const modal = document.getElementById('preset-actions-modal');
+        const footer = modal.querySelector('.custom-modal-footer');
+
+        footer.innerHTML = `
+            <button id="sec-preset-action-save-new">保存当前配置为新预设</button>
+            <button id="sec-preset-action-update-current" ${!selectedPreset ? 'disabled' : ''}>更新当前配置</button>
+            <button id="sec-preset-action-delete-current" class="btn-danger" ${!selectedPreset ? 'disabled' : ''}>删除当前配置</button>
+            <button id="sec-preset-action-cancel" style="margin-top: 8px; border-radius: 8px; background-color: #f0f0f0;">取消</button>
+        `;
+
+        document.getElementById('sec-preset-action-save-new').addEventListener('click', saveSecondaryApiConfigAsPreset);
+        if (selectedPreset) {
+            document.getElementById('sec-preset-action-update-current').addEventListener('click', () => updateSecondaryApiPreset(selectedId));
+            document.getElementById('sec-preset-action-delete-current').addEventListener('click', () => deleteSecondaryApiPreset(selectedId));
+        }
+        document.getElementById('sec-preset-action-cancel').addEventListener('click', () => modal.classList.remove('visible'));
+
+        modal.classList.add('visible');
+    }
+
+    async function saveSecondaryApiConfigAsPreset() {
+        const proxyUrl = document.getElementById('secondary-proxy-url').value.trim();
+        const apiKey = document.getElementById('secondary-api-key').value.trim();
+
+        if (!proxyUrl || !apiKey) {
+            alert('代理地址和密钥都不能为空！');
+            return;
+        }
+
+        const name = await showCustomPrompt('保存副API预设', '请为这个配置起个名字：');
+        if (name && name.trim()) {
+            const newPreset = { name: name.trim(), proxyUrl, apiKey };
+            const newId = await db.apiPresets.add(newPreset);
+
+            if (!state.apiPresets) state.apiPresets = [];
+            state.apiPresets.push({ id: newId, ...newPreset });
+
+            renderApiPresetSelector();
+            renderSecondaryApiPresetSelector();
+            document.getElementById('secondary-api-preset-select').value = newId;
+            document.getElementById('preset-actions-modal').classList.remove('visible');
+            await showCustomAlert('成功', `API预设 "${name.trim()}" 已保存！`);
+        }
+    }
+
+    async function updateSecondaryApiPreset(presetId) {
+        const proxyUrl = document.getElementById('secondary-proxy-url').value.trim();
+        const apiKey = document.getElementById('secondary-api-key').value.trim();
+
+        if (!proxyUrl || !apiKey) {
+            alert('代理地址和密钥都不能为空！');
+            return;
+        }
+
+        const preset = state.apiPresets.find((p) => p.id === presetId);
+        if (preset) {
+            preset.proxyUrl = proxyUrl;
+            preset.apiKey = apiKey;
+            await db.apiPresets.put(preset);
+            renderApiPresetSelector();
+            document.getElementById('preset-actions-modal').classList.remove('visible');
+            await showCustomAlert('成功', `预设 "${preset.name}" 已更新！`);
+        }
+    }
+
+    async function deleteSecondaryApiPreset(presetId) {
+        const preset = state.apiPresets.find((p) => p.id === presetId);
+        if (preset) {
+            const confirmed = await showCustomConfirm('确认删除', `确定要删除API预设 "${preset.name}" 吗？`, {
+                confirmButtonClass: 'btn-danger',
+            });
+            if (confirmed) {
+                await db.apiPresets.delete(presetId);
+                state.apiPresets = state.apiPresets.filter((p) => p.id !== presetId);
+
+                renderApiPresetSelector();
+                renderSecondaryApiPresetSelector();
+                document.getElementById('preset-actions-modal').classList.remove('visible');
+                await showCustomAlert('成功', '预设已删除。');
+            }
+        }
+    }
+
+    /**
+     * 渲染副API功能多选下拉菜单
+     */
+    let _secFuncSelectorInited = false;
+    function renderSecondaryApiFunctionSelector() {
+        const dropdown = document.getElementById('secondary-api-func-dropdown');
+        const trigger = document.getElementById('secondary-api-func-trigger');
+        const container = document.getElementById('secondary-api-func-selector');
+        if (!dropdown || !trigger || !container) return;
+
+        const selected = state.apiConfig.secondaryApiFunctions || [];
+
+        dropdown.innerHTML = '';
+        SECONDARY_API_FUNCTION_OPTIONS.forEach((opt) => {
+            const item = document.createElement('div');
+            item.className = 'secondary-api-func-item';
+            const checked = selected.includes(opt.key) ? 'checked' : '';
+            item.innerHTML = `<input type="checkbox" id="sec-func-${opt.key}" value="${opt.key}" ${checked}><label for="sec-func-${opt.key}">${opt.label}</label>`;
+            item.addEventListener('click', (e) => {
+                if (e.target.tagName === 'INPUT') return;
+                const cb = item.querySelector('input');
+                cb.checked = !cb.checked;
+                cb.dispatchEvent(new Event('change', { bubbles: true }));
+            });
+            item.querySelector('input').addEventListener('change', () => {
+                updateSecondaryApiFuncSummary();
+            });
+            dropdown.appendChild(item);
+        });
+
+        const actions = document.createElement('div');
+        actions.className = 'secondary-api-func-actions';
+        actions.innerHTML = `<button id="sec-func-select-all">全选</button><button id="sec-func-clear-all">清空</button>`;
+        dropdown.appendChild(actions);
+
+        dropdown.querySelector('#sec-func-select-all').addEventListener('click', () => {
+            dropdown.querySelectorAll('input[type="checkbox"]').forEach((cb) => { cb.checked = true; });
+            updateSecondaryApiFuncSummary();
+        });
+        dropdown.querySelector('#sec-func-clear-all').addEventListener('click', () => {
+            dropdown.querySelectorAll('input[type="checkbox"]').forEach((cb) => { cb.checked = false; });
+            updateSecondaryApiFuncSummary();
+        });
+
+        if (!_secFuncSelectorInited) {
+            _secFuncSelectorInited = true;
+            trigger.addEventListener('click', () => {
+                container.classList.toggle('open');
+            });
+            document.addEventListener('click', (e) => {
+                if (!container.contains(e.target)) {
+                    container.classList.remove('open');
+                }
+            });
+        }
+
+        updateSecondaryApiFuncSummary();
+    }
+    window.renderSecondaryApiFunctionSelector = renderSecondaryApiFunctionSelector;
+
+    function updateSecondaryApiFuncSummary() {
+        const dropdown = document.getElementById('secondary-api-func-dropdown');
+        const summary = document.querySelector('.secondary-api-func-summary');
+        if (!dropdown || !summary) return;
+
+        const checked = Array.from(dropdown.querySelectorAll('input[type="checkbox"]:checked'));
+        if (checked.length === 0) {
+            summary.textContent = '点击选择功能...';
+            summary.classList.remove('has-selection');
+        } else {
+            const labels = checked.map((cb) => {
+                const opt = SECONDARY_API_FUNCTION_OPTIONS.find((o) => o.key === cb.value);
+                return opt ? opt.label : cb.value;
+            });
+            summary.textContent = labels.join('、');
+            summary.classList.add('has-selection');
+        }
+    }
+
+    function getSelectedSecondaryApiFunctions() {
+        const dropdown = document.getElementById('secondary-api-func-dropdown');
+        if (!dropdown) return [];
+        return Array.from(dropdown.querySelectorAll('input[type="checkbox"]:checked')).map((cb) => cb.value);
+    }
+    window.getSelectedSecondaryApiFunctions = getSelectedSecondaryApiFunctions;
 
     /**
      * 应用锁屏壁纸到 #lock-screen 元素
@@ -4793,6 +5057,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         document.getElementById('api-preset-select').addEventListener('change', handleApiPresetSelectChange);
         document.getElementById('manage-api-presets-btn').addEventListener('click', openApiPresetManager);
+
+        document.getElementById('secondary-api-preset-select').addEventListener('change', handleSecondaryApiPresetSelectChange);
+        document.getElementById('manage-secondary-api-presets-btn').addEventListener('click', openSecondaryApiPresetManager);
 
         // 锁屏功能事件监听器
 

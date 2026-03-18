@@ -2847,7 +2847,7 @@ window.handleInitiateCall = async function () {
 
     // 2. 重新构建一个信息更丰富、指令更明确的API请求
     try {
-        const { proxyUrl, apiKey, model } = window.state.apiConfig;
+        const { proxyUrl, apiKey, model, temperature: vcTemperature } = window.getApiConfigForFunction('voice_call');
         if (!proxyUrl || !apiKey || !model) {
             throw new Error('API未配置，无法发起通话。');
         }
@@ -2903,7 +2903,7 @@ window.handleInitiateCall = async function () {
                 body: JSON.stringify({
                     model: model,
                     messages: [{ role: 'system', content: systemPromptForCall }, ...messagesForApi],
-                    temperature: parseFloat(window.state.apiConfig.temperature) || 0.8,
+                    temperature: parseFloat(vcTemperature) || 0.8,
                 }),
             });
 
@@ -3355,7 +3355,7 @@ window.triggerAiInCallAction = async function (userInput = null) {
     if (!window.videoCallState.isActive) return;
 
     const chat = window.state.chats[window.videoCallState.activeChatId];
-    const { proxyUrl, apiKey, model } = window.state.apiConfig;
+    const { proxyUrl, apiKey, model, temperature: vcTemp2 } = window.getApiConfigForFunction('voice_call');
 
     const isVisualMode = chat.settings.visualVideoCallEnabled;
     const callFeed = isVisualMode ? document.getElementById('video-call-messages-visual') : document.getElementById('video-call-main');
@@ -3499,7 +3499,7 @@ window.triggerAiInCallAction = async function (userInput = null) {
                 body: JSON.stringify({
                     model: model,
                     messages: [{ role: 'system', content: inCallPrompt }, ...messagesForApi],
-                    temperature: parseFloat(window.state.apiConfig.temperature) || 0.8,
+                    temperature: parseFloat(vcTemp2) || 0.8,
                 }),
             });
         if (!response.ok) throw new Error((await response.json()).error.message);
@@ -4874,7 +4874,7 @@ async function sendTarotReadingToChat() {
     const chat = window.state.chats[window.state.activeChatId];
     if (!chat) return;
 
-    const { proxyUrl, apiKey, model } = window.state.apiConfig || {};
+    const { proxyUrl, apiKey, model, temperature: tarotTemp } = window.getApiConfigForFunction('tarot');
 
     if (!proxyUrl || !apiKey || !model) {
         alert('请先在API设置中配置好才能触发AI解读哦！');
@@ -4956,7 +4956,7 @@ ${cardDetails}
                 body: JSON.stringify({
                     model: model,
                     messages: messagesForApi,
-                    temperature: parseFloat(window.state.apiConfig.temperature) || 0.8,
+                    temperature: parseFloat(tarotTemp) || 0.8,
                 }),
             });
 
@@ -5668,7 +5668,7 @@ async function handleSendToPet() {
  * @returns {Promise<string|null>} - AI生成的宠物回复文本
  */
 async function getPetApiResponse(pet) {
-    const { proxyUrl, apiKey, model } = window.state.apiConfig;
+    const { proxyUrl, apiKey, model, temperature: petTemp } = window.getApiConfigForFunction('pet');
     if (!proxyUrl || !apiKey || !model) {
         alert('请先配置API！');
         return '（我好像断线了...）';
@@ -5715,7 +5715,7 @@ async function getPetApiResponse(pet) {
         // Ensure toGeminiRequestData is available
         let geminiConfig;
         if (window.toGeminiRequestData) {
-            geminiConfig = window.toGeminiRequestData(model, apiKey, systemPrompt, messagesForApi, isGemini, window.state.apiConfig.temperature);
+            geminiConfig = window.toGeminiRequestData(model, apiKey, systemPrompt, messagesForApi, isGemini, petTemp);
         } else {
             // Fallback minimal implementation if missing
             geminiConfig = { url: '', data: {} };
@@ -5729,7 +5729,7 @@ async function getPetApiResponse(pet) {
                 body: JSON.stringify({
                     model: model,
                     messages: [{ role: 'system', content: systemPrompt }, ...messagesForApi],
-                    temperature: parseFloat(window.state.apiConfig.temperature) || 0.8,
+                    temperature: parseFloat(petTemp) || 0.8,
                 }),
             });
 

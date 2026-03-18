@@ -6369,6 +6369,112 @@ body {
 }
 /* ▲▲▲ 新CSS粘贴结束 ▲▲▲ */
 
+/* ▼▼▼ 副API功能多选下拉菜单 ▼▼▼ */
+.secondary-api-func-selector {
+  position: relative;
+}
+.secondary-api-func-trigger {
+  display: flex !important;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  min-height: 38px;
+  user-select: none;
+}
+.secondary-api-func-summary {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: #888;
+}
+.secondary-api-func-summary.has-selection {
+  color: var(--text-primary, #333);
+}
+.secondary-api-func-arrow {
+  font-size: 10px;
+  color: #aaa;
+  margin-left: 8px;
+  transition: transform 0.2s;
+}
+.secondary-api-func-selector.open .secondary-api-func-arrow {
+  transform: rotate(180deg);
+}
+.secondary-api-func-dropdown {
+  display: none;
+  background: #fff;
+  border: 1px solid #e0e0e0;
+  border-radius: 10px;
+  margin-top: 6px;
+  max-height: 280px;
+  overflow-y: auto;
+  padding: 6px 0;
+}
+.secondary-api-func-selector.open .secondary-api-func-dropdown {
+  display: block;
+}
+.secondary-api-func-item {
+  display: flex;
+  align-items: center;
+  padding: 8px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.15s;
+  gap: 8px;
+}
+.secondary-api-func-item:hover {
+  background: #f5f5f5;
+}
+.secondary-api-func-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent-color, #6c5ce7);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+.secondary-api-func-item label {
+  cursor: pointer;
+  flex: 1;
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.4;
+}
+.secondary-api-func-actions {
+  display: flex;
+  gap: 8px;
+  padding: 6px 12px 8px;
+  border-top: 1px solid #eee;
+  margin-top: 4px;
+}
+.secondary-api-func-actions button {
+  flex: 1;
+  padding: 5px 0;
+  border: 1px solid #e0e0e0;
+  border-radius: 8px;
+  background: #fff;
+  color: #666;
+  font-size: 11px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.secondary-api-func-actions button:hover {
+  background: #f0f0f0;
+}
+#phone-screen.dark-mode .secondary-api-func-dropdown {
+  background: #2a2a2a;
+  border-color: #444;
+}
+#phone-screen.dark-mode .secondary-api-func-item:hover {
+  background: #333;
+}
+#phone-screen.dark-mode .secondary-api-func-actions button {
+  background: #2a2a2a;
+  border-color: #444;
+  color: #aaa;
+}
+/* ▲▲▲ 副API功能多选下拉菜单结束 ▲▲▲ */
+
 /* ▼▼▼ 把这一整块全新的CSS，粘贴到 <style> 的末尾 ▼▼▼ */
 
 /* 1. 让锁屏和主屏幕可以堆叠 */

@@ -68,7 +68,7 @@ async function generateHouseData(charId, includeComputer = true) {
     showGenerationOverlay('正在努力寻找中...');
 
     try {
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('checkin');
         if (!proxyUrl || !apiKey || !model) throw new Error('API未配置');
 
         let worldBookContext = '';
@@ -507,7 +507,7 @@ async function handleContinueKkSearch() {
     showGenerationOverlay('正在努力寻找中...');
 
     try {
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('checkin');
         if (!proxyUrl || !apiKey || !model) throw new Error('API未配置');
 
         // 准备一个只包含现有物品名的上下文，告诉AI不要重复
@@ -889,7 +889,7 @@ async function generateMoreSteamGames() {
     document.getElementById('generation-overlay').classList.add('visible');
 
     try {
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('checkin');
         if (!proxyUrl || !apiKey || !model) throw new Error('API未配置');
 
         const existingGames = (chat.houseData.computer.steam_games || []).map(g => g.name).join(', ');
@@ -1007,7 +1007,7 @@ async function generateInitialSurveillanceFeeds(charId) {
     showGenerationOverlay('正在接入监控信号...');
 
     try {
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('checkin');
         if (!proxyUrl || !apiKey || !model) throw new Error('API未配置');
 
         // 提取世界书、聊天记录和用户人设作为上下文
@@ -1245,7 +1245,7 @@ async function generateMonitorUpdate(areaName, context, textElement) {
 
     textElement.innerHTML = '<i>正在刷新信号...</i>';
 
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('checkin');
     if (!proxyUrl || !apiKey || !model) {
         textElement.innerHTML = '<i style="color: #ff8a80;">API未配置</i>';
         return null;
@@ -1319,7 +1319,7 @@ async function generateMonitorDialogue(areaName, userInput, textElement, voiceSe
 
     textElement.innerHTML = '<i>等待对方回应...</i>';
 
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('checkin');
     if (!proxyUrl || !apiKey || !model) {
         textElement.innerHTML = '<i style="color: #ff8a80;">麦克风故障: API未配置</i>';
         return;
@@ -1398,7 +1398,7 @@ async function generateSurveillanceUpdate(charId) {
     const lastSurveillance = chat.houseData.surveillanceData;
 
     try {
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('checkin');
         if (!proxyUrl || !apiKey || !model) throw new Error('API未配置');
 
         const systemPrompt = `
@@ -1733,7 +1733,7 @@ async function handleTryOn() {
         `;
 
         // 4. 调用API
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('checkin');
         let isGemini = proxyUrl === GEMINI_API_URL;
         const messagesForApi = [{ role: 'user', content: prompt }];
         let geminiConfig = toGeminiRequestData(model, apiKey, prompt, messagesForApi, isGemini);
@@ -1948,7 +1948,7 @@ async function generateWardrobeData(charId) {
     showGenerationOverlay('正在偷偷打开衣柜...');
 
     try {
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('checkin');
         if (!proxyUrl || !apiKey || !model) throw new Error('API未配置');
 
         const prompt = `
@@ -2067,7 +2067,7 @@ async function generateMoreWardrobeData() {
     showGenerationOverlay('正在去商场进货...');
 
     try {
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('checkin');
         if (!proxyUrl || !apiKey || !model) throw new Error('API未配置');
 
         // 获取现有衣服名称，避免重复

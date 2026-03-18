@@ -994,6 +994,7 @@ window.initSettingsListeners = function () {
             state.apiConfig.secondaryApiKey = document.getElementById('secondary-api-key').value.trim();
             state.apiConfig.secondaryModel = document.getElementById('secondary-model-select').value.trim();
             state.apiConfig.secondaryTemperature = parseFloat(document.getElementById('secondary-temperature-slider').value);
+            state.apiConfig.secondaryApiFunctions = window.getSelectedSecondaryApiFunctions ? window.getSelectedSecondaryApiFunctions() : [];
 
             window.handleAutoBackupTimer();
             await db.apiConfig.put(state.apiConfig);
@@ -2718,6 +2719,13 @@ window.renderApiSettings = function () {
     if (secTempSlider) secTempSlider.value = secTemp;
     const secTempValue = document.getElementById('secondary-temperature-value');
     if (secTempValue) secTempValue.textContent = secTemp;
+
+    if (typeof window.renderSecondaryApiPresetSelector === 'function') {
+        window.renderSecondaryApiPresetSelector();
+    }
+    if (typeof window.renderSecondaryApiFunctionSelector === 'function') {
+        window.renderSecondaryApiFunctionSelector();
+    }
 
     // 3. GitHub 备份设置
     const ghToken = document.getElementById('github-token');

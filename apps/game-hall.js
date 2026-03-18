@@ -818,7 +818,7 @@ document.addEventListener('DOMContentLoaded', () => {
      * @returns {Promise<string>} - AI生成的摘要文本
      */
     async function generateAiGameSummary() {
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('game');
         if (!proxyUrl || !apiKey || !model) {
             return '（AI摘要生成失败：API未配置）';
         }
@@ -1232,7 +1232,7 @@ ${formattedLog}
         const player = werewolfGameState.players.find(p => p.id === playerId);
         if (!player || !player.isAlive) return null;
 
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('game');
 
         let actionPrompt = '';
         let jsonFormat = '';
@@ -1559,7 +1559,7 @@ ${jsonFormat}
      * 【海龟汤】让AI根据指定类型出题，并优先选择经典谜题
      */
     async function generateSeaTurtleRiddle(provider, riddleType) {
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('game');
         if (!proxyUrl || !apiKey || !model) return { riddle: null, answer: null };
 
         // 增加“优先选择经典谜题”的指令
@@ -1922,7 +1922,7 @@ ${jsonFormat}
      * 【海龟汤】触发AI行动（回答、提问、判断或猜测）
      */
     async function triggerStsAiTurn(player, actionType, contextPayload = {}) {
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('game');
         if (!proxyUrl || !apiKey || !model) return { type: 'question', content: '我不知道该问什么了。' };
 
         let systemPrompt = '';
@@ -2993,7 +2993,7 @@ ${gameLogText}
         const player = scriptKillGameState.players.find(p => p.id === playerId);
         if (!player) return;
 
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('game');
 
 
         let jsonFormat = '';
@@ -3587,7 +3587,7 @@ ${extraContext}
      * @returns {Promise<string>} - AI生成的摘要文本
      */
     async function generateAiSkSummary() {
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('game');
         if (!proxyUrl || !apiKey || !model) {
             return '（AI摘要生成失败：API未配置）';
         }
@@ -3891,7 +3891,7 @@ ${formattedLog}
 
         // 3. 调用API (这部分逻辑与之前相同)
         try {
-            const { proxyUrl, apiKey, model } = state.apiConfig;
+            const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('game');
             let isGemini = proxyUrl === GEMINI_API_URL;
             let messagesForApi = [{ role: 'user', content: systemPrompt }];
             let geminiConfig = toGeminiRequestData(
@@ -4326,7 +4326,7 @@ ${formattedLog}
      * @returns {Promise<object|null>} - AI的行动结果
      */
     async function triggerGuessWhatAiAction(actionType, userInput = null) {
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('game');
         if (!proxyUrl || !apiKey || !model) return null;
 
         // --- 这部分Prompt逻辑保持不变 ---
@@ -5233,7 +5233,7 @@ ${eventPrompt}
 `;
 
         try {
-            const { proxyUrl, apiKey, model } = state.apiConfig;
+            const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('game');
             let isGemini = proxyUrl === GEMINI_API_URL;
             let messagesForApi = [{ role: 'user', content: systemPrompt }];
             let geminiConfig = toGeminiRequestData(
@@ -6485,7 +6485,7 @@ ${eventPrompt}
         const player = undercoverGameState.players.find(p => p.id === playerId);
         if (!player || !player.isAlive) return null;
 
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('game');
         if (!proxyUrl || !apiKey || !model) {
             if (actionType === 'describe' || actionType === 'tie_speak') return '我...词穷了，过。';
             if (actionType === 'vote') {
@@ -6822,7 +6822,7 @@ ${jsonFormat}
      */
     async function generateUndercoverWordsAI() {
         await showCustomAlert('请稍候...', 'AI正在为你出题...');
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('game');
         if (!proxyUrl || !apiKey || !model) {
             throw new Error('API未配置，无法生成词语。');
         }

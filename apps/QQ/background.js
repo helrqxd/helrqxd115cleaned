@@ -333,7 +333,7 @@ async function triggerInactiveAiAction(chatId) {
     const chat = state.chats[chatId];
     if (!chat) return;
 
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model, temperature: bgTemperature } = window.getApiConfigForFunction('background');
     if (!proxyUrl || !apiKey || !model) return;
 
   try {
@@ -534,12 +534,21 @@ async function triggerInactiveAiAction(chatId) {
         ? `已经有${timeSinceLastMessage}分钟没有互动了（上一条消息时间：${lastMessageTimeStr}）`
         : `还从未互动过，这是你们的第一次交流`;
 
+    // 构建回复条数提示
+    let bgReplyCountPrompt = '';
+    const bgRcSettings = chat.settings.replyCount;
+    if (bgRcSettings && bgRcSettings.enabled) {
+        const bgRcMin = bgRcSettings.min || 1;
+        const bgRcMax = bgRcSettings.max || 5;
+        bgReplyCountPrompt = `\n        **回复条数要求**: 你本次回复的消息条数【必须】在 ${bgRcMin} 到 ${bgRcMax} 条之间。不得少于 ${bgRcMin} 条，也不得多于 ${bgRcMax} 条。`;
+    }
+
     let systemPrompt = `
         # 任务
         你现在【就是】角色 "${chat.name}"。这是一个秘密的、后台的独立行动。你的所有思考和决策都必须以 "${chat.name}" 的第一人称视角进行。
         ${bgTimeConfig.mode !== 'notime' ? `当前日期时间是（${currentFullTime}），` : ''}你和用户（${userNickname}）${timeGapDescription}。你的任务是回顾你们最近的对话，并根据你的人设，【自然地延续对话】或【开启一个新的、相关的话题】来主动联系用户。
         # 【对话节奏铁律 (至关重要！)】
-        你的回复【必须】模拟真人的打字和思考习惯。每条消息最好不要超过50个字，并且和聊天记录中保持完全相同的消息风格和格式。这会让对话看起来更自然、更真实。
+        你的回复【必须】模拟真人的打字和思考习惯。每条消息最好不要超过50个字，并且和聊天记录中保持完全相同的消息风格和格式。这会让对话看起来更自然、更真实。${bgReplyCountPrompt}
         # 【时间流与未读消息生成规则 (新)】
         本次行动不仅仅是发生在此刻，你可以规划从“上次互动结束”到“现在”的整个时间段内的行动。
         1. **生成多条/多组消息**: 你可以模拟在这段空白期内，分多次发送一段或【多段】消息。例如，刚分开时发几条，中间发几条，现在又发几条。
@@ -686,7 +695,7 @@ async function triggerInactiveAiAction(chatId) {
                 body: JSON.stringify({
                     model: model,
                     messages: messagesPayload,
-                    temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                    temperature: parseFloat(bgTemperature) || 0.8,
                 }),
             });
         if (!response.ok) {
@@ -1030,7 +1039,7 @@ async function triggerAiFriendApplication(chatId) {
 
     await showCustomAlert('流程启动', `正在为角色“${chat.name}”准备好友申请...`);
 
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model, temperature: bgTemperature2 } = window.getApiConfigForFunction('background');
     if (!proxyUrl || !apiKey || !model) {
         await showCustomAlert('配置错误', 'API设置不完整，无法继续。');
         return;
@@ -1090,7 +1099,7 @@ async function triggerAiFriendApplication(chatId) {
                 body: JSON.stringify({
                     model: model,
                     messages: messagesForApi,
-                    temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                    temperature: parseFloat(bgTemperature2) || 0.8,
                 }),
             });
         if (!response.ok) {
@@ -1142,7 +1151,7 @@ async function triggerGroupAiAction(chatId) {
     const chat = state.chats[chatId];
     if (!chat || !chat.isGroup) return;
 
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model, temperature: bgTemperature3 } = window.getApiConfigForFunction('background');
     if (!proxyUrl || !apiKey || !model) {
         console.warn(`群聊 "${chat.name}" 后台活动失败：API未配置。`);
         return;
@@ -1298,6 +1307,15 @@ async function triggerGroupAiAction(chatId) {
             .map((s) => s.content)
             .join('\n');
 
+        // 构建群聊后台回复条数提示
+        let bgGrpReplyCountPrompt = '';
+        const bgGrpRcSettings = chat.settings.replyCount;
+        if (bgGrpRcSettings && bgGrpRcSettings.enabled) {
+            const bgGrpRcMin = bgGrpRcSettings.min || 1;
+            const bgGrpRcMax = bgGrpRcSettings.max || 5;
+            bgGrpReplyCountPrompt = `\n        **回复条数要求**: 你本次生成的消息总条数【必须】在 ${bgGrpRcMin} 到 ${bgGrpRcMax} 条之间。不得少于 ${bgGrpRcMin} 条，也不得多于 ${bgGrpRcMax} 条。`;
+        }
+
         // updated by lrq 251027
         let systemPrompt = `
         # 任务
@@ -1306,7 +1324,7 @@ async function triggerGroupAiAction(chatId) {
         你的任务是根据下方每个角色的人设，在他们之间【自发地】生成一段或【多段】自然的对话。
         # 【对话节奏铁律 (至关重要！)】
         你的回复【必须】模拟真人的打字和思考习惯。 每条消息最好不要超过50个字，并且和聊天记录中保持完全相同的消息风格和格式。这会让对话看起来更自然、更真实。
-        **角色回复顺序不固定，【必须】交叉回复，例如角色A、角色B、角色B、角色A、角色C这样的交叉顺序。【绝对不要】不要一个人全部说完了才轮到下一个人。角色之间【必须】有互动对话。**
+        **角色回复顺序不固定，【必须】交叉回复，例如角色A、角色B、角色B、角色A、角色C这样的交叉顺序。【绝对不要】不要一个人全部说完了才轮到下一个人。角色之间【必须】有互动对话。**${bgGrpReplyCountPrompt}
         # 【时间流与未读消息生成规则 (新)】
         1. **生成多条/多组消息**: ${timeSinceLastMessage !== null ? `模拟在这段 ${Math.round(timeSinceLastMessage)} 分钟的空白期内，群成员之间的多轮互动。例如刚刚过去的 ${Math.round(timeSinceLastMessage)} 分钟内，可能发生多轮对话，每轮对话包含不同的但有逻辑顺序且【与其他聊天剧情不冲突】的信息。` : `作为群聊的首次互动，请生成群成员之间的多轮自然对话。`}
         2. **时间标记**: 每条指令【必须】添加一个 \`"sendTime"\` 字段 (字符串)。
@@ -1390,7 +1408,7 @@ async function triggerGroupAiAction(chatId) {
                 body: JSON.stringify({
                     model: model,
                     messages: messagesPayload,
-                    temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                    temperature: parseFloat(bgTemperature3) || 0.8,
                 }),
             });
 

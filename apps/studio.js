@@ -713,7 +713,7 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log(messagesForApi);
 
         try {
-            const { proxyUrl, apiKey, model } = window.state.apiConfig;
+            const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('studio');
             const isGemini = proxyUrl === 'https://generativelanguage.googleapis.com/v1beta/models';
 
             const requestData = isGemini
@@ -803,7 +803,7 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
 
         try {
-            const { proxyUrl, apiKey, model } = window.state.apiConfig;
+            const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('studio');
             const isGemini = proxyUrl === 'https://generativelanguage.googleapis.com/v1beta/models';
             const requestData = isGemini
                 ? window.toGeminiRequestData(model, apiKey, systemPrompt, [{ role: 'user', content: '请开始创作' }], true)
@@ -1194,10 +1194,11 @@ document.addEventListener('DOMContentLoaded', () => {
      * @returns {Promise<string>} AI返回的文本内容
      */
     async function getApiResponse(systemPrompt) {
-        const { proxyUrl, apiKey, model } = window.state.apiConfig;
+        const studioCfg = window.getApiConfigForFunction('studio');
+        const { proxyUrl, apiKey, model } = studioCfg;
         const isGemini = proxyUrl === 'https://generativelanguage.googleapis.com/v1beta/models';
 
-        const temperature = parseFloat(window.state.apiConfig.temperature) || 0.8;
+        const temperature = parseFloat(studioCfg.temperature) || 0.8;
 
         // 为OpenAI兼容的API请求体中增加一个 user 角色消息，构成合法对话
         const messagesForApi = [

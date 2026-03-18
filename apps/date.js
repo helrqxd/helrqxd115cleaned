@@ -173,7 +173,7 @@ async function refreshDatingScenes() {
     contentEl.innerHTML = ''; // 先清空旧场景
     contentEl.appendChild(loadingIndicator);
 
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('date');
     if (!proxyUrl || !apiKey || !model) {
         loadingIndicator.textContent = 'API未配置，无法生成场景！';
         loadingIndicator.style.color = 'red';
@@ -1042,7 +1042,7 @@ async function triggerDatingStory(userAction) {
 
     const { scene, characterId, storyHistory } = datingGameState;
     const chat = state.chats[characterId];
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('date');
     if (!proxyUrl || !apiKey || !model) {
         alert('API未配置，无法继续约会。');
         return;
@@ -1282,7 +1282,7 @@ async function triggerNsfwScene(userAction = '故事自然发展') {
     // 获取所需的所有数据
     const { scene, characterId, storyHistory } = datingGameState;
     const chat = state.chats[characterId];
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('date');
     if (!proxyUrl || !apiKey || !model) {
         alert('API未配置，无法继续约会。');
         return;

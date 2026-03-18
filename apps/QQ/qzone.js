@@ -571,7 +571,7 @@ async function handleUserPostCommentTrigger(post) {
 
 async function generateNpcCommentsForPost(post, npcsToComment, ownerChar = null) {
     await window.showCustomAlert('请稍候...', '正在召唤NPC们前来围观评论...');
-    const { proxyUrl, apiKey, model } = window.state.apiConfig;
+    const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('forum');
     if (!proxyUrl || !apiKey || !model) {
         alert('请先配置API！');
         return;

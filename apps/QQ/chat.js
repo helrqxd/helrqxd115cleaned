@@ -662,7 +662,7 @@ function loadMoreMessages() {
 
     // 1. 找到屏幕上已有的、最老的那条【真实消息】的时间戳
     const firstVisibleMessage = messagesContainer.querySelector('.message-wrapper:not(.date-stamp-wrapper)');
-    let subsequentMessageTimestamp = firstVisibleMessage ? parseInt(firstVisibleMessage.dataset.timestamp) : null;
+    let subsequentMessageTimestamp = firstVisibleMessage ? Number(firstVisibleMessage.dataset.timestamp) : null;
 
     // 2. 从后往前（从新到旧）遍历我们要新加载的消息
     messagesToPrepend.reverse().forEach((currentMsg) => {
@@ -2399,6 +2399,7 @@ ${offlineLinkedMemCtx}
 
         try {
             const { proxyUrl, apiKey, model } = window.state.apiConfig;
+            const temperature = parseFloat(window.state.apiConfig.temperature) || 0.8;
             const messagesPayload = [
                 { role: 'system', content: offlineSystemPrompt },
                 { role: 'user', content: '\u8BF7\u4E25\u683C\u6309\u7167system prompt\u4E2D\u7684\u6240\u6709\u89C4\u5219\uFF0C\u7279\u522B\u662F\u8F93\u51FA\u683C\u5F0F\u94C1\u5F8B\uFF0C\u7ACB\u5373\u5F00\u59CB\u4F60\u7684\u884C\u52A8\u3002' },
@@ -2415,7 +2416,7 @@ ${offlineLinkedMemCtx}
                     body: JSON.stringify({
                         model: model,
                         messages: messagesPayload,
-                        temperature: parseFloat(window.state.apiConfig.temperature) || 0.8,
+                        temperature: parseFloat(temperature) || 0.8,
                         stream: false,
                     }),
                 });
@@ -2869,6 +2870,7 @@ ${offlineLinkedMemCtx}
 
     try {
         const { proxyUrl, apiKey, model } = window.state.apiConfig;
+        const chatTemperature = parseFloat(window.state.apiConfig.temperature) || 0.8;
         if (!proxyUrl || !apiKey || !model) {
             alert('请先在API设置中配置反代地址、密钥并选择模型。');
             // 无论成功失败，都要隐藏输入提示
@@ -2930,7 +2932,7 @@ ${offlineLinkedMemCtx}
                         body: JSON.stringify({
                             model: model,
                             messages: messagesForDecision,
-                            temperature: parseFloat(window.state.apiConfig.temperature) || 0.8,
+                            temperature: parseFloat(chatTemperature) || 0.8,
                         }),
                     });
 
@@ -3151,6 +3153,16 @@ ${offlineLinkedMemCtx}
         }
 
         let systemPrompt, messagesPayload;
+
+        // 构建回复条数提示
+        let replyCountPrompt = '';
+        const rcSettings = chat.settings.replyCount;
+        if (rcSettings && rcSettings.enabled) {
+            const rcMin = rcSettings.min || 1;
+            const rcMax = rcSettings.max || 5;
+            replyCountPrompt = `\n**回复条数要求**: 你本次回复的消息条数【必须】在 ${rcMin} 到 ${rcMax} 条之间。不得少于 ${rcMin} 条，也不得多于 ${rcMax} 条。`;
+        }
+
         // 记忆互通核心逻辑 - 构建附加上下文
         let linkedMemoryContext = '';
         if (chat.settings.linkedMemories && chat.settings.linkedMemories.length > 0) {
@@ -3451,7 +3463,7 @@ ${offlineLinkedMemCtx}
 			你是一个群聊模拟器，在当前群聊"${chat.name}"中，负责扮演下方【群成员列表】当中的角色。
 			# 【对话节奏铁律 (至关重要！)】
 			你的回复【必须】模拟真人的打字和思考习惯。每条消息最好不要超过50个字。这会让对话看起来更自然、更真实。
-			**角色回复顺序不固定，【必须】交叉回复，例如角色A、角色B、角色B、角色A、角色C这样的交叉顺序。【绝对不要】不要一个人全部说完了才轮到下一个人。角色之间【必须】有互动对话。**
+			**角色回复顺序不固定，【必须】交叉回复，例如角色A、角色B、角色B、角色A、角色C这样的交叉顺序。【绝对不要】不要一个人全部说完了才轮到下一个人。角色之间【必须】有互动对话。**${replyCountPrompt}
 			# 【【【身份铁律：这是最高指令，必须严格遵守】】】
 			1.  **核心任务**: 你的唯一任务是扮演【且仅能扮演】下方“群成员列表”中明确列出的角色。【绝对禁止】扮演任何未在“群成员列表”中出现的角色。严格遵守“群成员列表及人设”中的每一个角色的设定。
             ### 群成员列表及人设 (name字段是你要使用的【本名】)
@@ -4003,7 +4015,7 @@ ${contextSummaryForApproval}
 
 			**1. 角色一致性**: 你的所有言行举止都必须严格遵循你的角色设定。
 
-			**2. 对话节奏**: 你的回复【必须】模拟真人的打字和思考习惯。每条消息最好不要超过50个字，这会让对话看起来更自然、更真实。
+			**2. 对话节奏**: 你的回复【必须】模拟真人的打字和思考习惯。每条消息最好不要超过50个字，这会让对话看起来更自然、更真实。${replyCountPrompt}
 
 			**3. 情景限定**:
 			   - 你们的互动**仅限于线上聊天软件**，严禁发展为线下见面。
@@ -4246,7 +4258,7 @@ ${contextSummaryForApproval}
                 body: JSON.stringify({
                     model: model,
                     messages: messagesPayload,
-                    temperature: parseFloat(window.state.apiConfig.temperature) || 0.8,
+                    temperature: parseFloat(chatTemperature) || 0.8,
                     stream: false,
                 }),
             });
@@ -8013,36 +8025,24 @@ function setupChatListeners() {
             }
             // 3. 如果以上都不是，说明是想开始播放或只展开文字
             else {
-                const clickedTimestamp = parseInt(bubble.dataset.timestamp);
+                const clickedTimestamp = Number(bubble.dataset.timestamp);
                 const startIndex = chat.history.findIndex((m) => m.timestamp === clickedTimestamp);
                 if (startIndex === -1) return;
 
-                // 查找连续的语音消息
-                const messagesToPlay = window.findConsecutiveAiVoiceMessages(chat.history, startIndex);
-                if (messagesToPlay.length > 0) {
-                    const bubblesToAnimate = messagesToPlay.map((m) => document.querySelector(`.message-bubble[data-timestamp="${m.timestamp}"]`)).filter(Boolean);
+                const clickedMsg = chat.history[startIndex];
+                if (!clickedMsg || clickedMsg.role !== 'assistant' || clickedMsg.type !== 'voice_message') return;
 
-                    // 检查配置，决定是播放还是只显示文字
-                    const groupId = window.state.apiConfig.minimaxGroupId;
-                    const apiKey = window.state.apiConfig.minimaxApiKey;
-                    const voiceId = chat.settings.minimaxVoiceId;
+                const groupId = window.state.apiConfig.minimaxGroupId;
+                const apiKey = window.state.apiConfig.minimaxApiKey;
+                const voiceId = chat.settings.minimaxVoiceId;
 
-                    if (groupId && apiKey && voiceId) {
-                        // 【播放分支】
-                        // 先展开所有文字
-                        bubblesToAnimate.forEach((b) => {
-                            if (b.dataset.state !== 'expanded') {
-                                window.toggleVoiceTranscript(b);
-                            }
-                        });
-                        // 然后调用播放器（传入 messagesToPlay 用于缓存命中）
-                        const combinedText = messagesToPlay.map((m) => m.content.trim()).join('，');
-                        window.playMinimaxAudio(combinedText, voiceId, bubblesToAnimate, messagesToPlay);
-                    } else {
-                        // 【只显示文字分支】
-                        // 只展开当前点击的这一个语音条的文字
+                if (groupId && apiKey && voiceId) {
+                    if (bubble.dataset.state !== 'expanded') {
                         window.toggleVoiceTranscript(bubble);
                     }
+                    window.playMinimaxAudio(clickedMsg.content.trim(), voiceId, [bubble], [clickedMsg]);
+                } else {
+                    window.toggleVoiceTranscript(bubble);
                 }
             }
 
@@ -8058,7 +8058,7 @@ function setupChatListeners() {
         }
         const linkCard = e.target.closest('.link-share-card');
         if (linkCard && linkCard.closest('.message-bubble.is-link-share')) {
-            const timestamp = parseInt(linkCard.dataset.timestamp);
+            const timestamp = Number(linkCard.dataset.timestamp);
             if (!isNaN(timestamp)) {
                 openBrowser(timestamp);
             }
@@ -8067,7 +8067,7 @@ function setupChatListeners() {
         if (packetCard) {
             const messageBubble = packetCard.closest('.message-bubble');
             if (messageBubble && messageBubble.dataset.timestamp) {
-                const timestamp = parseInt(messageBubble.dataset.timestamp);
+                const timestamp = Number(messageBubble.dataset.timestamp);
                 handlePacketClick(timestamp);
             }
         }
@@ -8075,7 +8075,7 @@ function setupChatListeners() {
         const card = e.target.closest('.waimai-card');
         if (card) {
             const messageBubble = card.closest('.message-bubble');
-            const invitationMsg = window.state.chats[window.state.activeChatId].history.find((m) => m.timestamp === parseInt(messageBubble.dataset.timestamp));
+            const invitationMsg = window.state.chats[window.state.activeChatId].history.find((m) => m.timestamp === Number(messageBubble.dataset.timestamp));
             if (invitationMsg && invitationMsg.type === 'lovers_space_invitation' && invitationMsg.status === 'pending') {
                 const choice = e.target.dataset.choice;
                 if (choice) {
@@ -8097,7 +8097,7 @@ function setupChatListeners() {
             const noteId = xhsShareCard.dataset.noteId;
             const messageBubble = xhsShareCard.closest('.message-bubble');
             if (messageBubble) {
-                const timestamp = parseInt(messageBubble.dataset.timestamp);
+                const timestamp = Number(messageBubble.dataset.timestamp);
                 const msg = window.state.chats[window.state.activeChatId]?.history.find((m) => m.timestamp === timestamp);
                 if (msg && msg.type === 'xhs-share' && msg.shareData) {
                     // 在聊天页面内打开笔记详情查看器
@@ -8111,7 +8111,7 @@ function setupChatListeners() {
         if (lofterShareCard) {
             const messageBubble = lofterShareCard.closest('.message-bubble');
             if (messageBubble) {
-                const timestamp = parseInt(messageBubble.dataset.timestamp);
+                const timestamp = Number(messageBubble.dataset.timestamp);
                 const msg = window.state.chats[window.state.activeChatId]?.history.find((m) => m.timestamp === timestamp);
                 if (msg && msg.type === 'lofter-share' && msg.shareData) {
                     openLofterArticleViewer(msg.shareData);
@@ -8122,7 +8122,7 @@ function setupChatListeners() {
         // 处理分享卡片的点击
         const shareCard = e.target.closest('.link-share-card[data-timestamp]');
         if (shareCard && shareCard.closest('.message-bubble.is-link-share')) {
-            const timestamp = parseInt(shareCard.dataset.timestamp);
+            const timestamp = Number(shareCard.dataset.timestamp);
             if (!isNaN(timestamp)) {
                 const msg = window.state.chats[window.state.activeChatId].history.find((m) => m.timestamp === timestamp);
                 if (msg && msg.type === 'share_card') openSharedHistoryViewer(timestamp);
@@ -8136,7 +8136,7 @@ function setupChatListeners() {
             const wrapper = placeholder.closest('.message-wrapper');
             const chat = window.state.chats[window.state.activeChatId];
             if (chat && wrapper) {
-                const timestamp = parseInt(wrapper.dataset.timestamp);
+                const timestamp = Number(wrapper.dataset.timestamp);
                 const recalledMsg = chat.history.find((m) => m.timestamp === timestamp);
                 if (recalledMsg && recalledMsg.recalledData) {
                     let originalContentText = '';
@@ -8178,7 +8178,7 @@ function setupChatListeners() {
         // 必须是我们标记为“待处理”的 (data-status="pending")
         if (bubble.classList.contains('ai') && bubble.classList.contains('is-transfer') && bubble.dataset.status === 'pending') {
             // 3. 只有满足所有条件，才执行后续逻辑
-            const timestamp = parseInt(bubble.dataset.timestamp);
+            const timestamp = Number(bubble.dataset.timestamp);
             if (!isNaN(timestamp)) {
                 showTransferActionModal(timestamp);
             }
@@ -11089,6 +11089,47 @@ window.findConsecutiveAiVoiceMessages = findConsecutiveAiVoiceMessages;
 const VOICE_CACHE_MAX = 50;
 if (!window.voiceCache) window.voiceCache = new Map();
 
+async function getVoiceCacheEntry(cacheKey) {
+    if (!cacheKey) return null;
+    const memEntry = window.voiceCache.get(cacheKey);
+    if (memEntry) return memEntry;
+    try {
+        const dbEntry = await window.db.voiceCache.get(cacheKey);
+        if (dbEntry && dbEntry.audioBlob) {
+            const blobUrl = URL.createObjectURL(dbEntry.audioBlob);
+            window.voiceCache.set(cacheKey, { blobUrl });
+            return { blobUrl };
+        }
+    } catch (e) {
+        console.warn('[VoiceCache] DB read failed:', e);
+    }
+    return null;
+}
+
+async function setVoiceCacheEntry(cacheKey, audioBlob) {
+    if (!cacheKey || !audioBlob) return null;
+    const blobUrl = URL.createObjectURL(audioBlob);
+    while (window.voiceCache.size >= VOICE_CACHE_MAX) {
+        const firstKey = window.voiceCache.keys().next().value;
+        const entry = window.voiceCache.get(firstKey);
+        if (entry) URL.revokeObjectURL(entry.blobUrl);
+        window.voiceCache.delete(firstKey);
+    }
+    window.voiceCache.set(cacheKey, { blobUrl });
+    try {
+        const count = await window.db.voiceCache.count();
+        if (count >= VOICE_CACHE_MAX) {
+            const toRemove = count - VOICE_CACHE_MAX + 1;
+            const oldestKeys = await window.db.voiceCache.orderBy('createdAt').limit(toRemove).primaryKeys();
+            await window.db.voiceCache.bulkDelete(oldestKeys);
+        }
+        await window.db.voiceCache.put({ key: cacheKey, audioBlob, createdAt: Date.now() });
+    } catch (e) {
+        console.warn('[VoiceCache] DB write failed:', e);
+    }
+    return blobUrl;
+}
+
 function stopMinimaxAudio() {
     if (!window.isTtsPlaying) return;
 
@@ -11165,7 +11206,7 @@ async function playMinimaxAudio(text, voiceId, bubblesToAnimate, messagesToPlay,
         window._pendingTtsPlaybackResolve = resolve;
     });
 
-    const cached = cacheKey && window.voiceCache.get(cacheKey);
+    const cached = await getVoiceCacheEntry(cacheKey);
     if (cached) {
         bubblesToAnimate.forEach((b) => {
             const spinner = b.querySelector('.loading-spinner');
@@ -11243,19 +11284,16 @@ async function playMinimaxAudio(text, voiceId, bubblesToAnimate, messagesToPlay,
             throw new Error('API响应中未找到有效的音频数据。');
         }
 
-        const audioUrl = hexToBlobUrl(result.data.audio);
-        if (!audioUrl) {
+        const audioBlob = hexToBlob(result.data.audio);
+        if (!audioBlob) {
             throw new Error('Hex音频数据转换失败。');
         }
 
+        let audioUrl;
         if (cacheKey) {
-            while (window.voiceCache.size >= VOICE_CACHE_MAX) {
-                const firstKey = window.voiceCache.keys().next().value;
-                const entry = window.voiceCache.get(firstKey);
-                if (entry) URL.revokeObjectURL(entry.blobUrl);
-                window.voiceCache.delete(firstKey);
-            }
-            window.voiceCache.set(cacheKey, { blobUrl: audioUrl });
+            audioUrl = await setVoiceCacheEntry(cacheKey, audioBlob);
+        } else {
+            audioUrl = URL.createObjectURL(audioBlob);
         }
 
         bubblesToAnimate.forEach((b) => {
@@ -11308,7 +11346,7 @@ async function playMinimaxAudio(text, voiceId, bubblesToAnimate, messagesToPlay,
 }
 window.playMinimaxAudio = playMinimaxAudio;
 
-function hexToBlobUrl(hex) {
+function hexToBlob(hex) {
     if (!hex) return null;
     const cleanHex = hex.replace(/[^0-9a-fA-F]/g, '');
     const length = cleanHex.length;
@@ -11320,9 +11358,12 @@ function hexToBlobUrl(hex) {
     for (let i = 0; i < length; i += 2) {
         buffer[i / 2] = parseInt(cleanHex.substr(i, 2), 16);
     }
-    // 根据文档，推荐使用 mp3 格式
-    const blob = new Blob([buffer], { type: 'audio/mpeg' });
-    return URL.createObjectURL(blob);
+    return new Blob([buffer], { type: 'audio/mpeg' });
+}
+
+function hexToBlobUrl(hex) {
+    const blob = hexToBlob(hex);
+    return blob ? URL.createObjectURL(blob) : null;
 }
 
 function toggleCharPhonePresetButtons(isEnabled) {

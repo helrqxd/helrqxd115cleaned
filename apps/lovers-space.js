@@ -818,7 +818,7 @@ function uploadImageLocally() {
 async function handleGenerateDailyActivity(chat) {
     await showCustomAlert("请稍候...", `AI正在为“${chat.name}”规划一天的生活...`);
 
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('date');
     if (!proxyUrl || !apiKey || !model) {
         alert("请先配置API！");
         return;
@@ -3141,7 +3141,7 @@ async function triggerPomodoroBreakResponse(userText) {
     const userPersona = chat.settings.myPersona || "无特殊设定";
 
     // --- 3. 构建强化的 Prompt ---
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('date');
 
     const systemPrompt = `
     # 场景
@@ -3508,7 +3508,7 @@ async function triggerPomodoroAIResponse(triggerType) {
     if (!pomodoroState.isActive || !activeLoversSpaceCharId) return;
 
     const chat = state.chats[activeLoversSpaceCharId];
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('date');
     if (!proxyUrl || !apiKey || !model) {
         console.warn("番茄钟AI互动失败：API未配置。");
         return;

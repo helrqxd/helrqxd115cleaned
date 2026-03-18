@@ -1486,7 +1486,7 @@ async function triggerAccountingAiResponse(recordsToReply) {
     listEl.appendChild(loadingEl);
     listEl.scrollTop = listEl.scrollHeight;
 
-    const { proxyUrl, apiKey, model, temperature } = state.apiConfig;
+    const { proxyUrl, apiKey, model, temperature } = window.getApiConfigForFunction('accounting');
     if (!proxyUrl || !apiKey || !model) {
         loadingEl.remove();
         alert('请先在API设置中配置好才能触发AI回复哦！');

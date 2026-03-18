@@ -304,11 +304,11 @@ document.addEventListener('DOMContentLoaded', () => {
      * 10分钟 AbortController 超时保护，防止无限等待。
      */
     async function callLofterAI(prompt, maxRetries = 3) {
-        const apiConfig = window.state?.apiConfig;
-        if (!apiConfig || !apiConfig.proxyUrl || !apiConfig.apiKey) {
+        const lofterCfg = window.getApiConfigForFunction('lofter');
+        if (!lofterCfg || !lofterCfg.proxyUrl || !lofterCfg.apiKey) {
             throw new Error('请先在设置中配置API');
         }
-        const { proxyUrl, apiKey, model, temperature } = apiConfig;
+        const { proxyUrl, apiKey, model, temperature } = lofterCfg;
         const isGemini = proxyUrl.includes('googleapis');
         const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.8;
 
@@ -1161,8 +1161,7 @@ ${typeInfo.desc}
         const overlay = document.getElementById('lofter-generating-overlay');
         const progressEl = document.getElementById('lofter-generating-progress');
 
-        // 检查API配置
-        const apiConfig = window.state?.apiConfig;
+        const apiConfig = window.getApiConfigForFunction('lofter');
         if (!apiConfig || !apiConfig.proxyUrl || !apiConfig.apiKey) {
             showLofterToast('请先在设置中配置API');
             return;
@@ -2549,7 +2548,7 @@ ${typeInfo.desc}
 
     // AI生成段评
     async function generateAIParagraphComment(articleId, paragraphIndex, paragraphText, article) {
-        const apiConfig = window.state?.apiConfig;
+        const apiConfig = window.getApiConfigForFunction('lofter');
         if (!apiConfig || !apiConfig.proxyUrl || !apiConfig.apiKey) {
             showLofterToast('请先在设置中配置API');
             return;
@@ -3300,8 +3299,7 @@ ${unrepliedUserComments.length > 0 ? `★★★ 最高优先级：必须为上�
             const article = articles.find(a => a.id === currentArticleId);
             if (!article) return;
 
-            // 检查API配置
-            const apiConfig = window.state?.apiConfig;
+            const apiConfig = window.getApiConfigForFunction('lofter');
             if (!apiConfig || !apiConfig.proxyUrl || !apiConfig.apiKey) {
                 showLofterToast('请先在设置中配置API');
                 return;
@@ -3338,7 +3336,7 @@ ${unrepliedUserComments.length > 0 ? `★★★ 最高优先级：必须为上�
 
     // AI生成评论函数
     async function generateAIComments(article) {
-        const apiConfig = window.state?.apiConfig;
+        const apiConfig = window.getApiConfigForFunction('lofter');
 
         // 检查是否有未被回复的用户评论
         const unrepliedUserComments = [];
@@ -4627,8 +4625,7 @@ ${typeInfo.desc}
         const overlay = document.getElementById('lofter-generating-overlay');
         const progressEl = document.getElementById('lofter-generating-progress');
 
-        // 检查API配置
-        const apiConfig = window.state?.apiConfig;
+        const apiConfig = window.getApiConfigForFunction('lofter');
         if (!apiConfig || !apiConfig.proxyUrl || !apiConfig.apiKey) {
             showLofterToast('请先在设置中配置API');
             return;
@@ -5484,8 +5481,7 @@ ${typeInfo.desc}
         const overlay = document.getElementById('lofter-generating-overlay');
         const progressEl = document.getElementById('lofter-generating-progress');
 
-        // 检查API配置
-        const apiConfig = window.state?.apiConfig;
+        const apiConfig = window.getApiConfigForFunction('lofter');
         if (!apiConfig || !apiConfig.proxyUrl || !apiConfig.apiKey) {
             showLofterToast('请先在设置中配置API');
             return;

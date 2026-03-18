@@ -1484,10 +1484,28 @@
 								</select>
 							</div>
 							<div class="form-group">
+								<label>预设配置</label>
+								<div class="bubble-preset-manager">
+									<select id="secondary-api-preset-select" class="moe-input"></select>
+									<button id="manage-secondary-api-presets-btn" class="moe-btn-small">管理</button>
+								</div>
+							</div>
+							<div class="form-group">
 								<label>温度 (随机性): <span id="secondary-temperature-value" style="color: var(--accent-color)">0.8</span></label>
 								<input type="range" id="secondary-temperature-slider" min="0" max="2" step="0.1" value="0.8" class="moe-slider" />
 							</div>
 							<button id="secondary-fetch-models-btn" class="moe-btn-secondary">📡 拉取模型列表</button>
+							<div class="form-group" style="margin-top: 15px;">
+								<label>副API 功能分配</label>
+								<p style="font-size: 11px; color: #888; margin-bottom: 8px">选中的功能将默认使用副API发送请求，未选中的继续使用主API。</p>
+								<div class="secondary-api-func-selector" id="secondary-api-func-selector">
+									<div class="secondary-api-func-trigger moe-input" id="secondary-api-func-trigger">
+										<span class="secondary-api-func-summary">点击选择功能...</span>
+										<span class="secondary-api-func-arrow">▼</span>
+									</div>
+									<div class="secondary-api-func-dropdown" id="secondary-api-func-dropdown"></div>
+								</div>
+							</div>
 						</div>
 					</div>
 
@@ -3701,13 +3719,6 @@
 						</div>
 						<div id="summary-details-container" class="moe-details-box" style="display: none">
 							<div class="form-group">
-								<label>总结使用的API</label>
-								<select id="summary-api-select" class="moe-input">
-									<option value="main">主API</option>
-									<option value="secondary">副API</option>
-								</select>
-							</div>
-							<div class="form-group">
 								<label>总结模式</label>
 								<div style="display: flex; gap: 20px; margin-top: 5px">
 									<label><input type="radio" name="summary-mode" value="auto" checked /> 自动总结</label>
@@ -3725,6 +3736,28 @@
 							<div class="moe-btn-group">
 								<button id="view-summaries-btn" class="moe-btn-secondary">查看/管理总结</button>
 								<button id="manual-summary-btn" class="moe-btn-secondary">立即手动总结</button>
+							</div>
+						</div>
+
+						<!-- 回复条数设置 -->
+						<div class="form-group">
+							<label class="toggle-switch-label">
+								<span class="toggle-switch-text">回复条数设置</span>
+								<input type="checkbox" id="reply-count-toggle" />
+								<span class="toggle-switch-slider"></span>
+							</label>
+						</div>
+						<div id="reply-count-details-container" class="moe-details-box" style="display: none">
+							<div style="font-size: 12px; color: #666; margin-bottom: 8px">设置AI每次回复的消息条数范围，适用于聊天和后台行动。</div>
+							<div class="moe-grid-row">
+								<div class="form-group">
+									<label>最少条数</label>
+									<input type="number" id="reply-count-min-input" value="1" min="1" max="50" class="moe-input" />
+								</div>
+								<div class="form-group">
+									<label>最多条数</label>
+									<input type="number" id="reply-count-max-input" value="5" min="1" max="50" class="moe-input" />
+								</div>
 							</div>
 						</div>
 

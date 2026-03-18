@@ -745,7 +745,7 @@ window.initQQSettings = function (dependencies) {
 			`;
 
         try {
-            const { proxyUrl, apiKey, model } = state.apiConfig;
+            const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('persona_gen');
             let isGemini = proxyUrl === GEMINI_API_URL;
             let messagesForApi = [{ role: 'user', content: systemPrompt }];
             let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesForApi, isGemini);
@@ -1007,20 +1007,24 @@ window.initQQSettings = function (dependencies) {
         document.getElementById('summary-count-input').value = summarySettings.count || 20;
         document.getElementById('summary-prompt-input').value = summarySettings.prompt || '请你以第三人称的视角，客观、冷静、不带任何感情色彩地总结以下对话的核心事件和信息。禁止进行任何角色扮演或添加主观评论。';
 
-        const summaryApiSelect = document.getElementById('summary-api-select');
-        if (summaryApiSelect) {
-            summaryApiSelect.value = summarySettings.apiSource || 'main';
-            const hasSecondary = state.apiConfig.secondaryProxyUrl && state.apiConfig.secondaryApiKey && state.apiConfig.secondaryModel;
-            const secOption = summaryApiSelect.querySelector('option[value="secondary"]');
-            if (secOption) {
-                secOption.disabled = !hasSecondary;
-                secOption.textContent = hasSecondary ? '副API' : '副API (未配置)';
-            }
-        }
-
         // 为开关添加实时交互
         summaryToggle.onchange = () => {
             summaryDetails.style.display = summaryToggle.checked ? 'block' : 'none';
+        };
+
+        // --- 加载回复条数设置 ---
+        const replyCountSettings = chat.settings.replyCount || {};
+        const replyCountToggle = document.getElementById('reply-count-toggle');
+        const replyCountDetails = document.getElementById('reply-count-details-container');
+
+        replyCountToggle.checked = replyCountSettings.enabled || false;
+        replyCountDetails.style.display = replyCountToggle.checked ? 'block' : 'none';
+
+        document.getElementById('reply-count-min-input').value = replyCountSettings.min || 1;
+        document.getElementById('reply-count-max-input').value = replyCountSettings.max || 5;
+
+        replyCountToggle.onchange = () => {
+            replyCountDetails.style.display = replyCountToggle.checked ? 'block' : 'none';
         };
 
         if (isGroup) {
@@ -1664,7 +1668,14 @@ window.initQQSettings = function (dependencies) {
         chat.settings.summary.mode = document.querySelector('input[name="summary-mode"]:checked').value;
         chat.settings.summary.count = parseInt(document.getElementById('summary-count-input').value) || 20;
         chat.settings.summary.prompt = document.getElementById('summary-prompt-input').value.trim();
-        chat.settings.summary.apiSource = document.getElementById('summary-api-select').value || 'main';
+
+        // --- 保存回复条数设置 ---
+        if (!chat.settings.replyCount) chat.settings.replyCount = {};
+        chat.settings.replyCount.enabled = document.getElementById('reply-count-toggle').checked;
+        const rcMin = parseInt(document.getElementById('reply-count-min-input').value) || 1;
+        const rcMax = parseInt(document.getElementById('reply-count-max-input').value) || 5;
+        chat.settings.replyCount.min = Math.max(1, rcMin);
+        chat.settings.replyCount.max = Math.max(chat.settings.replyCount.min, rcMax);
 
         const isStreakEnabled = document.getElementById('streak-enabled-toggle').checked;
         const newInitialDays = parseInt(document.getElementById('streak-initial-days-input').value) || 0;
@@ -2085,23 +2096,11 @@ window.initQQSettings = function (dependencies) {
     async function generateSummary(chatId, specificMessages = null) {
         const chat = state.chats[chatId];
         const summarySettings = chat.settings.summary;
-        const apiSource = summarySettings.apiSource || 'main';
 
-        let proxyUrl, apiKey, model, temperature;
-        if (apiSource === 'secondary' && state.apiConfig.secondaryProxyUrl && state.apiConfig.secondaryApiKey && state.apiConfig.secondaryModel) {
-            proxyUrl = state.apiConfig.secondaryProxyUrl;
-            apiKey = state.apiConfig.secondaryApiKey;
-            model = state.apiConfig.secondaryModel;
-            temperature = state.apiConfig.secondaryTemperature;
-        } else {
-            proxyUrl = state.apiConfig.proxyUrl;
-            apiKey = state.apiConfig.apiKey;
-            model = state.apiConfig.model;
-            temperature = state.apiConfig.temperature;
-        }
+        const { proxyUrl, apiKey, model, temperature } = window.getApiConfigForFunction('summary');
 
         if (!proxyUrl || !apiKey || !model) {
-            throw new Error(`${apiSource === 'secondary' ? '副' : '主'}API未配置，无法生成总结。`);
+            throw new Error('API未配置，无法生成总结。');
         }
         let messagesToSummarize;
 
@@ -2279,7 +2278,7 @@ window.initQQSettings = function (dependencies) {
     }
 
     async function generateConciseSummary(originalText) {
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('summary');
         if (!proxyUrl || !apiKey || !model) {
             throw new Error('API未配置，无法生成精简摘要。');
         }

@@ -826,7 +826,7 @@ function openWeiboPublisherClean() {
 async function generateHotSearch(targets = 'all') {
     await showCustomAlert('请稍候...', '正在结合角色人设生成微博热搜...');
 
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('weibo');
     if (!proxyUrl || !apiKey || !model) {
         alert('请先配置API！');
         return;
@@ -982,7 +982,7 @@ async function generateHotSearchFeed(topic) {
     const feedEl = document.getElementById('weibo-hottopic-feed-list');
     feedEl.innerHTML = '<p style="text-align:center; color: #8a8a8a; margin-top: 50px;">正在生成内容，请稍候...</p>';
 
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('weibo');
     if (!proxyUrl || !apiKey || !model) {
         alert('请先配置API！');
         return;
@@ -1087,7 +1087,7 @@ async function generatePlazaFeed(hotTopics = null, targets = 'all') {
     const feedEl = document.getElementById('weibo-plaza-feed-list');
     feedEl.innerHTML = '<p style="text-align:center; color: #8a8a8a; margin-top: 50px;">正在加载内容，请稍候...</p>';
 
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('weibo');
     if (!proxyUrl || !apiKey || !model) {
         alert('请先配置API！');
         return;
@@ -1355,7 +1355,7 @@ async function generateWeiboComments(postId) {
 
     await showCustomAlert('请稍候...', '正在召唤高质量网友...');
 
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('weibo');
     if (!proxyUrl || !apiKey || !model) {
         alert('请先配置API！');
         return;
@@ -1835,7 +1835,7 @@ function openWeiboActionModal(targetInfo) {
  * 执行AI操作（发微博/评论）
  */
 async function handleWeiboAiAction() {
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('weibo');
     if (!proxyUrl || !apiKey || !model) {
         alert('请先配置API！');
         return;
@@ -2067,7 +2067,7 @@ async function openUserDmListScreen() {
  */
 async function generateUserDms(isAddingMore = false) {
     const settings = state.qzoneSettings;
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('weibo');
 
     if (!proxyUrl || !apiKey || !model) {
         alert('请先配置API！');
@@ -2431,7 +2431,7 @@ async function handleSendUserDm() {
  * 调用AI生成粉丝的回复 (可以生成多条)
  */
 async function triggerUserDmAiReply(conversation) {
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('weibo');
     if (!proxyUrl || !apiKey || !model) {
         console.error('API配置不完整');
         return null;
@@ -2556,7 +2556,7 @@ async function generateAndCacheFanDms(characterChat, addMore = false) {
     const alertMessage = addMore ? '正在生成更多私信内容...' : `正在为“${characterChat.name}”生成粉丝私信内容...`;
     await showCustomAlert('请稍候...', alertMessage);
 
-    const { proxyUrl, apiKey, model } = state.apiConfig;
+    const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('weibo');
     if (!proxyUrl || !apiKey || !model) {
         alert('请先配置API！');
         return [];

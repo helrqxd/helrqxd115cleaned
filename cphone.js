@@ -743,7 +743,7 @@ async function generateCharacterPhoneDataSegment(
                         }
                         `;
         console.log("prompt:", prompt);
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('cphone');
         let isGemini = proxyUrl === GEMINI_API_URL;
         let geminiConfig = toGeminiRequestData(
             model,
@@ -1212,7 +1212,7 @@ async function generateCharacterPhoneData() {
         -   **【【【绝对禁止重复铁律】】】**: 你生成的 "messages"数组中，【绝对不能】包含我提供给你的上下文里的任何一条消息。你的第一条消息必须是对话历史中最后一条消息的【下一条】。
         `;
 
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('cphone');
         let isGemini = proxyUrl === GEMINI_API_URL;
         let geminiConfig = toGeminiRequestData(
             model,
@@ -2105,7 +2105,7 @@ async function generateNewDiaryEntry() {
     ${linkedMemoryContext}
     `;
 
-        const { proxyUrl, apiKey, model } = state.apiConfig;
+        const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('cphone');
         let isGemini = proxyUrl === GEMINI_API_URL;
         let geminiConfig = toGeminiRequestData(
             model,
