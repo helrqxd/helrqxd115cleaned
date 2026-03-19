@@ -2393,42 +2393,135 @@ function initPhotoFunctions() {
             }
 
             if (sendMode === 'generate') {
-                const encodedPrompt = encodeURIComponent(
-                    `A clean image containing the following Chinese text beautifully rendered: "${text}"`
-                );
-                const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?nologo=true&width=1024&height=1024`;
-
-                let imageUrl = pollinationsUrl;
-                const pollApiKey = window.state?.apiConfig?.pollinationsApiKey;
-                if (pollApiKey) {
-                    try {
-                        const res = await fetch(pollinationsUrl, {
-                            headers: { Authorization: `Bearer ${pollApiKey}` },
-                        });
-                        if (res.ok) {
-                            const blob = await res.blob();
-                            imageUrl = await new Promise((resolve) => {
-                                const reader = new FileReader();
-                                reader.onloadend = () => resolve(reader.result);
-                                reader.readAsDataURL(blob);
-                            });
-                        }
-                    } catch (e) {
-                        console.warn('Pollinations fetch failed, using URL directly:', e);
-                    }
+                const apiKey = localStorage.getItem('novelai-api-key');
+                if (!apiKey) {
+                    if (window.showCustomAlert) window.showCustomAlert('生成失败', '未配置 NovelAI API Key，请先在设置中填写。');
+                    return;
                 }
 
-                const msg = {
-                    role: 'user',
-                    type: 'user_photo',
-                    content: text,
-                    imageUrl: imageUrl,
-                    timestamp: window.getUserMessageTimestamp(chat),
+                const naiSettings = window.getNovelAISettings ? window.getNovelAISettings() : {};
+                const model = localStorage.getItem('novelai-model') || 'nai-diffusion-4-5-full';
+                const [width, height] = (naiSettings.resolution || '1024x1024').split('x').map(Number);
+
+                const positivePrompt = text;
+                const negativePrompt = naiSettings.default_negative || 'lowres, bad anatomy, text, error, worst quality, low quality, jpeg artifacts, watermark, blurry';
+
+                const commonParams = {
+                    width, height,
+                    scale: naiSettings.cfg_scale || 5,
+                    sampler: naiSettings.sampler || 'k_euler_ancestral',
+                    steps: naiSettings.steps || 28,
+                    seed: Math.floor(Math.random() * 4294967295),
+                    n_samples: 1,
+                    ucPreset: naiSettings.uc_preset ?? 1,
+                    qualityToggle: naiSettings.quality_toggle ?? true,
                 };
-                if (chat.history) chat.history.push(msg);
-                if (window.db && window.db.chats) await window.db.chats.put(chat);
-                if (window.appendMessage) window.appendMessage(msg, chat);
-                if (window.renderChatList) window.renderChatList();
+
+                let requestBody;
+                if (model.includes('nai-diffusion-4')) {
+                    requestBody = {
+                        input: positivePrompt, model, action: 'generate',
+                        parameters: {
+                            ...commonParams, params_version: 3,
+                            negative_prompt: negativePrompt,
+                            v4_prompt: { caption: { base_caption: positivePrompt, char_captions: [] }, use_coords: false, use_order: true },
+                            v4_negative_prompt: { caption: { base_caption: negativePrompt, char_captions: [] }, legacy_uc: false },
+                        },
+                    };
+                } else {
+                    requestBody = {
+                        input: positivePrompt, model, action: 'generate',
+                        parameters: {
+                            ...commonParams, negative_prompt: negativePrompt,
+                            sm: naiSettings.smea ?? true, sm_dyn: naiSettings.smea_dyn ?? false,
+                            add_original_image: false,
+                        },
+                    };
+                }
+
+                let apiUrl = model.includes('nai-diffusion-4')
+                    ? 'https://image.novelai.net/ai/generate-image-stream'
+                    : 'https://image.novelai.net/ai/generate-image';
+
+                let corsProxy = naiSettings.cors_proxy === 'custom' ? naiSettings.custom_proxy_url : naiSettings.cors_proxy;
+                if (corsProxy) apiUrl = corsProxy + encodeURIComponent(apiUrl);
+
+                const isChrome = /Chrome/.test(navigator.userAgent) && !/Edg/.test(navigator.userAgent);
+                let headers = { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey };
+                if (isChrome) {
+                    const clean = {};
+                    for (const [k, v] of Object.entries(headers)) clean[k] = v.replace(/[^\x00-\xFF]/g, '');
+                    headers = clean;
+                }
+
+                if (window.showCustomAlert) window.showCustomAlert('生成中', '正在调用 NovelAI 生成图片，请稍候...');
+
+                try {
+                    const res = await fetch(apiUrl, { method: 'POST', headers, body: JSON.stringify(requestBody) });
+                    if (!res.ok) throw new Error(`NovelAI API Error: ${res.status}`);
+
+                    const contentType = res.headers.get('content-type');
+                    let imageDataUrl = null, zipBlob = null;
+
+                    if (contentType && contentType.includes('text/event-stream')) {
+                        const respText = await res.text();
+                        const lines = respText.trim().split('\n');
+                        let base64Data = null;
+                        for (let i = lines.length - 1; i >= 0; i--) {
+                            const line = lines[i].trim();
+                            if (line.startsWith('data: ') && line !== 'data: [DONE]') {
+                                const dataContent = line.substring(6);
+                                try {
+                                    const jsonData = JSON.parse(dataContent);
+                                    if (jsonData.event_type === 'final' && jsonData.image) { base64Data = jsonData.image; break; }
+                                    if (jsonData.data) { base64Data = jsonData.data; break; }
+                                    if (jsonData.image) { base64Data = jsonData.image; break; }
+                                } catch (_) { base64Data = dataContent; break; }
+                            }
+                        }
+                        if (base64Data) {
+                            const isPNG = base64Data.startsWith('iVBORw0KGgo');
+                            const binaryString = atob(base64Data);
+                            const bytes = new Uint8Array(binaryString.length);
+                            for (let i = 0; i < binaryString.length; i++) bytes[i] = binaryString.charCodeAt(i);
+                            if (isPNG || base64Data.startsWith('/9j/')) {
+                                const imageBlob = new Blob([bytes], { type: isPNG ? 'image/png' : 'image/jpeg' });
+                                imageDataUrl = await new Promise(r => { const rd = new FileReader(); rd.onloadend = () => r(rd.result); rd.readAsDataURL(imageBlob); });
+                            } else {
+                                zipBlob = new Blob([bytes]);
+                            }
+                        }
+                    } else {
+                        zipBlob = await res.blob();
+                    }
+
+                    if (!imageDataUrl && zipBlob) {
+                        if (typeof JSZip === 'undefined') throw new Error('未找到 JSZip 库');
+                        const zip = await JSZip.loadAsync(zipBlob);
+                        const file = Object.values(zip.files)[0];
+                        if (file) {
+                            const imgBlob = await file.async('blob');
+                            imageDataUrl = await new Promise(r => { const rd = new FileReader(); rd.onloadend = () => r(rd.result); rd.readAsDataURL(imgBlob); });
+                        }
+                    }
+
+                    if (!imageDataUrl) throw new Error('未能从响应中提取图片数据');
+
+                    const msg = {
+                        role: 'user',
+                        type: 'user_photo',
+                        content: text,
+                        imageUrl: imageDataUrl,
+                        timestamp: window.getUserMessageTimestamp(chat),
+                    };
+                    if (chat.history) chat.history.push(msg);
+                    if (window.db && window.db.chats) await window.db.chats.put(chat);
+                    if (window.appendMessage) window.appendMessage(msg, chat);
+                    if (window.renderChatList) window.renderChatList();
+                } catch (e) {
+                    console.error('NovelAI 文字图生成失败:', e);
+                    if (window.showCustomAlert) window.showCustomAlert('生成失败', `NovelAI 图片生成出错：${e.message}`);
+                }
             } else {
                 const msg = {
                     role: 'user',
