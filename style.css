@@ -36780,6 +36780,133 @@ input:checked + .slider::after {
     font-weight: normal;
 }
 
+/* 世界书分类下拉菜单 */
+.lofter-wb-dropdown {
+    position: relative;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    background: #f8f9fa;
+    overflow: visible;
+}
+.lofter-wb-dropdown-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    cursor: pointer;
+    user-select: none;
+    transition: background 0.15s;
+}
+.lofter-wb-dropdown-header:hover {
+    background: #eef1f5;
+}
+.lofter-wb-dropdown-summary {
+    font-size: 13px;
+    color: #555;
+    flex: 1;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.lofter-wb-dropdown-arrow {
+    font-size: 10px;
+    color: #999;
+    transition: transform 0.2s;
+    margin-left: 8px;
+}
+.lofter-wb-dropdown-header.open .lofter-wb-dropdown-arrow {
+    transform: rotate(180deg);
+}
+.lofter-wb-dropdown-panel {
+    max-height: 220px;
+    overflow-y: auto;
+    border-top: 1px solid #eee;
+    padding: 6px 0;
+}
+.lofter-wb-cat-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 12px;
+    cursor: pointer;
+    user-select: none;
+    font-size: 13px;
+    font-weight: 600;
+    color: #333;
+    background: #f0f2f5;
+    border-bottom: 1px solid #eee;
+    transition: background 0.15s;
+}
+.lofter-wb-cat-header:hover {
+    background: #e8ebef;
+}
+.lofter-wb-cat-arrow {
+    font-size: 9px;
+    color: #999;
+    transition: transform 0.2s;
+    display: inline-block;
+    width: 12px;
+    text-align: center;
+    flex-shrink: 0;
+}
+.lofter-wb-cat-header.collapsed .lofter-wb-cat-arrow {
+    transform: rotate(-90deg);
+}
+.lofter-wb-cat-checkbox {
+    margin: 0;
+    cursor: pointer;
+    width: auto !important;
+    padding: 0 !important;
+}
+.lofter-wb-cat-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.lofter-wb-cat-count {
+    font-size: 11px;
+    color: #999;
+    font-weight: normal;
+    flex-shrink: 0;
+}
+.lofter-wb-book-container {
+    padding: 4px 0 4px 30px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+.lofter-wb-book-container.collapsed {
+    display: none;
+}
+.lofter-wb-book-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 10px;
+    cursor: pointer;
+    font-size: 13px;
+    color: #444;
+    border-radius: 4px;
+    transition: background 0.15s;
+}
+.lofter-wb-book-item:hover {
+    background: #e8ebef;
+}
+.lofter-wb-book-item input {
+    margin: 0;
+    cursor: pointer;
+    width: auto !important;
+    padding: 0 !important;
+    flex-shrink: 0;
+}
+.lofter-wb-book-item span {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
 .lofter-gen-presets-list {
     display: flex;
     flex-direction: column;

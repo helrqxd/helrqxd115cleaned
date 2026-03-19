@@ -744,18 +744,17 @@ window.handleAutoBackupTimer = function () {
     }
 
     if (isAutoBackupEnabled) {
-        console.log(`启动自动备份定时器，间隔: ${backupIntervalMinutes} 分钟`);
-
-        // 立即执行一次备份检查/上传 (可选，这里我们只启动定时器)
-        // backupToGithub(); 
+        const backupMode = state.apiConfig.githubBackupMode || 'full';
+        console.log(`启动自动备份定时器，间隔: ${backupIntervalMinutes} 分钟，模式: ${backupMode}`);
 
         window.autoBackupTimer = setInterval(() => {
             console.log('自动备份定时器触发...');
-            // 假设 backupToGithub 是全局函数，因为它在 main-app.js 中定义且比较核心
-            if (typeof window.backupToGithub === 'function') {
-                window.backupToGithub(true); // true 表示静默模式
+            if (backupMode === 'stream' && typeof window.uploadBackupToGitHubStream === 'function') {
+                window.uploadBackupToGitHubStream(true);
+            } else if (typeof window.uploadBackupToGitHub === 'function') {
+                window.uploadBackupToGitHub(true);
             } else {
-                console.warn('找不到 backupToGithub 函数，无法自动备份');
+                console.warn('找不到 GitHub 备份函数，无法自动备份');
             }
         }, backupIntervalMinutes * 60 * 1000);
     }

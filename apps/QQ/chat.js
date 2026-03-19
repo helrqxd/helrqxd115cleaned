@@ -1327,7 +1327,8 @@ function createMessageElement(msg, chat) {
     else if (msg.type === 'user_photo' || msg.type === 'ai_image') {
         bubble.classList.add('is-ai-image');
         const altText = msg.type === 'user_photo' ? '用户描述的照片' : 'AI生成的图片';
-        contentHtml = `<img src="https://i.postimg.cc/KYr2qRCK/1.jpg" class="ai-generated-image" alt="${altText}" data-description="${msg.content}">`;
+        const imgSrc = msg.imageUrl || 'https://i.postimg.cc/KYr2qRCK/1.jpg';
+        contentHtml = `<img src="${imgSrc}" class="ai-generated-image" alt="${altText}" data-description="${msg.content}">`;
     } else if (msg.type === 'voice_message') {
         bubble.classList.add('is-voice-message');
 

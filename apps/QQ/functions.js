@@ -2234,31 +2234,130 @@ function initPhotoFunctions() {
     const imageUploadInput = document.getElementById('image-upload-input');
     const sendPhotoBtn = document.getElementById('send-photo-btn');
 
-    if (uploadImageBtn && imageUploadInput) {
-        // 绑定点击事件代理
-        // 这里假设 removeEventListener 不会被调用，或者之前的监听器已经被垃圾回收/不复存在
-        uploadImageBtn.addEventListener('click', () => {
-            if (imageUploadInput) imageUploadInput.click();
+    async function sendImageBase64ToChat(base64Url) {
+        const chat = window.state.chats[window.state.activeChatId];
+        const msg = {
+            role: 'user',
+            content: [{ type: 'image_url', image_url: { url: base64Url } }],
+            timestamp: window.getUserMessageTimestamp(chat),
+        };
+        if (chat.history) chat.history.push(msg);
+        if (window.db && window.db.chats) await window.db.chats.put(chat);
+        if (window.appendMessage) window.appendMessage(msg, chat);
+        if (window.renderChatList) window.renderChatList();
+    }
+
+    function openCameraCapture() {
+        const overlay = document.createElement('div');
+        Object.assign(overlay.style, {
+            position: 'fixed', top: '0', left: '0', width: '100%', height: '100%',
+            background: '#000', zIndex: '99999', display: 'flex',
+            flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
         });
 
-        // 绑定文件选择变化事件
+        const video = document.createElement('video');
+        video.setAttribute('autoplay', '');
+        video.setAttribute('playsinline', '');
+        Object.assign(video.style, {
+            width: '100%', maxHeight: '75vh', objectFit: 'contain', borderRadius: '8px',
+        });
+
+        const btnRow = document.createElement('div');
+        Object.assign(btnRow.style, {
+            display: 'flex', gap: '20px', marginTop: '16px', alignItems: 'center',
+        });
+
+        const captureBtn = document.createElement('button');
+        Object.assign(captureBtn.style, {
+            width: '64px', height: '64px', borderRadius: '50%', border: '4px solid #fff',
+            background: 'rgba(255,255,255,0.3)', cursor: 'pointer',
+        });
+
+        const switchBtn = document.createElement('button');
+        switchBtn.textContent = '🔄';
+        Object.assign(switchBtn.style, {
+            width: '44px', height: '44px', borderRadius: '50%', border: 'none',
+            background: 'rgba(255,255,255,0.2)', fontSize: '20px', cursor: 'pointer',
+        });
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.textContent = '✕';
+        Object.assign(cancelBtn.style, {
+            width: '44px', height: '44px', borderRadius: '50%', border: 'none',
+            background: 'rgba(255,0,0,0.5)', color: '#fff', fontSize: '20px', cursor: 'pointer',
+        });
+
+        btnRow.append(cancelBtn, captureBtn, switchBtn);
+        overlay.append(video, btnRow);
+        document.body.appendChild(overlay);
+
+        let stream = null;
+        let facingMode = 'environment';
+
+        async function startCamera(mode) {
+            if (stream) stream.getTracks().forEach(t => t.stop());
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: mode }, audio: false,
+                });
+                video.srcObject = stream;
+                facingMode = mode;
+            } catch (err) {
+                console.error('Camera access error:', err);
+                if (window.showCustomAlert) window.showCustomAlert('无法访问相机', '请确保已授予相机权限。');
+                cleanup();
+            }
+        }
+
+        function cleanup() {
+            if (stream) stream.getTracks().forEach(t => t.stop());
+            overlay.remove();
+        }
+
+        cancelBtn.addEventListener('click', cleanup);
+
+        switchBtn.addEventListener('click', () => {
+            startCamera(facingMode === 'environment' ? 'user' : 'environment');
+        });
+
+        captureBtn.addEventListener('click', () => {
+            const canvas = document.createElement('canvas');
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            canvas.getContext('2d').drawImage(video, 0, 0);
+            const base64Url = canvas.toDataURL('image/jpeg', 0.9);
+            cleanup();
+            sendImageBase64ToChat(base64Url);
+        });
+
+        startCamera(facingMode);
+    }
+
+    if (uploadImageBtn && imageUploadInput) {
+        uploadImageBtn.addEventListener('click', async () => {
+            if (!window.state.activeChatId) return;
+            const choiceFunc = window.showChoiceModal;
+            if (choiceFunc) {
+                const choice = await choiceFunc('发送图片', [
+                    { text: '📁 选择文件', value: 'file' },
+                    { text: '📷 拍摄照片', value: 'camera' },
+                ]);
+                if (choice === 'file') {
+                    imageUploadInput.click();
+                } else if (choice === 'camera') {
+                    openCameraCapture();
+                }
+            } else {
+                imageUploadInput.click();
+            }
+        });
+
         imageUploadInput.addEventListener('change', async (event) => {
             const file = event.target.files[0];
             if (!file || !window.state.activeChatId) return;
             const reader = new FileReader();
             reader.onload = async (e) => {
-                const base64Url = e.target.result;
-                const chat = window.state.chats[window.state.activeChatId];
-                const msg = {
-                    role: 'user',
-                    content: [{ type: 'image_url', image_url: { url: base64Url } }],
-                    timestamp: window.getUserMessageTimestamp(chat),
-                };
-                if (chat.history) chat.history.push(msg);
-                if (window.db && window.db.chats) await window.db.chats.put(chat);
-
-                if (window.appendMessage) window.appendMessage(msg, chat);
-                if (window.renderChatList) window.renderChatList();
+                await sendImageBase64ToChat(e.target.result);
             };
             reader.readAsDataURL(file);
             event.target.value = null;
@@ -2268,18 +2367,77 @@ function initPhotoFunctions() {
     if (sendPhotoBtn) {
         sendPhotoBtn.addEventListener('click', async () => {
             if (!window.state.activeChatId) return;
-
             const promptFunc = window.showCustomPrompt;
             if (!promptFunc) return;
 
-            const description = await promptFunc('发送照片', '请用文字描述您要发送的照片：');
-            if (description && description.trim()) {
-                const chat = window.state.chats[window.state.activeChatId];
-                const msg = { role: 'user', type: 'user_photo', content: description.trim(), timestamp: window.getUserMessageTimestamp(chat) };
+            const description = await promptFunc(
+                '发送文字图',
+                '请输入要发送的文字图内容（支持换行）...',
+                '',
+                'textarea'
+            );
+            if (!description || !description.trim()) return;
 
+            const text = description.trim();
+            const chat = window.state.chats[window.state.activeChatId];
+
+            const choiceFunc = window.showChoiceModal;
+            let sendMode = 'direct';
+            if (choiceFunc) {
+                const choice = await choiceFunc('选择发送方式', [
+                    { text: '📝 直接发送文字图', value: 'direct' },
+                    { text: '🎨 生成图片发送', value: 'generate' },
+                ]);
+                if (!choice) return;
+                sendMode = choice;
+            }
+
+            if (sendMode === 'generate') {
+                const encodedPrompt = encodeURIComponent(
+                    `A clean image containing the following Chinese text beautifully rendered: "${text}"`
+                );
+                const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?nologo=true&width=1024&height=1024`;
+
+                let imageUrl = pollinationsUrl;
+                const pollApiKey = window.state?.apiConfig?.pollinationsApiKey;
+                if (pollApiKey) {
+                    try {
+                        const res = await fetch(pollinationsUrl, {
+                            headers: { Authorization: `Bearer ${pollApiKey}` },
+                        });
+                        if (res.ok) {
+                            const blob = await res.blob();
+                            imageUrl = await new Promise((resolve) => {
+                                const reader = new FileReader();
+                                reader.onloadend = () => resolve(reader.result);
+                                reader.readAsDataURL(blob);
+                            });
+                        }
+                    } catch (e) {
+                        console.warn('Pollinations fetch failed, using URL directly:', e);
+                    }
+                }
+
+                const msg = {
+                    role: 'user',
+                    type: 'user_photo',
+                    content: text,
+                    imageUrl: imageUrl,
+                    timestamp: window.getUserMessageTimestamp(chat),
+                };
                 if (chat.history) chat.history.push(msg);
                 if (window.db && window.db.chats) await window.db.chats.put(chat);
-
+                if (window.appendMessage) window.appendMessage(msg, chat);
+                if (window.renderChatList) window.renderChatList();
+            } else {
+                const msg = {
+                    role: 'user',
+                    type: 'user_photo',
+                    content: text,
+                    timestamp: window.getUserMessageTimestamp(chat),
+                };
+                if (chat.history) chat.history.push(msg);
+                if (window.db && window.db.chats) await window.db.chats.put(chat);
                 if (window.appendMessage) window.appendMessage(msg, chat);
                 if (window.renderChatList) window.renderChatList();
             }

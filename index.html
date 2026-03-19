@@ -2021,13 +2021,13 @@
 							</svg>
 						</button>
 
-						<button id="send-photo-btn" class="chat-action-icon-btn action-button" title="发送照片">
+						<button id="send-photo-btn" class="chat-action-icon-btn action-button" title="发送文字图">
 							<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
 								<path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z" />
 								<circle cx="12" cy="13" r="4" />
 							</svg>
 						</button>
-						<button id="upload-image-btn" class="chat-action-icon-btn action-button" title="上传图片">
+						<button id="upload-image-btn" class="chat-action-icon-btn action-button" title="发送图片（文件/拍摄）">
 							<svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
 								<path d="M21 3.5H3C2.44772 3.5 2 3.94772 2 4.5V19.5C2 20.0523 2.44772 20.5 3 20.5H21C21.5523 20.5 22 20.0523 22 19.5V4.5C22 3.94772 21.5523 3.5 21 3.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
 								<path d="M16.5 13.5C17.6046 13.5 18.5 12.6046 18.5 11.5C18.5 10.3954 17.6046 9.5 16.5 9.5C15.3954 9.5 14.5 10.3954 14.5 11.5C14.5 12.6046 15.3954 13.5 16.5 13.5Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
@@ -10280,11 +10280,17 @@
 							<!-- 角色列表由JS生成 -->
 						</div>
 					</div>
-					<!-- 世界书选择（多选） -->
+					<!-- 世界书选择（多选下拉） -->
 					<div class="form-group">
 						<label>绑定的世界书 <span class="lofter-gen-hint">(可多选)</span></label>
-						<div id="lofter-gen-worldbook-list" class="lofter-gen-checkbox-list">
-							<!-- 世界书列表由JS生成 -->
+						<div id="lofter-gen-worldbook-dropdown" class="lofter-wb-dropdown">
+							<div id="lofter-gen-worldbook-header" class="lofter-wb-dropdown-header">
+								<span id="lofter-gen-worldbook-summary" class="lofter-wb-dropdown-summary">未选择</span>
+								<span class="lofter-wb-dropdown-arrow">▼</span>
+							</div>
+							<div id="lofter-gen-worldbook-panel" class="lofter-wb-dropdown-panel" style="display:none;">
+								<!-- 分类世界书列表由JS生成 -->
+							</div>
 						</div>
 					</div>
 					<!-- 文风预设 -->

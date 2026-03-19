@@ -309,6 +309,7 @@ document.addEventListener('DOMContentLoaded', () => {
             throw new Error('请先在设置中配置API');
         }
         const { proxyUrl, apiKey, model, temperature } = lofterCfg;
+        console.log('[Lofter AI] prompt:', prompt);
         const isGemini = proxyUrl.includes('googleapis');
         const requestTemp = temperature !== undefined ? parseFloat(temperature) : 0.8;
 
@@ -425,7 +426,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         try {
                             const json = JSON.parse(xhr.responseText);
                             if (!json.choices?.[0]?.message) {
-                                reject(new Error(json.error?.message || 'API返回格式异常'));
+                                reject(new Error(`API返回格式异常: ${JSON.stringify(json)}`));
                                 return;
                             }
                             resolve(json.choices[0].message.content);
@@ -749,8 +750,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const worldBook = worldBooks.find(wb => wb.id === wbId);
             if (!worldBook) continue;
 
-            // 构建世界书内容字符串
             allContent += `【世界书: ${worldBook.name}】\n`;
+            if (worldBook.content) {
+                allContent += worldBook.content + '\n';
+            }
             if (worldBook.entries && worldBook.entries.length > 0) {
                 worldBook.entries.forEach(entry => {
                     if (entry.enabled !== false) {
@@ -4090,8 +4093,36 @@ ${hasUnreplied ? `★★★ 最高优先级：必须为上述未回复的用户�
     const genSettingsClose = document.getElementById('lofter-gen-settings-close');
     const genSettingsSave = document.getElementById('lofter-gen-settings-save');
 
+    // 世界书下拉菜单开关
+    const _wbDropdownHeader = document.getElementById('lofter-gen-worldbook-header');
+    const _wbDropdownPanel = document.getElementById('lofter-gen-worldbook-panel');
+    if (_wbDropdownHeader && _wbDropdownPanel) {
+        _wbDropdownHeader.addEventListener('click', () => {
+            const isOpen = _wbDropdownPanel.style.display !== 'none';
+            _wbDropdownPanel.style.display = isOpen ? 'none' : 'block';
+            _wbDropdownHeader.classList.toggle('open', !isOpen);
+        });
+    }
+
+    function _updateWbDropdownSummary() {
+        const panel = document.getElementById('lofter-gen-worldbook-panel');
+        const summary = document.getElementById('lofter-gen-worldbook-summary');
+        if (!panel || !summary) return;
+        const checked = panel.querySelectorAll('.lofter-wb-book-checkbox:checked');
+        if (checked.length === 0) {
+            summary.textContent = '未选择';
+        } else if (checked.length <= 2) {
+            summary.textContent = [...checked].map(cb => {
+                const span = cb.nextElementSibling;
+                return span ? span.textContent : '';
+            }).filter(Boolean).join('、');
+        } else {
+            summary.textContent = `已选择 ${checked.length} 本世界书`;
+        }
+    }
+
     // 渲染生成设置模态框内容
-    function renderGenSettingsModal() {
+    async function renderGenSettingsModal() {
         const genSettings = getLofterGenSettings();
 
         // 设置生成数量
@@ -4122,25 +4153,107 @@ ${hasUnreplied ? `★★★ 最高优先级：必须为上述未回复的用户�
             }
         }
 
-        // 渲染世界书选择（多选）
-        const worldbookContainer = document.getElementById('lofter-gen-worldbook-list');
-        if (worldbookContainer) {
+        // 渲染世界书分类下拉选择（多选）
+        const wbPanel = document.getElementById('lofter-gen-worldbook-panel');
+        const wbSummary = document.getElementById('lofter-gen-worldbook-summary');
+        const wbHeader = document.getElementById('lofter-gen-worldbook-header');
+        if (wbPanel) {
+            wbPanel.style.display = 'none';
+            if (wbHeader) wbHeader.classList.remove('open');
             const worldBooks = getAllWorldBooks();
-            // 兼容旧版单选：如果存在旧的 worldBookId 则转换为数组
             const selectedIds = genSettings.worldBookIds || (genSettings.worldBookId ? [genSettings.worldBookId] : []);
 
             if (worldBooks.length === 0) {
-                worldbookContainer.innerHTML = '<div class="lofter-gen-empty">暂无世界书</div>';
+                wbPanel.innerHTML = '<div class="lofter-gen-empty">暂无世界书</div>';
+                if (wbSummary) wbSummary.textContent = '暂无世界书';
             } else {
-                worldbookContainer.innerHTML = worldBooks.map(wb => {
-                    const isChecked = selectedIds.includes(wb.id);
-                    return `
-                        <label class="lofter-gen-checkbox-item">
-                            <input type="checkbox" value="${wb.id}" ${isChecked ? 'checked' : ''} />
-                            <span>${wb.name}</span>
-                        </label>
+                let categories = [];
+                try { categories = await db.worldBookCategories.toArray(); } catch (e) { /* ignore */ }
+
+                const hasUncategorized = worldBooks.some(wb => !wb.categoryId);
+                if (hasUncategorized) {
+                    categories.push({ id: 'uncategorized', name: '未分类' });
+                }
+
+                const booksByCategoryId = worldBooks.reduce((acc, wb) => {
+                    const catId = wb.categoryId || 'uncategorized';
+                    if (!acc[catId]) acc[catId] = [];
+                    acc[catId].push(wb);
+                    return acc;
+                }, {});
+
+                wbPanel.innerHTML = '';
+                categories.forEach(cat => {
+                    const booksInCat = booksByCategoryId[cat.id] || [];
+                    if (booksInCat.length === 0) return;
+
+                    const allChecked = booksInCat.every(wb => selectedIds.includes(wb.id));
+
+                    const header = document.createElement('div');
+                    header.className = 'lofter-wb-cat-header collapsed';
+                    header.innerHTML = `
+                        <span class="lofter-wb-cat-arrow">▼</span>
+                        <input type="checkbox" class="lofter-wb-cat-checkbox" data-category-id="${cat.id}" ${allChecked ? 'checked' : ''} />
+                        <span class="lofter-wb-cat-name">${cat.name}</span>
+                        <span class="lofter-wb-cat-count">(${booksInCat.length})</span>
                     `;
-                }).join('');
+
+                    const bookContainer = document.createElement('div');
+                    bookContainer.className = 'lofter-wb-book-container collapsed';
+                    bookContainer.dataset.containerFor = cat.id;
+
+                    booksInCat.forEach(wb => {
+                        const isChecked = selectedIds.includes(wb.id);
+                        const label = document.createElement('label');
+                        label.className = 'lofter-wb-book-item';
+                        label.innerHTML = `<input type="checkbox" class="lofter-wb-book-checkbox" value="${wb.id}" data-parent-category="${cat.id}" ${isChecked ? 'checked' : ''} /> <span>${wb.name}</span>`;
+                        bookContainer.appendChild(label);
+                    });
+
+                    wbPanel.appendChild(header);
+                    wbPanel.appendChild(bookContainer);
+                });
+
+                // 分类折叠/展开
+                wbPanel.querySelectorAll('.lofter-wb-cat-header').forEach(header => {
+                    header.addEventListener('click', (e) => {
+                        if (e.target.tagName === 'INPUT') return;
+                        header.classList.toggle('collapsed');
+                        const catId = header.querySelector('.lofter-wb-cat-checkbox').dataset.categoryId;
+                        const container = wbPanel.querySelector(`.lofter-wb-book-container[data-container-for="${catId}"]`);
+                        if (container) container.classList.toggle('collapsed');
+                    });
+                });
+
+                // 分类全选/取消
+                wbPanel.querySelectorAll('.lofter-wb-cat-checkbox').forEach(catCb => {
+                    catCb.addEventListener('change', () => {
+                        const catId = catCb.dataset.categoryId;
+                        const container = wbPanel.querySelector(`.lofter-wb-book-container[data-container-for="${catId}"]`);
+                        if (container) {
+                            container.querySelectorAll('.lofter-wb-book-checkbox').forEach(bookCb => {
+                                bookCb.checked = catCb.checked;
+                            });
+                        }
+                        _updateWbDropdownSummary();
+                    });
+                });
+
+                // 单本勾选时更新分类checkbox状态
+                wbPanel.querySelectorAll('.lofter-wb-book-checkbox').forEach(bookCb => {
+                    bookCb.addEventListener('change', () => {
+                        const catId = bookCb.dataset.parentCategory;
+                        const container = wbPanel.querySelector(`.lofter-wb-book-container[data-container-for="${catId}"]`);
+                        const catCb = wbPanel.querySelector(`.lofter-wb-cat-checkbox[data-category-id="${catId}"]`);
+                        if (container && catCb) {
+                            const allBooks = container.querySelectorAll('.lofter-wb-book-checkbox');
+                            catCb.checked = [...allBooks].every(cb => cb.checked);
+                        }
+                        _updateWbDropdownSummary();
+                    });
+                });
+
+                _updateWbDropdownSummary();
             }
         }
 
@@ -4212,8 +4325,8 @@ ${hasUnreplied ? `★★★ 最高优先级：必须为上述未回复的用户�
 
     // 打开生成设置
     if (genSettingsBtn) {
-        genSettingsBtn.addEventListener('click', () => {
-            renderGenSettingsModal();
+        genSettingsBtn.addEventListener('click', async () => {
+            await renderGenSettingsModal();
             if (genSettingsModal) {
                 genSettingsModal.style.display = 'flex';
             }
@@ -4259,18 +4372,14 @@ ${hasUnreplied ? `★★★ 最高优先级：必须为上述未回复的用户�
                 }
             }
 
-            // 获取世界书选择（多选）
-            const worldbookContainer = document.getElementById('lofter-gen-worldbook-list');
-            if (worldbookContainer) {
-                const checkboxes = worldbookContainer.querySelectorAll('input[type="checkbox"]');
+            // 获取世界书选择（多选下拉）
+            const wbDropdownPanel = document.getElementById('lofter-gen-worldbook-panel');
+            if (wbDropdownPanel) {
                 const selectedWbIds = [];
-                checkboxes.forEach(cb => {
-                    if (cb.checked) {
-                        selectedWbIds.push(cb.value);
-                    }
+                wbDropdownPanel.querySelectorAll('.lofter-wb-book-checkbox:checked').forEach(cb => {
+                    selectedWbIds.push(cb.value);
                 });
                 genSettings.worldBookIds = selectedWbIds;
-                // 清除旧的单选字段
                 delete genSettings.worldBookId;
             }
 
