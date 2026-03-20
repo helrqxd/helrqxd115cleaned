@@ -1598,27 +1598,34 @@ function createMessageElement(msg, chat) {
     } else if (msg.type === 'poll') {
         bubble.classList.add('is-poll');
 
+        let pollOptions = msg.options;
+        if (typeof pollOptions === 'string') {
+            pollOptions = pollOptions.split('\n').map(s => s.trim()).filter(Boolean);
+        }
+        if (!Array.isArray(pollOptions)) pollOptions = [];
+
+        const votes = msg.votes || {};
+
         let totalVotes = 0;
         const voteCounts = {};
 
-        // 计算总票数和每个选项的票数
-        for (const option in msg.votes) {
-            const count = msg.votes[option].length;
+        for (const option in votes) {
+            const count = votes[option].length;
             voteCounts[option] = count;
             totalVotes += count;
         }
 
         const myNickname = chat.isGroup ? chat.settings.myNickname || '我' : '我';
         let myVote = null;
-        for (const option in msg.votes) {
-            if (msg.votes[option].includes(myNickname)) {
+        for (const option in votes) {
+            if (votes[option].includes(myNickname)) {
                 myVote = option;
                 break;
             }
         }
 
         let optionsHtml = '<div class="poll-options-list">';
-        msg.options.forEach((optionText) => {
+        pollOptions.forEach((optionText) => {
             const count = voteCounts[optionText] || 0;
             const percentage = totalVotes > 0 ? (count / totalVotes) * 100 : 0;
             const isVotedByMe = myVote === optionText;
@@ -2185,7 +2192,10 @@ window.triggerAiResponse = async function triggerAiResponse() {
                 return `${tsPrefix}[系统提示: 用户发了一个${target}，金额: ${msg.totalAmount}元。状态: ${status}。]`;
             }
             if (msg.role === 'assistant') return formatMessageForContext(msg, chat, offlineShowTs);
-            if (msg.type === 'poll') return `${tsPrefix}[系统提示：用户 (${myNickname}) 发起了一个投票。问题："${msg.question}", 选项："${msg.options.join('", "')}"。你可以使用 'vote' 指令参与投票。]`;
+            if (msg.type === 'poll') {
+                const opts = Array.isArray(msg.options) ? msg.options : String(msg.options || '').split('\n').filter(Boolean);
+                return `${tsPrefix}[系统提示：用户 (${myNickname}) 发起了一个投票。问题："${msg.question}", 选项："${opts.join('", "')}"。你可以使用 'vote' 指令参与投票。]`;
+            }
             let contentStr = '';
             if (msg.quote) {
                 const quotedSender = msg.quote.senderName || '未知用户';
@@ -3359,7 +3369,7 @@ ${offlineLinkedMemCtx}
 
                     // 1. Polls
                     if (msg.type === 'poll') {
-                        return `${tsPrefix}[系统提示：用户 (${myNickname}) 发起了一个投票。问题：“${msg.question}”, 选项：“${msg.options.join('", "')}”。你可以使用 'vote' 指令参与投票。]`;
+                        return `${tsPrefix}[系统提示：用户 (${myNickname}) 发起了一个投票。问题：“${msg.question}”, 选项：“${(Array.isArray(msg.options) ? msg.options : String(msg.options || '').split('\n').filter(Boolean)).join('", "')}”。你可以使用 'vote' 指令参与投票。]`;
                     }
 
                     // 2. Quotes and Content
@@ -3775,7 +3785,7 @@ ${libraryList}
                         return formatMessageForContext(msg, chat, singleShowTs);
                     }
                     if (msg.type === 'poll') {
-                        return `${tsPrefix}[系统提示：用户 (${myNickname}) 发起了一个投票。问题：“${msg.question}”, 选项：“${msg.options.join('", "')}”。你可以使用 'vote' 指令参与投票。]`;
+                        return `${tsPrefix}[系统提示：用户 (${myNickname}) 发起了一个投票。问题：“${msg.question}”, 选项：“${(Array.isArray(msg.options) ? msg.options : String(msg.options || '').split('\n').filter(Boolean)).join('", "')}”。你可以使用 'vote' 指令参与投票。]`;
                     }
                     let contentStr = '';
                     if (msg.quote) {
@@ -6605,10 +6615,10 @@ ${contextSummaryForApproval}
                     // 判断这条投票消息是谁发的
                     if (msg.role === 'user') {
                         const myNickname = chat.isGroup ? chat.settings.myNickname || '我' : '我';
-                        pollInfoText = `[系统提示：用户 (${myNickname}) 发起了一个投票。问题：“${msg.question}”, 选项：“${msg.options.join('", "')}”。你可以使用 'vote' 指令参与投票。]`;
+                        pollInfoText = `[系统提示：用户 (${myNickname}) 发起了一个投票。问题：“${msg.question}”, 选项：“${(Array.isArray(msg.options) ? msg.options : String(msg.options || '').split('\n').filter(Boolean)).join('", "')}”。你可以使用 'vote' 指令参与投票。]`;
                     } else {
                         // 如果是AI发的
-                        pollInfoText = `[系统提示：${msg.senderName} 发起了一个投票。问题：“${msg.question}”, 选项：“${msg.options.join('", "')}”。]`;
+                        pollInfoText = `[系统提示：${msg.senderName} 发起了一个投票。问题：“${msg.question}”, 选项：“${(Array.isArray(msg.options) ? msg.options : String(msg.options || '').split('\n').filter(Boolean)).join('", "')}”。]`;
                     }
 
                     // 最终，我们把这条格式化好的文本作为系统消息发送给AI

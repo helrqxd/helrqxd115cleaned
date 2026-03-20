@@ -1545,15 +1545,23 @@ async function triggerGroupAiAction(chatId) {
                             packetId: 'rp_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
                         };
                         break;
-                    case 'poll':
+                    case 'poll': {
+                        let pollOptions = msgData.options;
+                        if (typeof pollOptions === 'string') {
+                            pollOptions = pollOptions.split('\n').map(s => s.trim()).filter(Boolean);
+                        }
+                        if (!Array.isArray(pollOptions)) pollOptions = [];
                         aiMessage = {
                             ...baseMessage,
                             type: 'poll',
                             question: msgData.question,
-                            options: msgData.options, // 字符串，需要前端解析
+                            options: pollOptions,
+                            votes: {},
+                            isClosed: false,
                             pollId: 'poll_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9)
                         };
                         break;
+                    }
                     case 'send_and_recall': {
                         // [Fix] 后台群聊中的撤回：直接保存为recalled_message
                         const recalledMsg = {

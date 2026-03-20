@@ -1762,7 +1762,7 @@ async function applyRawOutputEdit() {
                 // 投票 → 隐藏系统消息
                 aiMessage = {
                     role: 'system',
-                    content: `[系统提示：${baseMessage.senderName} 发起了一个投票。问题："${msgData.question}", 选项："${(msgData.options || []).join ? msgData.options.join('", "') : msgData.options}"。]`,
+                    content: `[系统提示：${baseMessage.senderName} 发起了一个投票。问题："${msgData.question}", 选项："${(Array.isArray(msgData.options) ? msgData.options : String(msgData.options || '').split('\n').filter(Boolean)).join('", "')}"。]`,
                     timestamp: currentTimestamp,
                     isHidden: true,
                 };
@@ -4331,7 +4331,7 @@ async function endPoll(timestamp) {
     if (confirmed) {
         poll.isClosed = true;
 
-        const resultSummary = poll.options.map((opt) => `“${opt}”(${poll.votes[opt]?.length || 0}票)`).join('，');
+        const resultSummary = (Array.isArray(poll.options) ? poll.options : String(poll.options || '').split('\n').filter(Boolean)).map((opt) => `“${opt}”(${(poll.votes || {})[opt]?.length || 0}票)`).join('，');
         const hiddenMessageContent = `[系统提示：用户手动结束了投票！最终结果为：${resultSummary}。]`;
 
         const hiddenMessage = {
@@ -4360,11 +4360,18 @@ function showPollResults(timestamp) {
 
     let resultsHtml = `<p><strong>${poll.question}</strong></p><hr style="opacity: 0.2; margin: 10px 0;">`;
 
-    if (Object.keys(poll.votes).length === 0) {
+    const pollVotes = poll.votes || {};
+    let pollOptions = poll.options;
+    if (typeof pollOptions === 'string') {
+        pollOptions = pollOptions.split('\n').map(s => s.trim()).filter(Boolean);
+    }
+    if (!Array.isArray(pollOptions)) pollOptions = [];
+
+    if (Object.keys(pollVotes).length === 0) {
         resultsHtml += '<p style="color: #8a8a8a;">还没有人投票。</p>';
     } else {
-        poll.options.forEach((option) => {
-            const voters = poll.votes[option] || [];
+        pollOptions.forEach((option) => {
+            const voters = pollVotes[option] || [];
             resultsHtml += `
                 <div style="margin-bottom: 15px;">
                     <p style="font-weight: 500; margin: 0 0 5px 0;">${option} (${voters.length}票)</p>
