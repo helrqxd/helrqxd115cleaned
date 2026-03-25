@@ -1,3 +1,8 @@
+function getRandomItem(arr) {
+    if (!arr || arr.length === 0) return '';
+    return arr[Math.floor(Math.random() * arr.length)];
+}
+
 let currentEditingProductId = null; // 用于追踪正在编辑的商品ID
 let currentEditingFoodId = null;
 let logisticsUpdateTimers = [];
@@ -930,6 +935,7 @@ async function handleGenerateFoodsAI() {
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
+                        ...window.buildModelParams(state.apiConfig),
                         temperature: 1.1,
                         response_format: { type: 'json_object' },
                     }),
@@ -1017,6 +1023,7 @@ async function handleSearchFoodsAI() {
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
+                        ...window.buildModelParams(state.apiConfig),
                         temperature: 0.8,
                         response_format: { type: 'json_object' },
                     }),
@@ -1558,6 +1565,7 @@ async function generateProductReviews(productId) {
                 body: JSON.stringify({
                     model: model,
                     messages: messagesForApi,
+                    ...window.buildModelParams(state.apiConfig),
                     temperature: parseFloat(state.apiConfig.temperature) || 1.0,
                     response_format: { type: 'json_object' },
                 }),
@@ -1954,6 +1962,7 @@ async function handleSearchProductsAI() {
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
+                        ...window.buildModelParams(state.apiConfig),
                         temperature: 0.8,
                         response_format: { type: 'json_object' },
                     }),
@@ -2118,6 +2127,7 @@ async function handleGenerateProductsAI() {
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
+                        ...window.buildModelParams(state.apiConfig),
                         temperature: 1.1,
                         response_format: { type: 'json_object' },
                     }),

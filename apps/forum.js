@@ -559,7 +559,7 @@ ${Object.values(state.chats)
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
-                        temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                        ...window.buildModelParams(state.apiConfig),
                         response_format: { type: 'json_object' },
                     }),
                 });
@@ -820,7 +820,7 @@ ${worldviewContext}
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
-                        temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                        ...window.buildModelParams(state.apiConfig),
                         response_format: { type: 'json_object' },
                     }),
                 });
@@ -1000,7 +1000,7 @@ ${lengthInstruction}
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
-                        temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                        ...window.buildModelParams(state.apiConfig),
                         response_format: { type: 'json_object' },
                     }),
                 });
@@ -1123,7 +1123,7 @@ ${contextInstructions || '- 自由发挥，但保持连载节奏，注意人物�
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
-                        temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                        ...window.buildModelParams(state.apiConfig),
                         response_format: { type: 'json_object' },
                     }),
                 });
@@ -1265,7 +1265,7 @@ ${chapterSummaries || '暂无摘要'}
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
-                        temperature: parseFloat(state.apiConfig.temperature) || 0.5,
+                        ...window.buildModelParams(state.apiConfig), temperature: parseFloat(state.apiConfig.temperature) || 0.5,
                         response_format: { type: 'json_object' },
                     }),
                 });
@@ -1877,7 +1877,7 @@ ${JSON.stringify(publicFigures, null, 2)}
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
-                        temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                        ...window.buildModelParams(state.apiConfig),
                         response_format: { type: 'json_object' },
                     }),
                 });
@@ -2000,7 +2000,7 @@ ${JSON.stringify(publicFigures, null, 2)}
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
-                        temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                        ...window.buildModelParams(state.apiConfig),
                         response_format: { type: 'json_object' },
                     }),
                 });
@@ -2267,7 +2267,7 @@ ${lastChapter.content || ''}
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
-                        temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                        ...window.buildModelParams(state.apiConfig),
                         response_format: { type: 'json_object' },
                     }),
                 });

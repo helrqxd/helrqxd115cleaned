@@ -883,6 +883,7 @@ async function handleGenerateDailyActivity(chat) {
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
+                        ...window.buildModelParams(state.apiConfig),
                         temperature: 1.0,
                         response_format: { type: "json_object" },
                     }),
@@ -3206,6 +3207,7 @@ async function triggerPomodoroBreakResponse(userText) {
                 body: JSON.stringify({
                     model: model,
                     messages: messagesForApi,
+                    ...window.buildModelParams(state.apiConfig),
                     temperature: 0.85, // 稍微再调高一点点温度，让闲聊更有趣
                 }),
             });
@@ -3563,6 +3565,9 @@ async function triggerPomodoroAIResponse(triggerType) {
                 contents: [userMessage],
                 generationConfig: {
                     temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                    ...(state.apiConfig.topP < 1 ? { topP: state.apiConfig.topP } : {}),
+                    ...(state.apiConfig.frequencyPenalty !== 0 ? { frequencyPenalty: state.apiConfig.frequencyPenalty } : {}),
+                    ...(state.apiConfig.presencePenalty !== 0 ? { presencePenalty: state.apiConfig.presencePenalty } : {}),
                     response_mime_type: "application/json",
                 },
                 systemInstruction: {
@@ -3573,7 +3578,7 @@ async function triggerPomodoroAIResponse(triggerType) {
             requestBody = {
                 model: model,
                 messages: [{ role: "system", content: systemPrompt }, userMessage],
-                temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                ...window.buildModelParams(state.apiConfig),
                 response_format: { type: "json_object" },
             };
         }

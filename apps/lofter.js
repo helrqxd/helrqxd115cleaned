@@ -329,7 +329,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (isGemini) {
                     result = await _callGeminiAPI(proxyUrl, apiKey, model, requestTemp, prompt, controller.signal);
                 } else {
-                    result = await _callOpenAICompatibleAPI(proxyUrl, apiKey, model, requestTemp, prompt, controller.signal);
+                    result = await _callOpenAICompatibleAPI(proxyUrl, apiKey, model, lofterCfg, prompt, controller.signal);
                 }
 
                 clearTimeout(timeoutId);
@@ -402,7 +402,7 @@ document.addEventListener('DOMContentLoaded', () => {
      * XMLHttpRequest 拥有独立的超时机制（xhr.timeout 属性），不受此行为影响，
      * 更适合需要长时间等待响应的非流式请求场景。
      */
-    async function _callOpenAICompatibleAPI(proxyUrl, apiKey, model, temperature, prompt, signal) {
+    async function _callOpenAICompatibleAPI(proxyUrl, apiKey, model, apiConfig, prompt, signal) {
         return new Promise((resolve, reject) => {
             let settled = false;
             const settle = (fn) => {
@@ -475,7 +475,7 @@ document.addEventListener('DOMContentLoaded', () => {
             xhr.send(JSON.stringify({
                 model: model || 'gpt-3.5-turbo',
                 messages: [{ role: 'user', content: prompt }],
-                temperature
+                ...window.buildModelParams(apiConfig)
             }));
         });
     }

@@ -970,6 +970,9 @@ window.initSettingsListeners = function () {
             state.apiConfig.apiKey = document.getElementById('api-key').value.trim();
             state.apiConfig.model = document.getElementById('model-select').value;
             state.apiConfig.temperature = parseFloat(document.getElementById('temperature-slider').value);
+            state.apiConfig.topP = parseFloat(document.getElementById('top-p-slider').value);
+            state.apiConfig.frequencyPenalty = parseFloat(document.getElementById('frequency-penalty-slider').value);
+            state.apiConfig.presencePenalty = parseFloat(document.getElementById('presence-penalty-slider').value);
 
             // Minimax 设置
             state.apiConfig.minimaxGroupId = document.getElementById('minimax-group-id').value.trim();
@@ -993,6 +996,9 @@ window.initSettingsListeners = function () {
             state.apiConfig.secondaryApiKey = document.getElementById('secondary-api-key').value.trim();
             state.apiConfig.secondaryModel = document.getElementById('secondary-model-select').value.trim();
             state.apiConfig.secondaryTemperature = parseFloat(document.getElementById('secondary-temperature-slider').value);
+            state.apiConfig.secondaryTopP = parseFloat(document.getElementById('secondary-top-p-slider').value);
+            state.apiConfig.secondaryFrequencyPenalty = parseFloat(document.getElementById('secondary-frequency-penalty-slider').value);
+            state.apiConfig.secondaryPresencePenalty = parseFloat(document.getElementById('secondary-presence-penalty-slider').value);
             state.apiConfig.secondaryApiFunctions = window.getSelectedSecondaryApiFunctions ? window.getSelectedSecondaryApiFunctions() : [];
 
             window.handleAutoBackupTimer();
@@ -1054,6 +1060,22 @@ window.initSettingsListeners = function () {
         tempSlider.addEventListener('input', () => {
             tempValue.textContent = tempSlider.value;
         });
+    }
+
+    const topPSlider = document.getElementById('top-p-slider');
+    const topPValue = document.getElementById('top-p-value');
+    if (topPSlider && topPValue) {
+        topPSlider.addEventListener('input', () => { topPValue.textContent = topPSlider.value; });
+    }
+    const fpSlider = document.getElementById('frequency-penalty-slider');
+    const fpValue = document.getElementById('frequency-penalty-value');
+    if (fpSlider && fpValue) {
+        fpSlider.addEventListener('input', () => { fpValue.textContent = fpSlider.value; });
+    }
+    const ppSlider = document.getElementById('presence-penalty-slider');
+    const ppValue = document.getElementById('presence-penalty-value');
+    if (ppSlider && ppValue) {
+        ppSlider.addEventListener('input', () => { ppValue.textContent = ppSlider.value; });
     }
 
     const qualitySlider = document.getElementById('image-quality-slider');
@@ -1141,13 +1163,25 @@ window.initSettingsListeners = function () {
         });
     }
 
-    // 副API 温度滑块实时显示
     const secTempSliderEl = document.getElementById('secondary-temperature-slider');
     const secTempValueEl = document.getElementById('secondary-temperature-value');
     if (secTempSliderEl && secTempValueEl) {
-        secTempSliderEl.addEventListener('input', () => {
-            secTempValueEl.textContent = secTempSliderEl.value;
-        });
+        secTempSliderEl.addEventListener('input', () => { secTempValueEl.textContent = secTempSliderEl.value; });
+    }
+    const secTopPSlider = document.getElementById('secondary-top-p-slider');
+    const secTopPValue = document.getElementById('secondary-top-p-value');
+    if (secTopPSlider && secTopPValue) {
+        secTopPSlider.addEventListener('input', () => { secTopPValue.textContent = secTopPSlider.value; });
+    }
+    const secFpSlider = document.getElementById('secondary-frequency-penalty-slider');
+    const secFpValue = document.getElementById('secondary-frequency-penalty-value');
+    if (secFpSlider && secFpValue) {
+        secFpSlider.addEventListener('input', () => { secFpValue.textContent = secFpSlider.value; });
+    }
+    const secPpSlider = document.getElementById('secondary-presence-penalty-slider');
+    const secPpValue = document.getElementById('secondary-presence-penalty-value');
+    if (secPpSlider && secPpValue) {
+        secPpSlider.addEventListener('input', () => { secPpValue.textContent = secPpSlider.value; });
     }
 
     const fetchMinimaxBtn = document.getElementById('fetch-minimax-speech-models-btn');
@@ -2661,12 +2695,29 @@ window.renderApiSettings = function () {
         }
     }
 
-    // 温度
     const temp = typeof state.apiConfig.temperature !== 'undefined' ? state.apiConfig.temperature : 0.8;
-    const tempSlider = document.getElementById('temperature-slider');
-    if (tempSlider) tempSlider.value = temp;
-    const tempValue = document.getElementById('temperature-value');
-    if (tempValue) tempValue.textContent = temp;
+    const tempSliderR = document.getElementById('temperature-slider');
+    if (tempSliderR) tempSliderR.value = temp;
+    const tempValueR = document.getElementById('temperature-value');
+    if (tempValueR) tempValueR.textContent = temp;
+
+    const topPR = typeof state.apiConfig.topP !== 'undefined' ? state.apiConfig.topP : 1;
+    const topPSliderR = document.getElementById('top-p-slider');
+    if (topPSliderR) topPSliderR.value = topPR;
+    const topPValueR = document.getElementById('top-p-value');
+    if (topPValueR) topPValueR.textContent = topPR;
+
+    const fpR = typeof state.apiConfig.frequencyPenalty !== 'undefined' ? state.apiConfig.frequencyPenalty : 0;
+    const fpSliderR = document.getElementById('frequency-penalty-slider');
+    if (fpSliderR) fpSliderR.value = fpR;
+    const fpValueR = document.getElementById('frequency-penalty-value');
+    if (fpValueR) fpValueR.textContent = fpR;
+
+    const ppR = typeof state.apiConfig.presencePenalty !== 'undefined' ? state.apiConfig.presencePenalty : 0;
+    const ppSliderR = document.getElementById('presence-penalty-slider');
+    if (ppSliderR) ppSliderR.value = ppR;
+    const ppValueR = document.getElementById('presence-penalty-value');
+    if (ppValueR) ppValueR.textContent = ppR;
 
     // 2. Minimax 设置
     const minimaxGroup = document.getElementById('minimax-group-id');
@@ -2718,6 +2769,24 @@ window.renderApiSettings = function () {
     if (secTempSlider) secTempSlider.value = secTemp;
     const secTempValue = document.getElementById('secondary-temperature-value');
     if (secTempValue) secTempValue.textContent = secTemp;
+
+    const secTopPR = typeof state.apiConfig.secondaryTopP !== 'undefined' ? state.apiConfig.secondaryTopP : 1;
+    const secTopPSliderR = document.getElementById('secondary-top-p-slider');
+    if (secTopPSliderR) secTopPSliderR.value = secTopPR;
+    const secTopPValR = document.getElementById('secondary-top-p-value');
+    if (secTopPValR) secTopPValR.textContent = secTopPR;
+
+    const secFpR = typeof state.apiConfig.secondaryFrequencyPenalty !== 'undefined' ? state.apiConfig.secondaryFrequencyPenalty : 0;
+    const secFpSliderR = document.getElementById('secondary-frequency-penalty-slider');
+    if (secFpSliderR) secFpSliderR.value = secFpR;
+    const secFpValR = document.getElementById('secondary-frequency-penalty-value');
+    if (secFpValR) secFpValR.textContent = secFpR;
+
+    const secPpR = typeof state.apiConfig.secondaryPresencePenalty !== 'undefined' ? state.apiConfig.secondaryPresencePenalty : 0;
+    const secPpSliderR = document.getElementById('secondary-presence-penalty-slider');
+    if (secPpSliderR) secPpSliderR.value = secPpR;
+    const secPpValR = document.getElementById('secondary-presence-penalty-value');
+    if (secPpValR) secPpValR.textContent = secPpR;
 
     if (typeof window.renderSecondaryApiPresetSelector === 'function') {
         window.renderSecondaryApiPresetSelector();

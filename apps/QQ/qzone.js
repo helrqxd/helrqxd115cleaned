@@ -638,7 +638,7 @@ async function generateNpcCommentsForPost(post, npcsToComment, ownerChar = null)
                 body: JSON.stringify({
                     model: model,
                     messages: messagesForApi,
-                    temperature: parseFloat(window.state.apiConfig.temperature) || 0.8,
+                    ...window.buildModelParams(window.state.apiConfig),
                 }),
             });
 

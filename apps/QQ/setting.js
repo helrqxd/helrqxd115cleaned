@@ -755,7 +755,7 @@ window.initQQSettings = function (dependencies) {
                 : await fetch(`${proxyUrl}/v1/chat/completions`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-                    body: JSON.stringify({ model: model, messages: messagesForApi, temperature: 1.0 }),
+                    body: JSON.stringify({ model: model, messages: messagesForApi, ...window.buildModelParams(state.apiConfig), temperature: 1.0 }),
                 });
 
             if (!response.ok) throw new Error(`API请求失败: ${response.status} - ${await response.text()}`);
@@ -2155,6 +2155,7 @@ window.initQQSettings = function (dependencies) {
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
+                        ...window.buildModelParams(state.apiConfig),
                         temperature: parseFloat(temperature) || 0.3,
                     }),
                 });
@@ -2292,6 +2293,7 @@ window.initQQSettings = function (dependencies) {
                 body: JSON.stringify({
                     model: model,
                     messages: [{ role: 'user', content: systemPrompt }],
+                    ...window.buildModelParams(state.apiConfig),
                     temperature: parseFloat(state.apiConfig.temperature) || 0.5,
                 }),
             });

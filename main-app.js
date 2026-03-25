@@ -522,9 +522,12 @@ function transformChatData(item) {
  * 2. 智能去重 System Prompt (解决重复生成和忽略用户输入)
  * 3. 确保 contents 不为空 (解决功能性 400 错误)
  */
-window.toGeminiRequestData = function (model, apiKey, systemInstruction, messagesForDecision, isGemini, temperature) {
+window.toGeminiRequestData = function (model, apiKey, systemInstruction, messagesForDecision, isGemini, temperature, extraParams) {
     if (!isGemini) {
         return undefined;
+    }
+    if (!extraParams && window.state && window.state.apiConfig) {
+        extraParams = window.state.apiConfig;
     }
 
     let roleType = {
@@ -627,11 +630,19 @@ window.toGeminiRequestData = function (model, apiKey, systemInstruction, message
     }
 
     // --- 4. 组装请求体 ---
+    const generationConfig = {
+        temperature: parseFloat(temperature) || 0.8,
+    };
+    const ep = extraParams || {};
+    const tp = parseFloat(ep.topP);
+    if (!isNaN(tp) && tp < 1) generationConfig.topP = tp;
+    const fp = parseFloat(ep.frequencyPenalty);
+    if (!isNaN(fp) && fp !== 0) generationConfig.frequencyPenalty = fp;
+    const pp = parseFloat(ep.presencePenalty);
+    if (!isNaN(pp) && pp !== 0) generationConfig.presencePenalty = pp;
     const body = {
         contents: contents,
-        generationConfig: {
-            temperature: parseFloat(temperature) || 0.8,
-        },
+        generationConfig: generationConfig,
     };
 
     // 只有当 systemInstruction 不为空时才添加该字段
@@ -1576,7 +1587,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             proxyUrl: '',
             apiKey: '',
             model: '',
-            temperature: 0.8, // 新增：为温度设置一个默认值 0.8
+            temperature: 0.8,
+            topP: 1,
+            frequencyPenalty: 0,
+            presencePenalty: 0,
             minimaxGroupId: '',
             minimaxApiKey: '',
             minimaxProvider: 'cn',
@@ -1584,17 +1598,33 @@ document.addEventListener('DOMContentLoaded', async () => {
             pollinationsApiKey: '',
         };
 
-        // 兼容旧数据，如果加载的设置里没有温度，也给一个默认值
         if (typeof state.apiConfig.temperature === 'undefined') {
             state.apiConfig.temperature = 0.8;
         }
+        if (typeof state.apiConfig.topP === 'undefined') {
+            state.apiConfig.topP = 1;
+        }
+        if (typeof state.apiConfig.frequencyPenalty === 'undefined') {
+            state.apiConfig.frequencyPenalty = 0;
+        }
+        if (typeof state.apiConfig.presencePenalty === 'undefined') {
+            state.apiConfig.presencePenalty = 0;
+        }
 
-        // 兼容旧数据：为副API设置默认值
         if (typeof state.apiConfig.secondaryProxyUrl === 'undefined') {
             state.apiConfig.secondaryProxyUrl = '';
             state.apiConfig.secondaryApiKey = '';
             state.apiConfig.secondaryModel = '';
             state.apiConfig.secondaryTemperature = 0.8;
+        }
+        if (typeof state.apiConfig.secondaryTopP === 'undefined') {
+            state.apiConfig.secondaryTopP = 1;
+        }
+        if (typeof state.apiConfig.secondaryFrequencyPenalty === 'undefined') {
+            state.apiConfig.secondaryFrequencyPenalty = 0;
+        }
+        if (typeof state.apiConfig.secondaryPresencePenalty === 'undefined') {
+            state.apiConfig.secondaryPresencePenalty = 0;
         }
         if (!Array.isArray(state.apiConfig.secondaryApiFunctions)) {
             state.apiConfig.secondaryApiFunctions = [];
@@ -3219,6 +3249,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                 apiKey: cfg.secondaryApiKey,
                 model: cfg.secondaryModel,
                 temperature: cfg.secondaryTemperature ?? 0.8,
+                topP: cfg.secondaryTopP ?? 1,
+                frequencyPenalty: cfg.secondaryFrequencyPenalty ?? 0,
+                presencePenalty: cfg.secondaryPresencePenalty ?? 0,
             };
         }
         return {
@@ -3226,9 +3259,32 @@ document.addEventListener('DOMContentLoaded', async () => {
             apiKey: cfg.apiKey,
             model: cfg.model,
             temperature: cfg.temperature ?? 0.8,
+            topP: cfg.topP ?? 1,
+            frequencyPenalty: cfg.frequencyPenalty ?? 0,
+            presencePenalty: cfg.presencePenalty ?? 0,
         };
     }
     window.getApiConfigForFunction = getApiConfigForFunction;
+
+    /**
+     * 根据API配置对象，生成用于OpenAI兼容API请求体的模型参数
+     */
+    function buildModelParams(config) {
+        if (typeof config === 'string') {
+            config = getApiConfigForFunction(config);
+        }
+        const params = {
+            temperature: parseFloat(config.temperature) || 0.8,
+        };
+        const tp = parseFloat(config.topP);
+        if (!isNaN(tp) && tp < 1) params.top_p = tp;
+        const fp = parseFloat(config.frequencyPenalty);
+        if (!isNaN(fp) && fp !== 0) params.frequency_penalty = fp;
+        const pp = parseFloat(config.presencePenalty);
+        if (!isNaN(pp) && pp !== 0) params.presence_penalty = pp;
+        return params;
+    }
+    window.buildModelParams = buildModelParams;
 
     function renderSecondaryApiPresetSelector() {
         const selectEl = document.getElementById('secondary-api-preset-select');
@@ -6690,6 +6746,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     window.showChoiceModal = showChoiceModal;
     window.appendMessage = appendMessage;
     window.renderChatList = renderChatList;
+    window.captureVideoFrame = captureVideoFrame;
     // window.updateUserBalanceAndLogTransaction is already global
 
     // --- Initialize Apps manually since defer scripts run after this logic might be too late for some bindings

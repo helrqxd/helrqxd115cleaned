@@ -314,11 +314,12 @@
             if (Array.isArray(data)) {
                 await saveWorldBookEntriesFromArray(data, categoryId);
             } else if (data && typeof data === 'object') {
-                // 可能是 map 或者 { entries: [] }
                 if (data.entries) {
-                    await saveWorldBookEntriesFromArray(data.entries, categoryId);
+                    const entriesArray = Array.isArray(data.entries)
+                        ? data.entries
+                        : Object.values(data.entries);
+                    await saveWorldBookEntriesFromArray(entriesArray, categoryId);
                 } else {
-                    // 尝试作为单个对象或字典处理
                     const entries = Object.values(data);
                     await saveWorldBookEntriesFromArray(entries, categoryId);
                 }
@@ -536,13 +537,14 @@
 
                 // 几种可能的格式
                 if (Array.isArray(data)) {
-                    // 可能是 entries 数组
                     await saveWorldBookEntriesFromArray(data, newCategoryId);
-                } else if (data.entries && Array.isArray(data.entries)) {
-                    await saveWorldBookEntriesFromArray(data.entries, newCategoryId);
+                } else if (data.entries) {
+                    const entriesArray = Array.isArray(data.entries)
+                        ? data.entries
+                        : Object.values(data.entries);
+                    await saveWorldBookEntriesFromArray(entriesArray, newCategoryId);
                 } else {
-                    // 尝试作为单个对象字典
-                    const entries = Object.values(data).filter(item => typeof item === 'object');
+                    const entries = Object.values(data).filter(item => typeof item === 'object' && item !== null);
                     if (entries.length > 0) {
                         await saveWorldBookEntriesFromArray(entries, newCategoryId);
                     } else {

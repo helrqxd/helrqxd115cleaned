@@ -209,7 +209,7 @@ async function generateHouseData(charId, includeComputer = true) {
             : await fetch(`${proxyUrl}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-                body: JSON.stringify({ model: model, messages: messagesForApi, temperature: 0.8 }),
+                body: JSON.stringify({ model: model, messages: messagesForApi, ...window.buildModelParams(state.apiConfig), temperature: 0.8 }),
             });
 
         if (!response.ok) throw new Error(await response.text());
@@ -560,7 +560,7 @@ async function handleContinueKkSearch() {
             : await fetch(`${proxyUrl}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-                body: JSON.stringify({ model: model, messages: messagesForApi, temperature: 0.9 }),
+                body: JSON.stringify({ model: model, messages: messagesForApi, ...window.buildModelParams(state.apiConfig), temperature: 0.9 }),
             });
 
         if (!response.ok) throw new Error(await response.text());
@@ -920,7 +920,7 @@ async function generateMoreSteamGames() {
             : await fetch(`${proxyUrl}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-                body: JSON.stringify({ model: model, messages: messagesForApi, temperature: 0.9 }),
+                body: JSON.stringify({ model: model, messages: messagesForApi, ...window.buildModelParams(state.apiConfig), temperature: 0.9 }),
             });
 
         if (!response.ok) throw new Error(await response.text());
@@ -1082,7 +1082,7 @@ async function generateInitialSurveillanceFeeds(charId) {
             : await fetch(`${proxyUrl}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-                body: JSON.stringify({ model: model, messages: messagesForApi, temperature: 0.8 }),
+                body: JSON.stringify({ model: model, messages: messagesForApi, ...window.buildModelParams(state.apiConfig), temperature: 0.8 }),
             });
 
         if (!response.ok) throw new Error(`API请求失败: ${await response.text()}`);
@@ -1293,7 +1293,7 @@ async function generateMonitorUpdate(areaName, context, textElement) {
             : await fetch(`${proxyUrl}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-                body: JSON.stringify({ model: model, messages: messagesForApi, temperature: 0.9 }),
+                body: JSON.stringify({ model: model, messages: messagesForApi, ...window.buildModelParams(state.apiConfig), temperature: 0.9 }),
             });
 
         if (!response.ok) throw new Error(await response.text());
@@ -1371,7 +1371,7 @@ async function generateMonitorDialogue(areaName, userInput, textElement, voiceSe
             : await fetch(`${proxyUrl}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-                body: JSON.stringify({ model: model, messages: messagesForApi, temperature: 0.8 }),
+                body: JSON.stringify({ model: model, messages: messagesForApi, ...window.buildModelParams(state.apiConfig), temperature: 0.8 }),
             });
 
         if (!response.ok) throw new Error(await response.text());
@@ -1430,7 +1430,7 @@ async function generateSurveillanceUpdate(charId) {
             : await fetch(`${proxyUrl}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-                body: JSON.stringify({ model: model, messages: messagesForApi, temperature: 0.8 }),
+                body: JSON.stringify({ model: model, messages: messagesForApi, ...window.buildModelParams(state.apiConfig), temperature: 0.8 }),
             });
 
         if (!response.ok) throw new Error(await response.text());
@@ -1743,7 +1743,7 @@ async function handleTryOn() {
             : await fetch(`${proxyUrl}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-                body: JSON.stringify({ model: model, messages: messagesForApi, temperature: 0.9 }),
+                body: JSON.stringify({ model: model, messages: messagesForApi, ...window.buildModelParams(state.apiConfig), temperature: 0.9 }),
             });
 
         if (!response.ok) throw new Error('API请求失败');
@@ -1994,7 +1994,7 @@ async function generateWardrobeData(charId) {
             : await fetch(`${proxyUrl}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-                body: JSON.stringify({ model: model, messages: messagesForApi, temperature: 0.85 }),
+                body: JSON.stringify({ model: model, messages: messagesForApi, ...window.buildModelParams(state.apiConfig), temperature: 0.85 }),
             });
 
         if (!response.ok) throw new Error(await response.text());
@@ -2104,7 +2104,7 @@ async function generateMoreWardrobeData() {
             : await fetch(`${proxyUrl}/v1/chat/completions`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-                body: JSON.stringify({ model: model, messages: messagesForApi, temperature: 0.9 }),
+                body: JSON.stringify({ model: model, messages: messagesForApi, ...window.buildModelParams(state.apiConfig), temperature: 0.9 }),
             });
 
         if (!response.ok) throw new Error(await response.text());

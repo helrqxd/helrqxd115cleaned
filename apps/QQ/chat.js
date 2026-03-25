@@ -1911,8 +1911,8 @@ window.openChat = async function openChat(chatId) {
  */
 function getLinkedMemoryVisibleLabel(chat, linkedChat, freshLinkedChat) {
     if (!chat) return '仅你可见';
-    if (!chat.isGroup) return `仅（${chat.name}）可见`;
-    if (!linkedChat.isGroup) return `仅（${linkedChat.name}）可见`;
+    if (!chat.isGroup) return `仅【${chat.name}】可见`;
+    if (!linkedChat.isGroup) return `仅【${linkedChat.name}】可见`;
     const linkedNames = new Set((freshLinkedChat.members || []).map((m) => m.originalName));
     const overlap = (chat.members || []).filter((m) => linkedNames.has(m.originalName));
     const names = overlap.map((m) => m.groupNickname || m.originalName);
@@ -2427,7 +2427,7 @@ ${offlineLinkedMemCtx}
                     body: JSON.stringify({
                         model: model,
                         messages: messagesPayload,
-                        temperature: parseFloat(temperature) || 0.8,
+                        ...window.buildModelParams(window.state.apiConfig),
                         stream: false,
                     }),
                 });
@@ -2943,7 +2943,7 @@ ${offlineLinkedMemCtx}
                         body: JSON.stringify({
                             model: model,
                             messages: messagesForDecision,
-                            temperature: parseFloat(chatTemperature) || 0.8,
+                            ...window.buildModelParams(window.state.apiConfig),
                         }),
                     });
 
@@ -4269,7 +4269,7 @@ ${contextSummaryForApproval}
                 body: JSON.stringify({
                     model: model,
                     messages: messagesPayload,
-                    temperature: parseFloat(chatTemperature) || 0.8,
+                    ...window.buildModelParams(window.state.apiConfig),
                     stream: false,
                 }),
             });
@@ -10546,6 +10546,13 @@ async function jumpToMessage(timestamp) {
 function initDraggableLyricsBar() {
     const bar = document.getElementById('floating-lyrics-bar');
     const phoneScreen = document.getElementById('phone-screen');
+
+    function getEventCoords(e) {
+        if (e.touches && e.touches.length > 0) {
+            return { x: e.touches[0].clientX, y: e.touches[0].clientY };
+        }
+        return { x: e.clientX, y: e.clientY };
+    }
 
     let isDragging = false;
     let offsetX, offsetY;

@@ -764,7 +764,7 @@ async function generateCharacterPhoneDataSegment(
                 body: JSON.stringify({
                     model: model,
                     messages: [{ role: "user", content: prompt }],
-                    temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                    ...window.buildModelParams(state.apiConfig),
                 }),
             });
 
@@ -1233,7 +1233,7 @@ async function generateCharacterPhoneData() {
                 body: JSON.stringify({
                     model: model,
                     messages: [{ role: "user", content: prompt }],
-                    temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                    ...window.buildModelParams(state.apiConfig),
                 }),
             });
 
@@ -2126,7 +2126,7 @@ async function generateNewDiaryEntry() {
                 body: JSON.stringify({
                     model: model,
                     messages: [{ role: "user", content: diaryPrompt }],
-                    temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                    ...window.buildModelParams(state.apiConfig),
                 }),
             });
 

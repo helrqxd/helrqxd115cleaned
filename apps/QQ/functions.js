@@ -3098,7 +3098,8 @@ window.handleInitiateCall = async function () {
 
     // 2. 重新构建一个信息更丰富、指令更明确的API请求
     try {
-        const { proxyUrl, apiKey, model, temperature: vcTemperature } = window.getApiConfigForFunction('voice_call');
+        const vcConfig = window.getApiConfigForFunction('voice_call');
+        const { proxyUrl, apiKey, model } = vcConfig;
         if (!proxyUrl || !apiKey || !model) {
             throw new Error('API未配置，无法发起通话。');
         }
@@ -3154,7 +3155,7 @@ window.handleInitiateCall = async function () {
                 body: JSON.stringify({
                     model: model,
                     messages: [{ role: 'system', content: systemPromptForCall }, ...messagesForApi],
-                    temperature: parseFloat(vcTemperature) || 0.8,
+                    ...window.buildModelParams(vcConfig),
                 }),
             });
 
@@ -3606,7 +3607,8 @@ window.triggerAiInCallAction = async function (userInput = null) {
     if (!window.videoCallState.isActive) return;
 
     const chat = window.state.chats[window.videoCallState.activeChatId];
-    const { proxyUrl, apiKey, model, temperature: vcTemp2 } = window.getApiConfigForFunction('voice_call');
+    const vcConfig2 = window.getApiConfigForFunction('voice_call');
+    const { proxyUrl, apiKey, model } = vcConfig2;
 
     const isVisualMode = chat.settings.visualVideoCallEnabled;
     const callFeed = isVisualMode ? document.getElementById('video-call-messages-visual') : document.getElementById('video-call-main');
@@ -3750,7 +3752,7 @@ window.triggerAiInCallAction = async function (userInput = null) {
                 body: JSON.stringify({
                     model: model,
                     messages: [{ role: 'system', content: inCallPrompt }, ...messagesForApi],
-                    temperature: parseFloat(vcTemp2) || 0.8,
+                    ...window.buildModelParams(vcConfig2),
                 }),
             });
         if (!response.ok) throw new Error((await response.json()).error.message);
@@ -4053,6 +4055,38 @@ window.handleVideoCallReroll = async function () {
         callFeed.appendChild(bubble);
     });
     window.triggerAiInCallAction();
+}
+
+function handleCameraFlip() {
+    const newMode = videoCallState.facingMode === 'user' ? 'environment' : 'user';
+    videoCallState.facingMode = newMode;
+
+    if (window.localCameraStream) {
+        window.localCameraStream.getTracks().forEach((track) => track.stop());
+        window.localCameraStream = null;
+    }
+
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) return;
+
+    navigator.mediaDevices
+        .getUserMedia({ video: { facingMode: newMode }, audio: false })
+        .then((stream) => {
+            window.localCameraStream = stream;
+            const mirrorStyle = newMode === 'user' ? 'scaleX(-1)' : 'none';
+            const userVideoEl = videoCallState.isUserMain
+                ? document.querySelector('#video-main-view video')
+                : document.querySelector('#video-pip-view video');
+            if (userVideoEl) {
+                userVideoEl.srcObject = stream;
+                userVideoEl.style.transform = mirrorStyle;
+                userVideoEl.muted = true;
+                userVideoEl.play().catch((e) => console.error('视频播放失败:', e));
+            }
+        })
+        .catch((err) => {
+            console.error('翻转摄像头失败:', err);
+            videoCallState.facingMode = newMode === 'user' ? 'environment' : 'user';
+        });
 }
 
 window.handleCallControls = function (event) {
@@ -5132,7 +5166,8 @@ async function sendTarotReadingToChat() {
     const chat = window.state.chats[window.state.activeChatId];
     if (!chat) return;
 
-    const { proxyUrl, apiKey, model, temperature: tarotTemp } = window.getApiConfigForFunction('tarot');
+    const tarotConfig = window.getApiConfigForFunction('tarot');
+    const { proxyUrl, apiKey, model } = tarotConfig;
 
     if (!proxyUrl || !apiKey || !model) {
         alert('请先在API设置中配置好才能触发AI解读哦！');
@@ -5214,7 +5249,7 @@ ${cardDetails}
                 body: JSON.stringify({
                     model: model,
                     messages: messagesForApi,
-                    temperature: parseFloat(tarotTemp) || 0.8,
+                    ...window.buildModelParams(tarotConfig),
                 }),
             });
 
@@ -5926,7 +5961,8 @@ async function handleSendToPet() {
  * @returns {Promise<string|null>} - AI生成的宠物回复文本
  */
 async function getPetApiResponse(pet) {
-    const { proxyUrl, apiKey, model, temperature: petTemp } = window.getApiConfigForFunction('pet');
+    const petConfig = window.getApiConfigForFunction('pet');
+    const { proxyUrl, apiKey, model } = petConfig;
     if (!proxyUrl || !apiKey || !model) {
         alert('请先配置API！');
         return '（我好像断线了...）';
@@ -5973,7 +6009,7 @@ async function getPetApiResponse(pet) {
         // Ensure toGeminiRequestData is available
         let geminiConfig;
         if (window.toGeminiRequestData) {
-            geminiConfig = window.toGeminiRequestData(model, apiKey, systemPrompt, messagesForApi, isGemini, petTemp);
+            geminiConfig = window.toGeminiRequestData(model, apiKey, systemPrompt, messagesForApi, isGemini, petConfig.temperature);
         } else {
             // Fallback minimal implementation if missing
             geminiConfig = { url: '', data: {} };
@@ -5987,7 +6023,7 @@ async function getPetApiResponse(pet) {
                 body: JSON.stringify({
                     model: model,
                     messages: [{ role: 'system', content: systemPrompt }, ...messagesForApi],
-                    temperature: parseFloat(petTemp) || 0.8,
+                    ...window.buildModelParams(petConfig),
                 }),
             });
 
@@ -7567,20 +7603,27 @@ async function createCharacterFromData(data, avatarBase64) {
     console.log('开始检测世界书数据...');
     let worldBookFound = false;
 
-    if (charData.character_book && charData.character_book.entries && Array.isArray(charData.character_book.entries) && charData.character_book.entries.length > 0) {
-        console.log(`检测到最新的 character_book 格式 (${charData.character_book.entries.length}条)，开始导入...`);
-        const newCategory = { name: characterName };
-        const newCategoryId = await window.db.worldBookCategories.add(newCategory);
-
-        await window.WorldBookModule.saveWorldBookEntriesFromArray(charData.character_book.entries, newCategoryId);
-        worldBookFound = true;
+    if (charData.character_book && charData.character_book.entries) {
+        const rawEntries = charData.character_book.entries;
+        const entriesArray = Array.isArray(rawEntries) ? rawEntries : Object.values(rawEntries);
+        if (entriesArray.length > 0) {
+            console.log(`检测到 character_book 格式 (${entriesArray.length}条)，开始导入...`);
+            const newCategory = { name: characterName };
+            const newCategoryId = await window.db.worldBookCategories.add(newCategory);
+            await window.WorldBookModule.saveWorldBookEntriesFromArray(entriesArray, newCategoryId);
+            worldBookFound = true;
+        }
     }
-    else if (charData.world_entries && Array.isArray(charData.world_entries) && charData.world_entries.length > 0) {
-        console.log(`检测到旧版 world_entries 格式 (${charData.world_entries.length}条)，开始导入...`);
-        const newCategory = { name: characterName };
-        const newCategoryId = await window.db.worldBookCategories.add(newCategory);
-        await window.WorldBookModule.saveWorldBookEntriesFromArray(charData.world_entries, newCategoryId);
-        worldBookFound = true;
+    if (!worldBookFound && charData.world_entries) {
+        const rawEntries = charData.world_entries;
+        const entriesArray = Array.isArray(rawEntries) ? rawEntries : Object.values(rawEntries);
+        if (entriesArray.length > 0) {
+            console.log(`检测到 world_entries 格式 (${entriesArray.length}条)，开始导入...`);
+            const newCategory = { name: characterName };
+            const newCategoryId = await window.db.worldBookCategories.add(newCategory);
+            await window.WorldBookModule.saveWorldBookEntriesFromArray(entriesArray, newCategoryId);
+            worldBookFound = true;
+        }
     }
     else if (data.world && typeof data.world === 'string' && data.world.trim()) {
         console.log('检测到外层 world 字段格式，开始导入...');

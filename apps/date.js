@@ -221,6 +221,7 @@ async function refreshDatingScenes() {
                 body: JSON.stringify({
                     model: model,
                     messages: messagesForApi,
+                    ...window.buildModelParams(state.apiConfig),
                     temperature: 1.1,
                     response_format: { type: 'json_object' },
                 }),
@@ -1185,6 +1186,7 @@ ${recentChatHistory}
                 body: JSON.stringify({
                     model: model,
                     messages: messagesForApi,
+                    ...window.buildModelParams(state.apiConfig),
                     temperature: 0.9,
                     response_format: { type: 'json_object' },
                 }),
@@ -1375,6 +1377,7 @@ async function triggerNsfwScene(userAction = '故事自然发展') {
             body: JSON.stringify({
                 model: model,
                 messages: messagesForApi,
+                ...window.buildModelParams(state.apiConfig),
                 temperature: 1.0,
                 response_format: { type: 'json_object' },
             }),

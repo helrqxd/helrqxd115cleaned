@@ -316,8 +316,8 @@ function getVisibleAudienceForPost(post, allChats, userNickname) {
  */
 function getLinkedMemoryVisibleLabel(chat, linkedChat, freshLinkedChat) {
     if (!chat) return '仅你可见';
-    if (!chat.isGroup) return `仅（${chat.name}）可见`;
-    if (!linkedChat.isGroup) return `仅（${linkedChat.name}）可见`;
+    if (!chat.isGroup) return `仅【${chat.name}】可见`;
+    if (!linkedChat.isGroup) return `仅【${linkedChat.name}】可见`;
     const linkedNames = new Set((freshLinkedChat.members || []).map((m) => m.originalName));
     const overlap = (chat.members || []).filter((m) => linkedNames.has(m.originalName));
     const names = overlap.map((m) => m.groupNickname || m.originalName);
@@ -333,7 +333,8 @@ async function triggerInactiveAiAction(chatId) {
     const chat = state.chats[chatId];
     if (!chat) return;
 
-    const { proxyUrl, apiKey, model, temperature: bgTemperature } = window.getApiConfigForFunction('background');
+    const bgConfig = window.getApiConfigForFunction('background');
+    const { proxyUrl, apiKey, model } = bgConfig;
     if (!proxyUrl || !apiKey || !model) return;
 
   try {
@@ -695,7 +696,7 @@ async function triggerInactiveAiAction(chatId) {
                 body: JSON.stringify({
                     model: model,
                     messages: messagesPayload,
-                    temperature: parseFloat(bgTemperature) || 0.8,
+                    ...window.buildModelParams(bgConfig),
                 }),
             });
         if (!response.ok) {
@@ -1039,7 +1040,8 @@ async function triggerAiFriendApplication(chatId) {
 
     await showCustomAlert('流程启动', `正在为角色“${chat.name}”准备好友申请...`);
 
-    const { proxyUrl, apiKey, model, temperature: bgTemperature2 } = window.getApiConfigForFunction('background');
+    const bgConfig2 = window.getApiConfigForFunction('background');
+    const { proxyUrl, apiKey, model } = bgConfig2;
     if (!proxyUrl || !apiKey || !model) {
         await showCustomAlert('配置错误', 'API设置不完整，无法继续。');
         return;
@@ -1099,7 +1101,7 @@ async function triggerAiFriendApplication(chatId) {
                 body: JSON.stringify({
                     model: model,
                     messages: messagesForApi,
-                    temperature: parseFloat(bgTemperature2) || 0.8,
+                    ...window.buildModelParams(bgConfig2),
                 }),
             });
         if (!response.ok) {
@@ -1151,7 +1153,8 @@ async function triggerGroupAiAction(chatId) {
     const chat = state.chats[chatId];
     if (!chat || !chat.isGroup) return;
 
-    const { proxyUrl, apiKey, model, temperature: bgTemperature3 } = window.getApiConfigForFunction('background');
+    const bgConfig3 = window.getApiConfigForFunction('background');
+    const { proxyUrl, apiKey, model } = bgConfig3;
     if (!proxyUrl || !apiKey || !model) {
         console.warn(`群聊 "${chat.name}" 后台活动失败：API未配置。`);
         return;
@@ -1408,7 +1411,7 @@ async function triggerGroupAiAction(chatId) {
                 body: JSON.stringify({
                     model: model,
                     messages: messagesPayload,
-                    temperature: parseFloat(bgTemperature3) || 0.8,
+                    ...window.buildModelParams(bgConfig3),
                 }),
             });
 

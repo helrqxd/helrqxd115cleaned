@@ -1452,11 +1452,23 @@
 									<button id="manage-api-presets-btn" class="moe-btn-small">管理</button>
 								</div>
 							</div>
-							<div class="form-group">
-								<label>温度 (随机性): <span id="temperature-value" style="color: var(--accent-color)">0.8</span></label>
-								<input type="range" id="temperature-slider" min="0" max="2" step="0.1" value="0.8" class="moe-slider" />
-							</div>
-							<button id="fetch-models-btn" class="moe-btn-secondary">📡 拉取模型列表</button>
+						<div class="form-group">
+							<label>温度 (随机性): <span id="temperature-value" style="color: var(--accent-color)">0.8</span></label>
+							<input type="range" id="temperature-slider" min="0" max="2" step="0.1" value="0.8" class="moe-slider" />
+						</div>
+						<div class="form-group">
+							<label>Top P (核采样): <span id="top-p-value" style="color: var(--accent-color)">1</span></label>
+							<input type="range" id="top-p-slider" min="0" max="1" step="0.05" value="1" class="moe-slider" />
+						</div>
+						<div class="form-group">
+							<label>频率惩罚: <span id="frequency-penalty-value" style="color: var(--accent-color)">0</span></label>
+							<input type="range" id="frequency-penalty-slider" min="-2" max="2" step="0.1" value="0" class="moe-slider" />
+						</div>
+						<div class="form-group">
+							<label>存在惩罚: <span id="presence-penalty-value" style="color: var(--accent-color)">0</span></label>
+							<input type="range" id="presence-penalty-slider" min="-2" max="2" step="0.1" value="0" class="moe-slider" />
+						</div>
+						<button id="fetch-models-btn" class="moe-btn-secondary">📡 拉取模型列表</button>
 						</div>
 					</div>
 
@@ -1490,11 +1502,23 @@
 									<button id="manage-secondary-api-presets-btn" class="moe-btn-small">管理</button>
 								</div>
 							</div>
-							<div class="form-group">
-								<label>温度 (随机性): <span id="secondary-temperature-value" style="color: var(--accent-color)">0.8</span></label>
-								<input type="range" id="secondary-temperature-slider" min="0" max="2" step="0.1" value="0.8" class="moe-slider" />
-							</div>
-							<button id="secondary-fetch-models-btn" class="moe-btn-secondary">📡 拉取模型列表</button>
+						<div class="form-group">
+							<label>温度 (随机性): <span id="secondary-temperature-value" style="color: var(--accent-color)">0.8</span></label>
+							<input type="range" id="secondary-temperature-slider" min="0" max="2" step="0.1" value="0.8" class="moe-slider" />
+						</div>
+						<div class="form-group">
+							<label>Top P (核采样): <span id="secondary-top-p-value" style="color: var(--accent-color)">1</span></label>
+							<input type="range" id="secondary-top-p-slider" min="0" max="1" step="0.05" value="1" class="moe-slider" />
+						</div>
+						<div class="form-group">
+							<label>频率惩罚: <span id="secondary-frequency-penalty-value" style="color: var(--accent-color)">0</span></label>
+							<input type="range" id="secondary-frequency-penalty-slider" min="-2" max="2" step="0.1" value="0" class="moe-slider" />
+						</div>
+						<div class="form-group">
+							<label>存在惩罚: <span id="secondary-presence-penalty-value" style="color: var(--accent-color)">0</span></label>
+							<input type="range" id="secondary-presence-penalty-slider" min="-2" max="2" step="0.1" value="0" class="moe-slider" />
+						</div>
+						<button id="secondary-fetch-models-btn" class="moe-btn-secondary">📡 拉取模型列表</button>
 							<div class="form-group" style="margin-top: 15px;">
 								<label>副API 功能分配</label>
 								<p style="font-size: 11px; color: #888; margin-bottom: 8px">选中的功能将默认使用副API发送请求，未选中的继续使用主API。</p>

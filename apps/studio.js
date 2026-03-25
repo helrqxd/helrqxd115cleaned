@@ -713,7 +713,8 @@ document.addEventListener('DOMContentLoaded', () => {
         console.log(messagesForApi);
 
         try {
-            const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('studio');
+            const studioApiCfg = window.getApiConfigForFunction('studio');
+            const { proxyUrl, apiKey, model } = studioApiCfg;
             const isGemini = proxyUrl === 'https://generativelanguage.googleapis.com/v1beta/models';
 
             const requestData = isGemini
@@ -723,7 +724,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     data: {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-                        body: JSON.stringify({ model, messages: [{ role: 'system', content: systemPrompt }, ...messagesForApi] }),
+                        body: JSON.stringify({
+                            model,
+                            messages: [{ role: 'system', content: systemPrompt }, ...messagesForApi],
+                            ...window.buildModelParams(studioApiCfg),
+                        }),
                     },
                 };
 
@@ -812,7 +817,11 @@ document.addEventListener('DOMContentLoaded', () => {
                     data: {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
-                        body: JSON.stringify({ model, messages: [{ role: 'user', content: systemPrompt }], temperature: 0.7 }),
+                        body: JSON.stringify({
+                            model,
+                            messages: [{ role: 'user', content: systemPrompt }],
+                            ...window.buildModelParams(window.state.apiConfig),
+                        }),
                     },
                 };
 
@@ -1198,7 +1207,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const { proxyUrl, apiKey, model } = studioCfg;
         const isGemini = proxyUrl === 'https://generativelanguage.googleapis.com/v1beta/models';
 
-        const temperature = parseFloat(studioCfg.temperature) || 0.8;
+        const modelParams = window.buildModelParams(studioCfg);
 
         // 为OpenAI兼容的API请求体中增加一个 user 角色消息，构成合法对话
         const messagesForApi = [
@@ -1212,7 +1221,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 systemPrompt,
                 [{ role: 'user', content: '请开始你的表演。' }],
                 true,
-                temperature,
+                modelParams.temperature,
             )
             : {
                 url: `${proxyUrl}/v1/chat/completions`,
@@ -1220,7 +1229,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${apiKey}` },
                     // 使用新创建的、包含user角色的 messagesForApi 变量
-                    body: JSON.stringify({ model, messages: messagesForApi, temperature }),
+                    body: JSON.stringify({ model, messages: messagesForApi, ...modelParams }),
                 },
             };
 

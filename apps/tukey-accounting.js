@@ -1486,7 +1486,8 @@ async function triggerAccountingAiResponse(recordsToReply) {
     listEl.appendChild(loadingEl);
     listEl.scrollTop = listEl.scrollHeight;
 
-    const { proxyUrl, apiKey, model, temperature } = window.getApiConfigForFunction('accounting');
+    const accountingConfig = window.getApiConfigForFunction('accounting');
+    const { proxyUrl, apiKey, model } = accountingConfig;
     if (!proxyUrl || !apiKey || !model) {
         loadingEl.remove();
         alert('请先在API设置中配置好才能触发AI回复哦！');
@@ -1561,7 +1562,7 @@ ${membersText}
     try {
         const messagesForApi = [{ role: 'user', content: systemPrompt }];
         let isGemini = proxyUrl === GEMINI_API_URL;
-        let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesForApi, isGemini, temperature);
+        let geminiConfig = toGeminiRequestData(model, apiKey, systemPrompt, messagesForApi, isGemini, accountingConfig.temperature);
 
         const response = isGemini
             ? await fetch(geminiConfig.url, geminiConfig.data)
@@ -1571,7 +1572,7 @@ ${membersText}
                 body: JSON.stringify({
                     model: model,
                     messages: messagesForApi,
-                    temperature: parseFloat(temperature) || 0.8,
+                    ...window.buildModelParams(accountingConfig),
                     response_format: { type: 'json_object' },
                 }),
             });

@@ -860,7 +860,7 @@ ${formattedLog}
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
-                        temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                        ...window.buildModelParams(state.apiConfig),
                     }),
                 });
 
@@ -1357,7 +1357,7 @@ ${jsonFormat}
                         body: JSON.stringify({
                             model: model,
                             messages: messagesForApi,
-                            temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                            ...window.buildModelParams(state.apiConfig),
                             response_format: { type: 'json_object' },
                         }),
                     },
@@ -1602,7 +1602,7 @@ ${jsonFormat}
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
-                        temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                        ...window.buildModelParams(state.apiConfig),
                         response_format: { type: 'json_object' },
                     }),
                 });
@@ -2022,7 +2022,7 @@ ${gameLogText}
                         body: JSON.stringify({
                             model: model,
                             messages: [{ role: 'system', content: systemPrompt }, ...messagesForApi],
-                            temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                            ...window.buildModelParams(state.apiConfig),
                             response_format: { type: 'json_object' },
                         }),
                     });
@@ -3075,7 +3075,7 @@ ${extraContext}
                     body: JSON.stringify({
                         model,
                         messages: messagesForApi,
-                        temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                        ...window.buildModelParams(state.apiConfig),
                         response_format: { type: 'json_object' },
                     }),
                 });
@@ -3630,7 +3630,7 @@ ${formattedLog}
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
-                        temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                        ...window.buildModelParams(state.apiConfig),
                     }),
                 });
 
@@ -3911,7 +3911,7 @@ ${formattedLog}
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
-                        temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                        ...window.buildModelParams(state.apiConfig),
                         response_format: { type: 'json_object' },
                     }),
                 });
@@ -4396,7 +4396,7 @@ ${formattedLog}
                         body: JSON.stringify({
                             model: model,
                             messages: [{ role: 'system', content: systemPrompt }, ...messagesForApi],
-                            temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                            ...window.buildModelParams(state.apiConfig),
                             response_format: { type: 'json_object' },
                         }),
                     });
@@ -5253,7 +5253,7 @@ ${eventPrompt}
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
-                        temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                        ...window.buildModelParams(state.apiConfig),
                         response_format: { type: 'json_object' },
                     }),
                 });
@@ -6587,7 +6587,7 @@ ${jsonFormat}
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
-                        temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                        ...window.buildModelParams(state.apiConfig),
                         response_format: { type: 'json_object' },
                     }),
                 });
@@ -6854,7 +6854,7 @@ ${jsonFormat}
                     body: JSON.stringify({
                         model: model,
                         messages: messagesForApi,
-                        temperature: parseFloat(state.apiConfig.temperature) || 0.8,
+                        ...window.buildModelParams(state.apiConfig),
                         response_format: { type: 'json_object' },
                     }),
                 });
