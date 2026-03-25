@@ -72,9 +72,11 @@ document.addEventListener('DOMContentLoaded', () => {
     /**
      * 显示小剧场主屏幕并渲染剧本列表
      */
-    async function showStudioScreen() {
+    async function showStudioScreen(skipProgressCheck = false) {
         await renderStudioScriptList();
         showScreen('studio-screen');
+
+        if (skipProgressCheck) return;
 
         // 检查是否有保存的演绎进度
         const savedProgress = loadStudioPlayProgress();
@@ -945,7 +947,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (choice === 'save') {
                 saveStudioPlayProgress();
                 activeStudioPlay = null;
-                showStudioScreen();
+                showStudioScreen(true);
             } else if (choice === 'discard') {
                 clearStudioPlayProgress();
                 endStudioPlay(false);
