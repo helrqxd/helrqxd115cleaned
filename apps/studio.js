@@ -76,7 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
         await renderStudioScriptList();
         showScreen('studio-screen');
 
-        if (skipProgressCheck) return;
+        if (skipProgressCheck === true) return;
 
         // 检查是否有保存的演绎进度
         const savedProgress = loadStudioPlayProgress();
