@@ -973,6 +973,7 @@ window.initSettingsListeners = function () {
             state.apiConfig.topP = parseFloat(document.getElementById('top-p-slider').value);
             state.apiConfig.frequencyPenalty = parseFloat(document.getElementById('frequency-penalty-slider').value);
             state.apiConfig.presencePenalty = parseFloat(document.getElementById('presence-penalty-slider').value);
+            state.apiConfig.repetitionPenalty = parseFloat(document.getElementById('repetition-penalty-slider').value);
 
             // Minimax 设置
             state.apiConfig.minimaxGroupId = document.getElementById('minimax-group-id').value.trim();
@@ -999,6 +1000,7 @@ window.initSettingsListeners = function () {
             state.apiConfig.secondaryTopP = parseFloat(document.getElementById('secondary-top-p-slider').value);
             state.apiConfig.secondaryFrequencyPenalty = parseFloat(document.getElementById('secondary-frequency-penalty-slider').value);
             state.apiConfig.secondaryPresencePenalty = parseFloat(document.getElementById('secondary-presence-penalty-slider').value);
+            state.apiConfig.secondaryRepetitionPenalty = parseFloat(document.getElementById('secondary-repetition-penalty-slider').value);
             state.apiConfig.secondaryApiFunctions = window.getSelectedSecondaryApiFunctions ? window.getSelectedSecondaryApiFunctions() : [];
 
             window.handleAutoBackupTimer();
@@ -1076,6 +1078,11 @@ window.initSettingsListeners = function () {
     const ppValue = document.getElementById('presence-penalty-value');
     if (ppSlider && ppValue) {
         ppSlider.addEventListener('input', () => { ppValue.textContent = ppSlider.value; });
+    }
+    const rpSlider = document.getElementById('repetition-penalty-slider');
+    const rpValue = document.getElementById('repetition-penalty-value');
+    if (rpSlider && rpValue) {
+        rpSlider.addEventListener('input', () => { rpValue.textContent = rpSlider.value; });
     }
 
     const qualitySlider = document.getElementById('image-quality-slider');
@@ -1182,6 +1189,11 @@ window.initSettingsListeners = function () {
     const secPpValue = document.getElementById('secondary-presence-penalty-value');
     if (secPpSlider && secPpValue) {
         secPpSlider.addEventListener('input', () => { secPpValue.textContent = secPpSlider.value; });
+    }
+    const secRpSlider = document.getElementById('secondary-repetition-penalty-slider');
+    const secRpValue = document.getElementById('secondary-repetition-penalty-value');
+    if (secRpSlider && secRpValue) {
+        secRpSlider.addEventListener('input', () => { secRpValue.textContent = secRpSlider.value; });
     }
 
     const fetchMinimaxBtn = document.getElementById('fetch-minimax-speech-models-btn');
@@ -2719,6 +2731,12 @@ window.renderApiSettings = function () {
     const ppValueR = document.getElementById('presence-penalty-value');
     if (ppValueR) ppValueR.textContent = ppR;
 
+    const rpR = typeof state.apiConfig.repetitionPenalty !== 'undefined' ? state.apiConfig.repetitionPenalty : 1;
+    const rpSliderR = document.getElementById('repetition-penalty-slider');
+    if (rpSliderR) rpSliderR.value = rpR;
+    const rpValueR = document.getElementById('repetition-penalty-value');
+    if (rpValueR) rpValueR.textContent = rpR;
+
     // 2. Minimax 设置
     const minimaxGroup = document.getElementById('minimax-group-id');
     if (minimaxGroup) minimaxGroup.value = state.apiConfig.minimaxGroupId || '';
@@ -2787,6 +2805,12 @@ window.renderApiSettings = function () {
     if (secPpSliderR) secPpSliderR.value = secPpR;
     const secPpValR = document.getElementById('secondary-presence-penalty-value');
     if (secPpValR) secPpValR.textContent = secPpR;
+
+    const secRpR = typeof state.apiConfig.secondaryRepetitionPenalty !== 'undefined' ? state.apiConfig.secondaryRepetitionPenalty : 1;
+    const secRpSliderR = document.getElementById('secondary-repetition-penalty-slider');
+    if (secRpSliderR) secRpSliderR.value = secRpR;
+    const secRpValR = document.getElementById('secondary-repetition-penalty-value');
+    if (secRpValR) secRpValR.textContent = secRpR;
 
     if (typeof window.renderSecondaryApiPresetSelector === 'function') {
         window.renderSecondaryApiPresetSelector();

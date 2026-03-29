@@ -640,6 +640,8 @@ window.toGeminiRequestData = function (model, apiKey, systemInstruction, message
     if (!isNaN(fp) && fp !== 0) generationConfig.frequencyPenalty = fp;
     const pp = parseFloat(ep.presencePenalty);
     if (!isNaN(pp) && pp !== 0) generationConfig.presencePenalty = pp;
+    const rp = parseFloat(ep.repetitionPenalty);
+    if (!isNaN(rp) && rp !== 1) generationConfig.repetitionPenalty = rp;
     const body = {
         contents: contents,
         generationConfig: generationConfig,
@@ -1591,6 +1593,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             topP: 1,
             frequencyPenalty: 0,
             presencePenalty: 0,
+            repetitionPenalty: 1,
             minimaxGroupId: '',
             minimaxApiKey: '',
             minimaxProvider: 'cn',
@@ -1610,6 +1613,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (typeof state.apiConfig.presencePenalty === 'undefined') {
             state.apiConfig.presencePenalty = 0;
         }
+        if (typeof state.apiConfig.repetitionPenalty === 'undefined') {
+            state.apiConfig.repetitionPenalty = 1;
+        }
 
         if (typeof state.apiConfig.secondaryProxyUrl === 'undefined') {
             state.apiConfig.secondaryProxyUrl = '';
@@ -1625,6 +1631,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
         if (typeof state.apiConfig.secondaryPresencePenalty === 'undefined') {
             state.apiConfig.secondaryPresencePenalty = 0;
+        }
+        if (typeof state.apiConfig.secondaryRepetitionPenalty === 'undefined') {
+            state.apiConfig.secondaryRepetitionPenalty = 1;
         }
         if (!Array.isArray(state.apiConfig.secondaryApiFunctions)) {
             state.apiConfig.secondaryApiFunctions = [];
@@ -3252,6 +3261,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                 topP: cfg.secondaryTopP ?? 1,
                 frequencyPenalty: cfg.secondaryFrequencyPenalty ?? 0,
                 presencePenalty: cfg.secondaryPresencePenalty ?? 0,
+                repetitionPenalty: cfg.secondaryRepetitionPenalty ?? 1,
             };
         }
         return {
@@ -3262,6 +3272,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             topP: cfg.topP ?? 1,
             frequencyPenalty: cfg.frequencyPenalty ?? 0,
             presencePenalty: cfg.presencePenalty ?? 0,
+            repetitionPenalty: cfg.repetitionPenalty ?? 1,
         };
     }
     window.getApiConfigForFunction = getApiConfigForFunction;
@@ -3282,6 +3293,8 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (!isNaN(fp) && fp !== 0) params.frequency_penalty = fp;
         const pp = parseFloat(config.presencePenalty);
         if (!isNaN(pp) && pp !== 0) params.presence_penalty = pp;
+        const rp = parseFloat(config.repetitionPenalty);
+        if (!isNaN(rp) && rp !== 1) params.repetition_penalty = rp;
         return params;
     }
     window.buildModelParams = buildModelParams;
