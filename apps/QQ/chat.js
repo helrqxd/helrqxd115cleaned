@@ -209,6 +209,8 @@ function createChatListItem(chat) {
     } else if (chat.isGroup) {
         if (lastMsgObj.type === 'pat_message') {
             lastMsgDisplay = `[系统消息] ${lastMsgObj.content}`;
+        } else if (lastMsgObj.type === 'video_call_record') {
+            lastMsgDisplay = '[视频通话]';
         } else if (lastMsgObj.type === 'transfer') {
             lastMsgDisplay = '[转账]';
         } else if (lastMsgObj.type === 'ai_image' || lastMsgObj.type === 'user_photo') {
@@ -237,6 +239,8 @@ function createChatListItem(chat) {
             lastMsgDisplay = '[小红书] ' + (lastMsgObj.shareData?.title || '分享笔记');
         } else if (lastMsgObj.type === 'lofter-share') {
             lastMsgDisplay = '[LOFTER] ' + (lastMsgObj.shareData?.title || '分享作品');
+        } else if (lastMsgObj.type === 'video_call_record') {
+            lastMsgDisplay = '[视频通话]';
         } else if (lastMsgObj.type === 'transfer') {
             lastMsgDisplay = '[转账]';
         } else if (lastMsgObj.type === 'ai_image' || lastMsgObj.type === 'user_photo') {
@@ -1406,6 +1410,12 @@ function createMessageElement(msg, chat) {
 			            <div class.transfer-note">${noteText}</div>
 			        </div>
 			    `;
+    } else if (msg.type === 'video_call_record') {
+        if (msg.callRecordId) {
+            bubble.dataset.callRecordId = msg.callRecordId;
+            bubble.classList.add('is-video-call-record');
+        }
+        contentHtml = `<span class="video-call-record-inline"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="23 7 16 12 23 17 23 7"></polygon><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg> ${String(msg.content || '').replace(/\n/g, '<br>')}</span>`;
     } else if (msg.type === 'waimai_request') {
         bubble.classList.add('is-waimai-request');
         if (msg.status === 'paid' || msg.status === 'rejected') {
@@ -2023,6 +2033,12 @@ function formatMessageForContext(msg, chat, showTimestamp = true) {
         contentText = '[图片]';
     } else if (msg.type === 'voice_message') {
         contentText = `[语音]: ${msg.content}`;
+    } else if (msg.type === 'video_call_record') {
+        const dur = msg.duration || 0;
+        contentText = `[视频通话，时长${Math.floor(dur / 60)}分${dur % 60}秒]`;
+        if (msg.callTranscript) {
+            contentText += `\n---通话记录---\n${msg.callTranscript}\n---通话记录结束---`;
+        }
     } else if (msg.type === 'transfer') {
         contentText = `[转账] 金额: ${msg.amount}, 备注: ${msg.note || '无'}`;
     } else if (msg.type === 'xhs-share' && msg.shareData) {
@@ -2205,6 +2221,11 @@ window.triggerAiResponse = async function triggerAiResponse() {
             }
             if (msg.type === 'user_photo') contentStr = `[你收到了一张用户描述的照片，内容是：'${msg.content}']`;
             else if (msg.type === 'voice_message') contentStr = `[用户发来一条语音消息，内容是：'${msg.content}']`;
+            else if (msg.type === 'video_call_record') {
+                const dur = msg.duration || 0;
+                contentStr = `[系统提示：进行了一次视频通话，时长${Math.floor(dur / 60)}分${dur % 60}秒。]`;
+                if (msg.callTranscript) contentStr += `\n---通话记录---\n${msg.callTranscript}\n---通话记录结束---`;
+            }
             else if (msg.type === 'transfer') {
                 if (msg.status === 'accepted') contentStr = `[系统提示：收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已收款)]`;
                 else if (msg.status === 'declined') contentStr = `[系统提示：收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已拒收)]`;
@@ -3387,6 +3408,11 @@ ${offlineLinkedMemCtx}
                         contentStr = `[你收到了一张用户描述的照片，内容是：'${msg.content}']`;
                     else if (msg.type === 'voice_message')
                         contentStr = `[用户发来一条语音消息，内容是：'${msg.content}']`;
+                    else if (msg.type === 'video_call_record') {
+                        const dur = msg.duration || 0;
+                        contentStr = `[系统提示：进行了一次视频通话，时长${Math.floor(dur / 60)}分${dur % 60}秒。]`;
+                        if (msg.callTranscript) contentStr += `\n---通话记录---\n${msg.callTranscript}\n---通话记录结束---`;
+                    }
                     else if (msg.type === 'transfer') {
                         if (msg.status === 'accepted') {
                             contentStr = `[系统提示：收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已收款)]`;
@@ -3799,6 +3825,11 @@ ${libraryList}
                         contentStr = `[你收到了一张用户描述的照片，内容是：'${msg.content}']`;
                     else if (msg.type === 'voice_message')
                         contentStr = `[用户发来一条语音消息，内容是：'${msg.content}']`;
+                    else if (msg.type === 'video_call_record') {
+                        const dur = msg.duration || 0;
+                        contentStr = `[系统提示：进行了一次视频通话，时长${Math.floor(dur / 60)}分${dur % 60}秒。]`;
+                        if (msg.callTranscript) contentStr += `\n---\u901A\u8BDD\u8BB0\u5F55---\n${msg.callTranscript}\n---\u901A\u8BDD\u8BB0\u5F55\u7ED3\u675F---`;
+                    }
                     else if (msg.type === 'transfer') {
                         if (msg.status === 'accepted') {
                             contentStr = `[系统提示：收到了来自用户的转账: ${msg.amount}元, 备注: ${msg.note}。(你已收款)]`;
@@ -8196,7 +8227,16 @@ function setupChatListeners() {
         }
     });
 
-
+    // Video Call Record Click Handler
+    document.getElementById('chat-messages').addEventListener('click', (e) => {
+        if (isSelectionMode) return;
+        const bubble = e.target.closest('.message-bubble.is-video-call-record');
+        if (!bubble) return;
+        const recordId = parseInt(bubble.dataset.callRecordId);
+        if (!isNaN(recordId) && recordId > 0) {
+            showCallTranscript(recordId);
+        }
+    });
 
     document.getElementById('open-persona-library-btn').addEventListener('click', () => window.openPersonaLibrary && window.openPersonaLibrary());
     document.getElementById('close-persona-library-btn').addEventListener('click', () => window.closePersonaLibrary && window.closePersonaLibrary());
@@ -9951,6 +9991,8 @@ function startReplyToMessage() {
         previewSnippet = '[图片]';
     } else if (message.type === 'voice_message') {
         previewSnippet = '[语音]';
+    } else if (message.type === 'video_call_record') {
+        previewSnippet = '[视频通话]';
     } else {
         // 预览片段依然截断，但只用于UI显示
         previewSnippet = fullContent.substring(0, 50) + (fullContent.length > 50 ? '...' : '');
@@ -10078,51 +10120,88 @@ async function showCallTranscript(recordId) {
     if (!record) return;
 
     const modal = document.getElementById('call-transcript-modal');
-    const titleEl = document.getElementById('transcript-modal-title');
+    const infoArea = document.getElementById('transcript-info-area');
     const bodyEl = document.getElementById('transcript-modal-body');
 
-    titleEl.textContent = `通话于 ${new Date(record.timestamp).toLocaleString()} (时长: ${Math.floor(record.duration / 60)}分${record.duration % 60}秒)`;
+    // Build header info
+    const callDate = new Date(record.timestamp);
+    const dateStr = `${callDate.getFullYear()}年${callDate.getMonth() + 1}月${callDate.getDate()}日 ${String(callDate.getHours()).padStart(2, '0')}:${String(callDate.getMinutes()).padStart(2, '0')}`;
+    const durMin = Math.floor(record.duration / 60);
+    const durSec = record.duration % 60;
+    const durationStr = durMin > 0 ? `${durMin}分${durSec}秒` : `${durSec}秒`;
+
+    const avatarsHtml = (record.participants || []).map(p =>
+        `<img src="${p.avatar}" alt="${p.name}" class="call-transcript-avatar" title="${p.name}">`
+    ).join('');
+    const namesStr = (record.participants || []).map(p => p.name).join('、');
+
+    infoArea.innerHTML = `
+        <div class="call-transcript-avatars">${avatarsHtml}</div>
+        <div class="call-transcript-meta">
+            <div class="call-transcript-names">${namesStr}</div>
+            <div class="call-transcript-time">${dateStr}  ·  时长 ${durationStr}</div>
+        </div>
+    `;
+
+    // Build transcript body
     bodyEl.innerHTML = '';
 
     if (!record.transcript || record.transcript.length === 0) {
-        bodyEl.innerHTML = '<p style="text-align:center; color: #8a8a8a;">这次通话没有留下文字记录。</p>';
+        bodyEl.innerHTML = '<div class="call-transcript-empty">这次通话没有留下文字记录。</div>';
     } else {
         record.transcript.forEach((entry) => {
+            const isUser = entry.role === 'user';
+            const wrapper = document.createElement('div');
+            wrapper.className = `call-transcript-msg ${isUser ? 'is-user' : 'is-ai'}`;
+
             const bubble = document.createElement('div');
-            // 根据角色添加不同的class，应用不同的样式
-            bubble.className = `transcript-entry ${entry.role}`;
-            bubble.textContent = entry.content;
-            bodyEl.appendChild(bubble);
+            bubble.className = 'call-transcript-bubble';
+
+            const textContent = String(entry.content || '');
+            // Group call: content may be "Name: text", extract sender
+            const groupMatch = !isUser && textContent.match(/^(.+?):\s([\s\S]+)$/);
+            if (groupMatch) {
+                const senderEl = document.createElement('div');
+                senderEl.className = 'call-transcript-sender';
+                senderEl.textContent = groupMatch[1];
+                bubble.appendChild(senderEl);
+
+                const contentEl = document.createElement('div');
+                contentEl.className = 'call-transcript-text';
+                contentEl.innerHTML = groupMatch[2].replace(/\n/g, '<br>');
+                bubble.appendChild(contentEl);
+            } else {
+                const contentEl = document.createElement('div');
+                contentEl.className = 'call-transcript-text';
+                contentEl.innerHTML = textContent.replace(/\n/g, '<br>');
+                bubble.appendChild(contentEl);
+            }
+
+            wrapper.appendChild(bubble);
+            bodyEl.appendChild(wrapper);
         });
     }
 
+    // Rebind delete button
     const deleteBtn = document.getElementById('delete-transcript-btn');
-
-    // 使用克隆节点技巧，防止事件重复绑定
     const newDeleteBtn = deleteBtn.cloneNode(true);
     deleteBtn.parentNode.replaceChild(newDeleteBtn, deleteBtn);
 
-    // 为新的、干净的按钮绑定事件
     newDeleteBtn.addEventListener('click', async () => {
         const confirmed = await showCustomConfirm('确认删除', '确定要永久删除这条通话记录吗？此操作不可恢复。', {
             confirmButtonClass: 'btn-danger',
         });
-
         if (confirmed) {
-            // 1. 关闭当前的详情弹窗
             modal.classList.remove('visible');
-
-            // 2. 从数据库删除
             await db.callRecords.delete(recordId);
-
-            // 3. 刷新通话记录列表
-            await renderCallHistoryScreen();
-
-            // 4. (可选) 给出成功提示
-            alert('通话记录已删除。');
+            if (document.getElementById('call-history-screen').classList.contains('active')) {
+                await renderCallHistoryScreen();
+            }
         }
     });
+
     modal.classList.add('visible');
+    bodyEl.scrollTop = 0;
 }
 
 async function handleEditStatusClick() {

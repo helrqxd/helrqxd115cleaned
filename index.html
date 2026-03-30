@@ -4827,16 +4827,23 @@
 
 		<!-- 通话记录详情模态框 -->
 		<div id="call-transcript-modal" class="modal">
-			<div class="modal-content" style="height: 70%">
-				<div class="modal-header">
-					<span id="transcript-modal-title">通话详情</span>
+			<div class="modal-content call-transcript-modal-content">
+				<div class="call-transcript-header">
+					<div class="call-transcript-header-top">
+						<button id="close-transcript-modal-btn" class="call-transcript-close-btn">
+							<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+						</button>
+						<span class="call-transcript-header-label">通话详情</span>
+						<button id="delete-transcript-btn" class="call-transcript-delete-btn">
+							<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+						</button>
+					</div>
+					<div class="call-transcript-info" id="transcript-info-area">
+						<!-- JS动态填充参与者头像、时间、时长 -->
+					</div>
 				</div>
-				<div class="modal-body" id="transcript-modal-body" style="background-color: #f0f2f5">
+				<div class="call-transcript-body" id="transcript-modal-body">
 					<!-- 通话文字记录将由JS动态生成在这里 -->
-				</div>
-				<div class="modal-footer">
-					<button class="cancel" id="delete-transcript-btn" style="background-color: #ff3b30; color: white; border-color: #ff3b30">删除记录</button>
-					<button class="save" id="close-transcript-modal-btn" style="width: 100%">关闭</button>
 				</div>
 			</div>
 		</div>

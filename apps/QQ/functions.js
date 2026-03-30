@@ -3059,6 +3059,48 @@ window.videoCallState = {
 
 window.callTimerInterval = null;
 
+/**
+ * 为视频通话构建与聊天设置一致的上下文（条数、格式、记忆互通）
+ */
+async function buildVideoCallChatContext(chat) {
+    const maxMemory = chat.settings.maxMemory || 10;
+    const historySlice = chat.history
+        .filter((msg) => !msg.isTemporary && !msg.isHidden)
+        .slice(-maxMemory);
+
+    const showTs = (chat.settings.timePerceptionEnabled ?? true) || !!chat.settings.customTime;
+    const formattedHistory = historySlice
+        .map((msg) => `  - ${window.formatMessageForContext(msg, chat, showTs)}`)
+        .join('\n');
+
+    let linkedMemoryContext = '';
+    if (chat.settings.linkedMemories && chat.settings.linkedMemories.length > 0) {
+        const ctxPromises = chat.settings.linkedMemories.map(async (link) => {
+            const linkedChat = window.state.chats[link.chatId];
+            if (!linkedChat) return '';
+            const freshLinkedChat = await window.db.chats.get(link.chatId);
+            if (!freshLinkedChat) return '';
+            const recentHistory = freshLinkedChat.history
+                .filter((msg) => !msg.isHidden)
+                .slice(-link.depth);
+            if (recentHistory.length === 0) return '';
+            const fm = recentHistory
+                .map((msg) => `  - ${window.formatMessageForContext(msg, freshLinkedChat, showTs)}`)
+                .join('\n');
+            return `\n## 附加上下文：来自与"${linkedChat.name}"的最近对话内容\n${fm}`;
+        });
+        const allCtx = await Promise.all(ctxPromises);
+        linkedMemoryContext = allCtx.filter(Boolean).join('\n');
+    }
+
+    let result = `### 通话前的聊天记录 (最近${historySlice.length}条)\n${formattedHistory}`;
+    if (linkedMemoryContext) {
+        result += `\n\n### 记忆互通 - 其他相关聊天记录 (仅供参考)\n${linkedMemoryContext}`;
+    }
+    return result;
+}
+window.buildVideoCallChatContext = buildVideoCallChatContext;
+
 window.toggleCallButtons = function (isGroup) {
     const vBtn = document.getElementById('video-call-btn');
     const gBtn = document.getElementById('group-video-call-btn');
@@ -3090,11 +3132,8 @@ window.handleInitiateCall = async function () {
     document.querySelector('#outgoing-call-screen .caller-text').textContent = chat.isGroup ? '正在呼叫所有成员...' : '正在呼叫...';
     if (window.showScreen) window.showScreen('outgoing-call-screen');
 
-    // 在发起通话时，提前准备好通话前的聊天记录上下文
-    window.videoCallState.preCallContext = chat.history
-        .slice(-20) // 获取最近20条消息
-        .map((msg) => `${msg.role === 'user' ? chat.settings.myNickname || '我' : msg.senderName || chat.name}: ${String(msg.content).substring(0, 50)}...`)
-        .join('\n');
+    // 在发起通话时，提前准备好通话前的聊天记录上下文（使用与聊天设置一致的条数和格式）
+    window.videoCallState.preCallContext = await buildVideoCallChatContext(chat);
 
     // 2. 重新构建一个信息更丰富、指令更明确的API请求
     try {
@@ -3120,7 +3159,7 @@ window.handleInitiateCall = async function () {
         # 角色列表与人设
         ${chat.members.map((m) => `- **${m.originalName}**: ${m.persona}`).join('\n')}
 
-        # 通话前的聊天摘要
+        # 通话前的聊天上下文
         ${window.videoCallState.preCallContext}
         `;
         } else {
@@ -3137,7 +3176,7 @@ window.handleInitiateCall = async function () {
         # 你的人设
         ${chat.settings.aiPersona}
 
-        # 通话前的聊天摘要
+        # 通话前的聊天上下文
         ${window.videoCallState.preCallContext}
         `;
         }
@@ -3197,15 +3236,12 @@ window.handleInitiateCall = async function () {
     }
 }
 
-window.startVideoCall = function () {
+window.startVideoCall = async function () {
     const chat = state.chats[videoCallState.activeChatId];
     if (!chat) return;
 
-    // 提取通话前的最后20条消息作为上下文
-    videoCallState.preCallContext = chat.history
-        .slice(-20)
-        .map((msg) => `${msg.role === 'user' ? chat.settings.myNickname || '我' : msg.senderName || chat.name}: ${String(msg.content).substring(0, 50)}...`)
-        .join('\n');
+    // 使用与聊天设置一致的条数、格式和记忆互通构建上下文
+    videoCallState.preCallContext = await buildVideoCallChatContext(chat);
 
     // 1. 检查是否启用了可视化界面
     if (chat.settings.visualVideoCallEnabled) {
@@ -3387,11 +3423,21 @@ window.endVideoCall = async function () {
             participants: participantsData,
             transcript: [...videoCallState.callHistory],
         };
-        await db.callRecords.add(callRecord);
+        const callRecordId = await db.callRecords.add(callRecord);
+
+        // 将通话文字记录格式化后保存在消息上，以便后续聊天时AI能读取
+        const userNick = chat.settings.myNickname || '我';
+        const transcriptText = videoCallState.callHistory
+            .map((h) => `${h.role === 'user' ? userNick : (h.role || chat.name)}: ${h.content}`)
+            .join('\n');
 
         // 添加结束消息
         let summaryMessage = {
             role: videoCallState.initiator === 'user' ? 'user' : 'assistant',
+            type: 'video_call_record',
+            callRecordId: callRecordId,
+            duration: duration,
+            callTranscript: transcriptText,
             content: endCallText,
             timestamp: window.getUserMessageTimestamp(chat),
         };
@@ -3667,11 +3713,10 @@ window.triggerAiInCallAction = async function (userInput = null) {
 
         # 当前情景
         你们正在一个群视频通话中。
-        **通话前的聊天摘要**:
         ${window.videoCallState.preCallContext}
         **当前参与者**: ${participantNames.join('、 ')}。
         ${worldBookContent}
-        现在，请根据【通话前摘要】和下面的【通话实时记录】，继续进行对话。
+        现在，请根据【通话前的聊天上下文】和下面的【通话实时记录】，继续进行对话。
         `;
     } else {
         let openingContext = window.videoCallState.initiator === 'user' ? `你刚刚接听了用户的视频通话请求。` : `用户刚刚接听了你主动发起的视频通话。`;
@@ -3689,10 +3734,9 @@ window.triggerAiInCallAction = async function (userInput = null) {
         4.  **禁止出戏**: 绝不能透露你是AI或模型。
 
         # 当前情景
-        **通话前的聊天摘要**:
         ${window.videoCallState.preCallContext}
         ${worldBookContent}
-        现在，请根据【通话前摘要】和下面的【通话实时记录】，继续进行对话。
+        现在，请根据【通话前的聊天上下文】和下面的【通话实时记录】，继续进行对话。
         `;
     }
 
