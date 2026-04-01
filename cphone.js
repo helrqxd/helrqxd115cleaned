@@ -2759,17 +2759,53 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     });
 
-    // 角色手机聊天列表的点击事件 (事件委托)
-    document.getElementById('character-chat-list').addEventListener('click', (e) => {
+    // 角色手机聊天列表：点击 + 长按删除 (事件委托)
+    const chatListEl = document.getElementById('character-chat-list');
+    let longPressTimer = null;
+    let isLongPress = false;
+
+    function startChatListLongPress(item) {
+        isLongPress = false;
+        longPressTimer = setTimeout(() => {
+            isLongPress = true;
+            const contactName = item.dataset.contactName;
+            const isUserChat = item.dataset.isUserChat === 'true';
+            if (isUserChat) return;
+
+            if (confirm(`确定要删除与「${contactName}」的全部聊天记录吗？`)) {
+                const chat = state.chats[activeCharacterPhoneId];
+                if (chat && chat.characterPhoneData && chat.characterPhoneData.chats) {
+                    delete chat.characterPhoneData.chats[contactName];
+                    db.chats.put(chat);
+                    renderCharacterChatList();
+                }
+            }
+        }, 600);
+    }
+
+    function cancelChatListLongPress() {
+        clearTimeout(longPressTimer);
+        longPressTimer = null;
+    }
+
+    chatListEl.addEventListener('touchstart', (e) => {
+        const item = e.target.closest('.chat-list-item');
+        if (item) startChatListLongPress(item);
+    }, { passive: true });
+    chatListEl.addEventListener('touchend', cancelChatListLongPress);
+    chatListEl.addEventListener('touchmove', cancelChatListLongPress);
+    chatListEl.addEventListener('mousedown', (e) => {
+        const item = e.target.closest('.chat-list-item');
+        if (item) startChatListLongPress(item);
+    });
+    chatListEl.addEventListener('mouseup', cancelChatListLongPress);
+    chatListEl.addEventListener('mouseleave', cancelChatListLongPress);
+
+    chatListEl.addEventListener('click', (e) => {
+        if (isLongPress) return;
         const item = e.target.closest('.chat-list-item');
         if (item && item.dataset.contactName) {
             const isUserChat = item.dataset.isUserChat === 'true';
-            console.log('【诊断日志 2】: 点击了聊天列表项', {
-                contactName: item.dataset.contactName,
-                isUserChat: isUserChat,
-            });
-
-            // 将联系人名字和“身份证”一起传递给渲染函数
             renderCharacterChatHistory(item.dataset.contactName, isUserChat);
             showCharacterPhonePage('character-chat-history-screen');
         }
@@ -2798,9 +2834,7 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 'clear-npc-chats-btn', action: () => clearCharacterPhoneDataSegment('chats') },
         {
             id: 'generate-chat-message-btn', action: () => {
-                const modal = document.getElementById('chat-gen-selector-modal');
-                populateChatGenList();
-                modal.classList.add('visible');
+                openChatGenerationModal();
             }
         },
 
@@ -2901,17 +2935,13 @@ document.addEventListener('DOMContentLoaded', () => {
         let selectedTargets = null;
 
         if (!isRandom) {
-            // 如果不是随机，收集选中的对象
             selectedTargets = [];
             document.querySelectorAll('#chat-gen-list input:checked').forEach((checkbox) => {
-                const charId = checkbox.dataset.id;
-                const charObj = state.chats[charId];
-                // 优先读取完整人设 aiPersona, 兼容旧字段 persona
-                const fullPersona = charObj?.settings?.aiPersona || charObj?.settings?.persona || "";
+                const persona = (checkbox.dataset.persona || "").replace(/&quot;/g, '"');
 
                 selectedTargets.push({
                     name: checkbox.dataset.name,
-                    persona: fullPersona,
+                    persona: persona,
                 });
             });
 
@@ -2922,7 +2952,6 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         document.getElementById('chat-gen-selector-modal').classList.remove('visible');
-        // 调用生成函数，传入选中的目标（如果是随机则为null）
         generateCharacterPhoneDataSegment('chats', selectedTargets);
     });
 

@@ -32,10 +32,11 @@
         // 导出供外部调用的函数
         renderWorldBookScreen: renderWorldBookScreen,
         saveWorldBookEntriesFromArray: saveWorldBookEntriesFromArray,
-        parseAndSaveWorldBooks: parseAndSaveWorldBooks, // 如果需要
+        parseAndSaveWorldBooks: parseAndSaveWorldBooks,
         renderCategoryListInManager: renderCategoryListInManager,
         addNewCategory: addNewCategory,
         deleteCategory: deleteCategory,
+        getGlobalWorldBooksContext: getGlobalWorldBooksContext,
     };
 
     // 暴露给全局
@@ -122,7 +123,8 @@
             const item = document.createElement('div');
             item.className = 'list-item';
             item.dataset.bookId = book.id;
-            item.innerHTML = `<div class="item-title">${book.name}</div><div class="item-content">${(book.content || '暂无内容...').substring(0, 50)}</div>`;
+            const globalBadge = book.isGlobal ? '<span style="display:inline-block;background:#34c759;color:#fff;font-size:10px;padding:1px 5px;border-radius:4px;margin-left:6px;vertical-align:middle;">全局</span>' : '';
+            item.innerHTML = `<div class="item-title">${book.name}${globalBadge}</div><div class="item-content">${(book.content || '暂无内容...').substring(0, 50)}</div>`;
 
             // 编辑模式下的样式处理 (如果正在编辑模式渲染)
             if (isWorldBookEditMode) {
@@ -148,6 +150,27 @@
         return groupContainer;
     }
 
+    /**
+     * 获取所有标记为"全局"的世界书拼接后的上下文字符串。
+     * 供各个AI调用点统一使用。
+     * @param {string[]} [excludeIds] - 需要排除的世界书ID（避免与各功能自选的世界书重复）
+     * @returns {string}
+     */
+    function getGlobalWorldBooksContext(excludeIds) {
+        const excludeSet = new Set(excludeIds || []);
+        const globalBooks = (window.state.worldBooks || []).filter(
+            (b) => b.isGlobal && !excludeSet.has(b.id)
+        );
+        if (globalBooks.length === 0) return '';
+
+        const contents = globalBooks
+            .map((b) => (b.content ? `\n\n## 世界书: ${b.name}\n${b.content}` : ''))
+            .filter(Boolean)
+            .join('');
+
+        return contents ? `\n\n# 全局世界观设定 (必须严格遵守)\n${contents}\n` : '';
+    }
+
     async function openWorldBookEditor(bookId) {
         editingWorldBookId = bookId;
         const [book, categories] = await Promise.all([db.worldBooks.get(bookId), db.worldBookCategories.toArray()]);
@@ -156,6 +179,7 @@
         document.getElementById('world-book-editor-title').textContent = book.name;
         document.getElementById('world-book-name-input').value = book.name;
         document.getElementById('world-book-content-input').value = book.content;
+        document.getElementById('world-book-global-toggle').checked = !!book.isGlobal;
 
         // 填充分类下拉菜单
         const selectEl = document.getElementById('world-book-category-select');
@@ -165,7 +189,7 @@
             option.value = cat.id;
             option.textContent = cat.name;
             if (book.categoryId === cat.id) {
-                option.selected = true; // 选中当前分类
+                option.selected = true;
             }
             selectEl.appendChild(option);
         });
@@ -496,6 +520,7 @@
                 }
                 book.name = newName;
                 book.content = document.getElementById('world-book-content-input').value;
+                book.isGlobal = document.getElementById('world-book-global-toggle').checked;
 
                 const categoryId = document.getElementById('world-book-category-select').value;
                 book.categoryId = categoryId ? parseInt(categoryId) : null;

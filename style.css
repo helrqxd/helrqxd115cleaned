@@ -18429,6 +18429,91 @@ body {
 }
 
 /* ▲▲▲ 新增CSS结束 ▲▲▲ */
+
+/* ▼▼▼ 表情面板搜索栏样式 ▼▼▼ */
+#sticker-search-bar {
+  padding: 8px 15px;
+  flex-shrink: 0;
+  border-bottom: 1px solid var(--border-color);
+}
+#sticker-search-input {
+  width: 100%;
+  padding: 8px 14px;
+  border: 1px solid #ddd;
+  border-radius: 20px;
+  font-size: 14px;
+  outline: none;
+  background-color: rgba(255,255,255,0.8);
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+#sticker-search-input:focus {
+  border-color: var(--accent-color);
+}
+#phone-screen.dark-mode #sticker-search-input {
+  background-color: rgba(60,60,67,0.6);
+  border-color: #555;
+  color: #fff;
+}
+
+/* ▼▼▼ 表情包自动匹配建议浮层样式 ▼▼▼ */
+#sticker-auto-suggest {
+  display: none;
+  flex-shrink: 0;
+  background: rgba(255,255,255,0.96);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border-top: 1px solid var(--border-color);
+  padding: 8px 10px;
+  gap: 8px;
+  overflow-x: auto;
+  z-index: 150;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.06);
+}
+#sticker-auto-suggest::-webkit-scrollbar {
+  display: none;
+}
+#phone-screen.dark-mode #sticker-auto-suggest {
+  background: rgba(30,30,30,0.96);
+}
+.sticker-suggest-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  flex-shrink: 0;
+  padding: 4px 6px;
+  border-radius: 10px;
+  transition: background-color 0.15s;
+}
+.sticker-suggest-item:hover {
+  background-color: rgba(0,0,0,0.05);
+}
+#phone-screen.dark-mode .sticker-suggest-item:hover {
+  background-color: rgba(255,255,255,0.08);
+}
+.sticker-suggest-img {
+  width: 50px;
+  height: 50px;
+  background-size: contain;
+  background-repeat: no-repeat;
+  background-position: center;
+  border-radius: 6px;
+}
+.sticker-suggest-name {
+  font-size: 11px;
+  color: var(--text-secondary);
+  text-align: center;
+  max-width: 60px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* ▲▲▲ 表情包优化样式结束 ▲▲▲ */
+
 /* ▼▼▼ 【全新】亲密值系统相关CSS样式 ▼▼▼ */
 
 /* 聊天列表里的亲密值按钮 */

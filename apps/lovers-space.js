@@ -3119,11 +3119,9 @@ async function triggerPomodoroBreakResponse(userText) {
 
     // 2.1 世界书
     let worldBookContext = "";
-    if (
-        chat.settings.linkedWorldBookIds &&
-        chat.settings.linkedWorldBookIds.length > 0
-    ) {
-        const linkedContents = chat.settings.linkedWorldBookIds
+    const _linkedIdsLs = chat.settings.linkedWorldBookIds || [];
+    if (_linkedIdsLs.length > 0) {
+        const linkedContents = _linkedIdsLs
             .map((id) => {
                 const book = state.worldBooks.find((b) => b.id === id);
                 return book && book.content
@@ -3136,6 +3134,8 @@ async function triggerPomodoroBreakResponse(userText) {
             worldBookContext = `\n# 核心世界观设定 (必须参考)\n${linkedContents}\n`;
         }
     }
+    const _globalWbLs = window.WorldBookModule.getGlobalWorldBooksContext(_linkedIdsLs);
+    if (_globalWbLs) worldBookContext += _globalWbLs;
 
     // 2.2 用户信息
     const userNickname = chat.settings.myNickname || "我";

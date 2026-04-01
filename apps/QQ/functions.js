@@ -6,10 +6,12 @@
 
 let isUserStickerSelectionMode = false;
 let activeStickerCategoryId = 'uncategorized';
-let userStickerCategories = []; // 用于缓存用户的所有分类
+let userStickerCategories = [];
 let isCharStickerSelectionMode = false;
 let selectedCharStickers = new Set();
 let selectedUserStickers = new Set();
+let stickerSearchQuery = '';
+let stickerAutoSuggestDebounceTimer = null;
 
 // ===================================================================
 // 2. 表情包核心功能函数
@@ -24,8 +26,13 @@ function renderStickerPanel() {
     grid.innerHTML = '';
 
     let stickersToRender;
+    const query = stickerSearchQuery.trim().toLowerCase();
 
-    if (activeStickerCategoryId === 'uncategorized') {
+    if (query) {
+        stickersToRender = state.userStickers.filter((sticker) =>
+            sticker.name && sticker.name.toLowerCase().includes(query)
+        );
+    } else if (activeStickerCategoryId === 'uncategorized') {
         // 如果是“未分类”，就筛选出 categoryId 不存在或为空的表情
         stickersToRender = state.userStickers.filter((sticker) => !sticker.categoryId);
     } else {
@@ -34,9 +41,10 @@ function renderStickerPanel() {
     }
 
     if (stickersToRender.length === 0) {
-        // 根据当前选中的分类，显示不同的提示语
         let message;
-        if (activeStickerCategoryId === 'uncategorized') {
+        if (query) {
+            message = '没有找到匹配的表情~';
+        } else if (activeStickerCategoryId === 'uncategorized') {
             // 如果所有表情都有分类了，这里也会是空的
             message = '没有未分类的表情哦~';
         } else {
@@ -299,18 +307,66 @@ function attachFileImportHandler(inputId) {
 }
 
 /**
+ * 构建分类选择器HTML（批量添加/上传时选择目标分类）
+ */
+async function buildCategorySelectorHtml() {
+    const categories = await db.userStickerCategories.orderBy('name').toArray();
+    let optionsHtml = '<option value="uncategorized">未分类</option>';
+    categories.forEach(cat => {
+        optionsHtml += '<option value="' + cat.id + '">' + cat.name + '</option>';
+    });
+    return '<div style="margin-bottom:12px; display:flex; align-items:center; gap:8px; flex-wrap:wrap;">' +
+        '<label style="font-size:14px; color:var(--text-secondary); white-space:nowrap;">添加到分类：</label>' +
+        '<select id="batch-sticker-category-select" style="flex:1; min-width:100px; padding:6px 10px; border-radius:8px; border:1px solid #ccc; font-size:14px; background:white;">' +
+        optionsHtml +
+        '<option value="__new__">+ 新建分类...</option>' +
+        '</select>' +
+        '<input type="text" id="batch-sticker-new-category" placeholder="输入新分类名称" style="display:none; flex:1; min-width:120px; padding:6px 10px; border-radius:8px; border:1px solid #ccc; font-size:14px;" />' +
+        '</div>';
+}
+
+function initBatchCategoryToggle() {
+    const select = document.getElementById('batch-sticker-category-select');
+    const newInput = document.getElementById('batch-sticker-new-category');
+    if (!select || !newInput) return;
+    select.addEventListener('change', () => {
+        newInput.style.display = select.value === '__new__' ? 'block' : 'none';
+        if (select.value === '__new__') newInput.focus();
+    });
+}
+
+async function getSelectedBatchCategoryId() {
+    const select = document.getElementById('batch-sticker-category-select');
+    const newInput = document.getElementById('batch-sticker-new-category');
+    if (!select) return null;
+    if (select.value === '__new__') {
+        const newName = newInput ? newInput.value.trim() : '';
+        if (!newName) return null;
+        let existing = await db.userStickerCategories.where('name').equalsIgnoreCase(newName).first();
+        if (existing) return existing.id;
+        return await db.userStickerCategories.add({ name: newName });
+    }
+    if (select.value === 'uncategorized') return null;
+    return parseInt(select.value);
+}
+
+/**
  * 批量添加表情包
  */
 async function openBulkAddStickersModal() {
     const fileImportHtml = buildFileImportHtml('batch-user-sticker-file');
     attachFileImportHandler('batch-user-sticker-file');
+    const categorySelectorHtml = await buildCategorySelectorHtml();
+    setTimeout(initBatchCategoryToggle, 100);
     const placeholder = `在这里粘贴表情包，每行一个，格式如下：\n\n猫猫喝水：https://..../cat.gif\n狗狗摇头：https://..../dog.png\n\n(支持用中文冒号“：”、英文冒号“:”或空格分隔)`;
 
-    const textInput = await showCustomPrompt('批量添加表情(URL)', '一行一个，名称和链接用冒号或空格隔开', '', 'textarea', fileImportHtml);
+    const textInput = await showCustomPrompt('批量添加表情(URL)', '一行一个，名称和链接用冒号或空格隔开', '', 'textarea', categorySelectorHtml + fileImportHtml);
 
     if (!textInput || !textInput.trim()) {
         return;
     }
+
+    const targetCategoryId = await getSelectedBatchCategoryId();
 
     const lines = textInput.trim().split('\n');
     const newStickers = [];
@@ -353,11 +409,13 @@ async function openBulkAddStickersModal() {
         }
 
         if (name && (url.startsWith('http') || url.startsWith('data:image'))) {
-            newStickers.push({
+            const sticker = {
                 id: 'sticker_' + (Date.now() + index),
                 url: url,
                 name: name,
-            });
+            };
+            if (targetCategoryId) sticker.categoryId = targetCategoryId;
+            newStickers.push(sticker);
             successCount++;
         } else {
             errorLines.push(index + 1);
@@ -367,6 +425,7 @@ async function openBulkAddStickersModal() {
     if (newStickers.length > 0) {
         await db.userStickers.bulkAdd(newStickers);
         state.userStickers.push(...newStickers);
+        if (targetCategoryId) activeStickerCategoryId = targetCategoryId;
         renderStickerPanel();
     }
 
@@ -985,6 +1044,11 @@ function initQQStickerFunctions() {
     if (openBtn) {
         openBtn.addEventListener('click', () => {
             if (stickerPanel) {
+                stickerSearchQuery = '';
+                const si = document.getElementById('sticker-search-input');
+                if (si) si.value = '';
+                const tabs = document.getElementById('sticker-category-tabs');
+                if (tabs) tabs.style.display = 'flex';
                 renderStickerPanel();
                 stickerPanel.classList.add('visible');
             }
@@ -997,6 +1061,21 @@ function initQQStickerFunctions() {
                 exitUserStickerSelectionMode();
             }
             stickerPanel.classList.remove('visible');
+            const searchInput = document.getElementById('sticker-search-input');
+            if (searchInput) { searchInput.value = ''; stickerSearchQuery = ''; }
+        });
+    }
+
+    // 1.5 搜索表情包
+    const stickerSearchInput = document.getElementById('sticker-search-input');
+    if (stickerSearchInput) {
+        stickerSearchInput.addEventListener('input', () => {
+            stickerSearchQuery = stickerSearchInput.value;
+            const tabsContainer = document.getElementById('sticker-category-tabs');
+            if (tabsContainer) {
+                tabsContainer.style.display = stickerSearchQuery.trim() ? 'none' : 'flex';
+            }
+            renderStickerPanel();
         });
     }
 
@@ -1020,6 +1099,13 @@ function initQQStickerFunctions() {
         stickerUploadInput.addEventListener('change', async (event) => {
             const files = event.target.files;
             if (!files.length) return;
+
+            const catHtml = await buildCategorySelectorHtml();
+            const hideInputCss = '<style>#custom-prompt-input{display:none!important;}</style>';
+            setTimeout(initBatchCategoryToggle, 100);
+            const catConfirm = await showCustomPrompt('选择分类', '', '', 'text', catHtml + hideInputCss);
+            if (catConfirm === null) { event.target.value = null; return; }
+            const uploadCategoryId = await getSelectedBatchCategoryId();
 
             const newStickers = [];
             let canceled = false;
@@ -1048,11 +1134,13 @@ function initQQStickerFunctions() {
                         reader.readAsDataURL(file);
                     });
 
-                    newStickers.push({
+                    const stickerObj = {
                         id: 'sticker_' + (Date.now() + newStickers.length),
                         url: base64Url,
                         name: name.trim(),
-                    });
+                    };
+                    if (uploadCategoryId) stickerObj.categoryId = uploadCategoryId;
+                    newStickers.push(stickerObj);
                 } else if (name === null) {
                     const confirmCancel = await showCustomConfirm('确认取消', '确定要取消剩余表情的上传吗？');
                     if (confirmCancel) {
@@ -1066,6 +1154,7 @@ function initQQStickerFunctions() {
             if (newStickers.length > 0) {
                 await db.userStickers.bulkAdd(newStickers);
                 state.userStickers.push(...newStickers);
+                if (uploadCategoryId) activeStickerCategoryId = uploadCategoryId;
                 renderStickerPanel();
                 await showCustomAlert('上传成功', `已成功添加 ${newStickers.length} 个新表情！`);
             }
@@ -1184,6 +1273,88 @@ function initQQStickerFunctions() {
         });
     }
 
+    // 11. 表情包自动匹配（类似微信输入联想）
+    const chatInputForSuggest = document.getElementById('chat-input');
+    const suggestContainer = document.getElementById('sticker-auto-suggest');
+    if (chatInputForSuggest && suggestContainer) {
+        chatInputForSuggest.addEventListener('input', () => {
+            clearTimeout(stickerAutoSuggestDebounceTimer);
+            stickerAutoSuggestDebounceTimer = setTimeout(() => {
+                updateStickerAutoSuggest(chatInputForSuggest, suggestContainer);
+            }, 200);
+        });
+        chatInputForSuggest.addEventListener('blur', () => {
+            setTimeout(() => { suggestContainer.style.display = 'none'; }, 200);
+        });
+        chatInputForSuggest.addEventListener('focus', () => {
+            updateStickerAutoSuggest(chatInputForSuggest, suggestContainer);
+        });
+    }
+
+}
+
+function updateStickerAutoSuggest(inputEl, container) {
+    const text = inputEl.value.trim().toLowerCase();
+    container.innerHTML = '';
+
+    if (!text || text.length < 1) {
+        container.style.display = 'none';
+        return;
+    }
+
+    const allStickers = [
+        ...(state.userStickers || []),
+        ...(state.charStickers || [])
+    ];
+    if (state.activeChatId) {
+        const chat = state.chats[state.activeChatId];
+        if (chat && chat.settings && chat.settings.stickerLibrary) {
+            allStickers.push(...chat.settings.stickerLibrary);
+        }
+    }
+
+    const seen = new Set();
+    const matches = [];
+    for (const s of allStickers) {
+        if (!s.name || !s.url) continue;
+        const key = s.name + '|' + s.url;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        if (s.name.toLowerCase().includes(text)) {
+            matches.push(s);
+            if (matches.length >= 10) break;
+        }
+    }
+
+    if (matches.length === 0) {
+        container.style.display = 'none';
+        return;
+    }
+
+    matches.forEach((sticker) => {
+        const item = document.createElement('div');
+        item.className = 'sticker-suggest-item';
+
+        const imgDiv = document.createElement('div');
+        imgDiv.className = 'sticker-suggest-img';
+        imgDiv.style.backgroundImage = 'url(' + sticker.url + ')';
+        const nameSpan = document.createElement('span');
+        nameSpan.className = 'sticker-suggest-name';
+        nameSpan.textContent = sticker.name;
+        item.appendChild(imgDiv);
+        item.appendChild(nameSpan);
+
+        item.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            sendSticker(sticker);
+            container.style.display = 'none';
+            inputEl.value = '';
+            inputEl.style.height = 'auto';
+        });
+        container.appendChild(item);
+    });
+
+    container.style.display = 'flex';
 }
 
 // 自动执行初始化（等待DOM加载）
@@ -3662,8 +3833,9 @@ window.triggerAiInCallAction = async function (userInput = null) {
     const userNickname = chat.settings.myNickname || '我';
 
     let worldBookContent = '';
-    if (chat.settings.linkedWorldBookIds && chat.settings.linkedWorldBookIds.length > 0) {
-        const linkedContents = chat.settings.linkedWorldBookIds
+    const _linkedIdsVc = chat.settings.linkedWorldBookIds || [];
+    if (_linkedIdsVc.length > 0) {
+        const linkedContents = _linkedIdsVc
             .map((bookId) => {
                 const worldBook = window.state.worldBooks.find((wb) => wb.id === bookId);
                 return worldBook && worldBook.content ? `\n\n## 世界书: ${worldBook.name}\n${worldBook.content}` : '';
@@ -3674,6 +3846,8 @@ window.triggerAiInCallAction = async function (userInput = null) {
             worldBookContent = `\n\n# 核心世界观设定 (你必须严格遵守)\n${linkedContents}\n`;
         }
     }
+    const _globalWbVc = window.WorldBookModule.getGlobalWorldBooksContext(_linkedIdsVc);
+    if (_globalWbVc) worldBookContent += _globalWbVc;
 
     if (userInput && window.videoCallState.isUserParticipating) {
         if (isVisualMode) {

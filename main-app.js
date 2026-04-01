@@ -3853,9 +3853,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             combinedText += chat.settings.myPersona || '';
         }
 
-        // 2. 添加世界书内容
-        if (settings.linkedWorldBookIds && settings.linkedWorldBookIds.length > 0) {
-            const linkedContents = settings.linkedWorldBookIds
+        // 2. 添加世界书内容（含全局世界书）
+        const _linkedIdsMain = settings.linkedWorldBookIds || [];
+        if (_linkedIdsMain.length > 0) {
+            const linkedContents = _linkedIdsMain
                 .map((bookId) => {
                     const worldBook = state.worldBooks.find((wb) => wb.id === bookId);
                     return worldBook ? worldBook.content : '';
@@ -3863,6 +3864,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 .join('\n');
             combinedText += linkedContents;
         }
+        const _globalWbMain = window.WorldBookModule.getGlobalWorldBooksContext(_linkedIdsMain);
+        if (_globalWbMain) combinedText += _globalWbMain;
 
         // 3. 添加所有总结作为长期记忆
         const summaryContext = chat.history

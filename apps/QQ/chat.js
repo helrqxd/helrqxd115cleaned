@@ -2135,11 +2135,11 @@ window.triggerAiResponse = async function triggerAiResponse() {
     }
     // 将世界书读取提到这里，确保线下模式也能生效
     let worldBookContext = '';
-    if (chat.settings.linkedWorldBookIds && chat.settings.linkedWorldBookIds.length > 0) {
-        const linkedContents = chat.settings.linkedWorldBookIds
+    const _linkedIds1 = chat.settings.linkedWorldBookIds || [];
+    if (_linkedIds1.length > 0) {
+        const linkedContents = _linkedIds1
             .map((id) => {
                 const book = window.state.worldBooks.find((b) => b.id === id);
-                // 这里使用了 stripHtmlAndCode 清理函数，确保纯文本
                 return book && book.content ? `\n\n## 世界书条目: ${book.name}\n${stripHtmlAndCode(book.content)}` : '';
             })
             .filter(Boolean)
@@ -2148,6 +2148,8 @@ window.triggerAiResponse = async function triggerAiResponse() {
             worldBookContext = `\n\n# 核心世界观设定 (必须严格遵守以下所有设定)\n${linkedContents}\n`;
         }
     }
+    const _globalWb1 = window.WorldBookModule.getGlobalWorldBooksContext(_linkedIds1);
+    if (_globalWb1) worldBookContext += _globalWb1;
     // --- 线下模式核心拦截逻辑 ---
     if (!chat.isGroup && chat.settings.offlineMode && chat.settings.offlineMode.enabled) {
         console.log(`角色 "${chat.name}" 已开启线下模式...`);
@@ -3134,11 +3136,11 @@ ${offlineLinkedMemCtx}
         }
 
         let worldBookContent = '';
-        if (chat.settings.linkedWorldBookIds && chat.settings.linkedWorldBookIds.length > 0) {
-            const linkedContents = chat.settings.linkedWorldBookIds
+        const _linkedIds2 = chat.settings.linkedWorldBookIds || [];
+        if (_linkedIds2.length > 0) {
+            const linkedContents = _linkedIds2
                 .map((bookId) => {
                     const worldBook = window.state.worldBooks.find((wb) => wb.id === bookId);
-
                     return worldBook && worldBook.content ? `\n\n## 世界书: ${worldBook.name}\n${stripHtmlAndCode(worldBook.content)}` : '';
                 })
                 .filter(Boolean)
@@ -3147,6 +3149,8 @@ ${offlineLinkedMemCtx}
                 worldBookContent = `\n\n# 核心世界观设定 (必须严格遵守以下所有设定)，里面可能会包含HTML小剧场，在捕获到关键词后输出\n${linkedContents}\n`;
             }
         }
+        const _globalWb2 = window.WorldBookModule.getGlobalWorldBooksContext(_linkedIds2);
+        if (_globalWb2) worldBookContent += _globalWb2;
         let musicContext = '';
         const countdownContext = await getCountdownContext(chatId); // <--- 把chatId传进去
         const streakContext = await window.getStreakContext(chat);
@@ -11498,16 +11502,19 @@ async function getTokenDetailedBreakdown(chatId) {
     let personaText = chat.isGroup ? `群聊...${chat.members.map((m) => m.persona).join('')}` : (chat.settings.aiPersona || '') + (chat.settings.myPersona || '');
     breakdown.push({ name: '核心人设', count: calculateTokenCount(personaText) });
 
-    // 2. 世界书
+    // 2. 世界书（含全局世界书）
     let wbText = '';
-    if (settings.linkedWorldBookIds) {
-        wbText = settings.linkedWorldBookIds
+    const _wbLinkedIds = settings.linkedWorldBookIds || [];
+    if (_wbLinkedIds.length > 0) {
+        wbText = _wbLinkedIds
             .map((id) => {
                 const b = state.worldBooks.find((wb) => wb.id === id);
                 return b ? b.content : '';
             })
             .join('');
     }
+    const _wbGlobalText = window.WorldBookModule.getGlobalWorldBooksContext(_wbLinkedIds);
+    if (_wbGlobalText) wbText += _wbGlobalText;
     breakdown.push({ name: '世界书', count: calculateTokenCount(wbText) });
 
     // 3. 表情包定义

@@ -417,8 +417,9 @@ async function triggerInactiveAiAction(chatId) {
     const countdownContext = await getCountdownContext();
 
     let worldBookContext = '';
-    if (chat.settings.linkedWorldBookIds && chat.settings.linkedWorldBookIds.length > 0) {
-        const linkedContents = chat.settings.linkedWorldBookIds
+    const _linkedIdsBg1 = chat.settings.linkedWorldBookIds || [];
+    if (_linkedIdsBg1.length > 0) {
+        const linkedContents = _linkedIdsBg1
             .map((bookId) => {
                 const worldBook = state.worldBooks.find((wb) => wb.id === bookId);
                 return worldBook && worldBook.content ? `\n\n## 世界书: ${worldBook.name}\n${worldBook.content}` : '';
@@ -429,6 +430,8 @@ async function triggerInactiveAiAction(chatId) {
             worldBookContext = `\n\n# 核心世界观设定 (你必须严格遵守)\n${linkedContents}\n`;
         }
     }
+    const _globalWbBg1 = window.WorldBookModule.getGlobalWorldBooksContext(_linkedIdsBg1);
+    if (_globalWbBg1) worldBookContext += _globalWbBg1;
 
     const npcLibrary = chat.npcLibrary || [];
     let npcContextForAction = '';
@@ -1056,8 +1059,9 @@ async function triggerAiFriendApplication(chatId) {
         .join('\n');
 
     let worldBookContent = '';
-    if (chat.settings.linkedWorldBookIds && chat.settings.linkedWorldBookIds.length > 0) {
-        const linkedContents = chat.settings.linkedWorldBookIds
+    const _linkedIdsBg2 = chat.settings.linkedWorldBookIds || [];
+    if (_linkedIdsBg2.length > 0) {
+        const linkedContents = _linkedIdsBg2
             .map((bookId) => {
                 const worldBook = state.worldBooks.find((wb) => wb.id === bookId);
                 return worldBook && worldBook.content ? `\n\n## 世界书: ${worldBook.name}\n${worldBook.content}` : '';
@@ -1068,6 +1072,8 @@ async function triggerAiFriendApplication(chatId) {
             worldBookContent = `\n\n# 核心世界观设定 (请参考)\n${linkedContents}\n`;
         }
     }
+    const _globalWbBg2 = window.WorldBookModule.getGlobalWorldBooksContext(_linkedIdsBg2);
+    if (_globalWbBg2) worldBookContent += _globalWbBg2;
 
     const systemPrompt = `
         # 你的任务
@@ -1267,8 +1273,9 @@ async function triggerGroupAiAction(chatId) {
         const myNickname = chat.settings.myNickname || '我';
 
         let worldBookContent = '';
-        if (chat.settings.linkedWorldBookIds && chat.settings.linkedWorldBookIds.length > 0) {
-            const linkedContents = chat.settings.linkedWorldBookIds
+        const _linkedIdsBg3 = chat.settings.linkedWorldBookIds || [];
+        if (_linkedIdsBg3.length > 0) {
+            const linkedContents = _linkedIdsBg3
                 .map((bookId) => {
                     const worldBook = state.worldBooks.find((wb) => wb.id === bookId);
                     return worldBook && worldBook.content ? `\n\n## 世界书: ${worldBook.name}\n${worldBook.content}` : '';
@@ -1279,6 +1286,8 @@ async function triggerGroupAiAction(chatId) {
                 worldBookContent = `\n\n# 核心世界观设定 (你必须严格遵守)\n${linkedContents}\n`;
             }
         }
+        const _globalWbBg3 = window.WorldBookModule.getGlobalWorldBooksContext(_linkedIdsBg3);
+        if (_globalWbBg3) worldBookContent += _globalWbBg3;
         let musicContext = '';
         // 注意：后台群聊活动通常不与特定的“一起听歌”会话绑定，因此这里我们提供一个空的音乐上下文。
         // 如果未来需要更复杂的功能，可以在此扩展。

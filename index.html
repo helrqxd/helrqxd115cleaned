@@ -1406,6 +1406,15 @@
 						</select>
 					</div>
 
+					<div class="form-group">
+						<label class="toggle-switch-label">
+							<span class="toggle-switch-text">设为全局世界书</span>
+							<input type="checkbox" id="world-book-global-toggle" />
+							<span class="toggle-switch-slider"></span>
+						</label>
+						<p style="font-size: 12px; color: var(--text-secondary, #888); margin-top: 4px;">开启后，所有调用AI的功能都会自动引用此世界书</p>
+					</div>
+
 					<div class="form-group" style="height: 100%">
 						<label for="world-book-content-input">内容</label>
 						<textarea id="world-book-content-input" placeholder="在此处输入详细的世界观设定..."></textarea>
@@ -1462,7 +1471,7 @@
 						</div>
 						<div class="form-group">
 							<label>重复惩罚（repetition_penalty）: <span id="repetition-penalty-value" style="color: var(--accent-color)">1</span></label>
-							<input type="range" id="repetition-penalty-slider" min="0" max="2" step="0.05" value="1" class="moe-slider" />
+							<input type="range" id="repetition-penalty-slider" min="1" max="2" step="0.05" value="1" class="moe-slider" />
 						</div>
 						<div class="form-group">
 							<label>频率惩罚（frequency_penalty）: <span id="frequency-penalty-value" style="color: var(--accent-color)">0</span></label>
@@ -2009,6 +2018,9 @@
 				<!-- 聊天消息区域 (保持不变) -->
 				<div id="chat-messages"><div id="typing-indicator">对方正在输入...</div></div>
 
+				<!-- 表情包自动匹配建议浮层 -->
+				<div id="sticker-auto-suggest" style="display:none;"></div>
+
 				<!-- 输入区域 (这是修改后的最终版本) -->
 				<div id="chat-input-area">
 					<div id="reply-preview-bar">
@@ -2198,6 +2210,9 @@
 							<span class="panel-btn" id="add-sticker-btn">添加</span>
 							<span class="panel-btn" id="upload-sticker-btn">上传</span>
 						</div>
+					</div>
+					<div id="sticker-search-bar">
+						<input type="text" id="sticker-search-input" placeholder="搜索表情包..." />
 					</div>
 					<div id="sticker-grid"></div>
 

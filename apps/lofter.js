@@ -734,15 +734,11 @@ document.addEventListener('DOMContentLoaded', () => {
         return [];
     }
 
-    // 获取世界书内容（支持单个ID或ID数组）
+    // 获取世界书内容（支持单个ID或ID数组），自动追加全局世界书
     async function getWorldBookContent(worldBookIdOrIds) {
-        if (!worldBookIdOrIds) return '';
-
         const worldBooks = getAllWorldBooks();
 
-        // 兼容旧的单个ID格式，统一转为数组
-        const ids = Array.isArray(worldBookIdOrIds) ? worldBookIdOrIds : [worldBookIdOrIds];
-        if (ids.length === 0) return '';
+        const ids = Array.isArray(worldBookIdOrIds) ? worldBookIdOrIds : (worldBookIdOrIds ? [worldBookIdOrIds] : []);
 
         let allContent = '';
         for (const wbId of ids) {
@@ -763,6 +759,10 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             allContent += '\n';
         }
+
+        const globalCtx = window.WorldBookModule.getGlobalWorldBooksContext(ids);
+        if (globalCtx) allContent += globalCtx;
+
         return allContent.trim();
     }
 

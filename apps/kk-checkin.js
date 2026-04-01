@@ -72,16 +72,19 @@ async function generateHouseData(charId, includeComputer = true) {
         if (!proxyUrl || !apiKey || !model) throw new Error('API未配置');
 
         let worldBookContext = '';
-        if (chat.settings.linkedWorldBookIds && chat.settings.linkedWorldBookIds.length > 0) {
+        const _linkedIdsKk1 = chat.settings.linkedWorldBookIds || [];
+        if (_linkedIdsKk1.length > 0) {
             worldBookContext =
                 '--- 世界观设定 (必须严格遵守) ---\n' +
-                chat.settings.linkedWorldBookIds
+                _linkedIdsKk1
                     .map(id => {
                         const book = state.worldBooks.find(b => b.id === id);
                         return book ? `[${book.name}]: ${book.content}` : '';
                     })
                     .join('\n\n');
         }
+        const _globalWbKk1 = window.WorldBookModule.getGlobalWorldBooksContext(_linkedIdsKk1);
+        if (_globalWbKk1) worldBookContext += _globalWbKk1;
         const userNickname = chat.settings.myNickname || '我';
 
         const recentHistory = chat.history
@@ -1010,15 +1013,17 @@ async function generateInitialSurveillanceFeeds(charId) {
         const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('checkin');
         if (!proxyUrl || !apiKey || !model) throw new Error('API未配置');
 
-        // 提取世界书、聊天记录和用户人设作为上下文
-        const worldBookContext = (
+        const _linkedIdsKk2 = chat.settings.linkedWorldBookIds || [];
+        let worldBookContext = (
             await Promise.all(
-                (chat.settings.linkedWorldBookIds || []).map(async id => {
+                _linkedIdsKk2.map(async id => {
                     const book = await db.worldBooks.get(id);
                     return book ? `\n## 世界书: ${book.name}\n${book.content}` : '';
                 }),
             )
         ).join('');
+        const _globalWbKk2 = window.WorldBookModule.getGlobalWorldBooksContext(_linkedIdsKk2);
+        if (_globalWbKk2) worldBookContext += _globalWbKk2;
 
         const recentHistory = chat.history
             .slice(-10)
