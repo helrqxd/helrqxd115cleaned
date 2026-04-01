@@ -25,10 +25,18 @@ window.activePostId = null;
  * newGlobalBgBase64, unreadPostsCount, currentRenderedCount, window.videoCallState
  */
 
+function getLastAssistantIndex(historySlice) {
+    for (let i = historySlice.length - 1; i >= 0; i--) {
+        if (historySlice[i].role === 'assistant') return i;
+    }
+    return -1;
+}
+
 function collectRecentUserImages(historySlice, maxImages) {
     if (!maxImages) maxImages = 3;
     const images = [];
-    for (let i = historySlice.length - 1; i >= 0 && images.length < maxImages; i--) {
+    const lastAsstIdx = getLastAssistantIndex(historySlice);
+    for (let i = historySlice.length - 1; i > lastAsstIdx && images.length < maxImages; i--) {
         const msg = historySlice[i];
         if (msg.role !== 'user') continue;
         if (Array.isArray(msg.content)) {
@@ -2197,7 +2205,8 @@ window.triggerAiResponse = async function triggerAiResponse() {
         const offlineTimeConfig = getChatTimeConfig(chat);
         const offlineShowTs = offlineTimeConfig.showTimestampInHistory;
 
-        const recentContextSummary = historySlice.map((msg) => {
+        const _offlineLastAsstIdx = getLastAssistantIndex(historySlice);
+        const recentContextSummary = historySlice.map((msg, _msgIdx) => {
             const timestampStr = offlineShowTs ? new Date(msg.timestamp).toLocaleString() : '';
             const tsPrefix = offlineShowTs ? `${timestampStr} ` : '';
             if (msg.isHidden) return `${tsPrefix}[系统隐藏信息]: ${msg.content}`;
@@ -2238,8 +2247,12 @@ window.triggerAiResponse = async function triggerAiResponse() {
                 else if (msg.status === 'rejected') contentStr = `[系统提示：外卖代付请求已被拒绝。商品"${msg.productInfo}"。]`;
                 else contentStr = `[系统提示：用户发起了外卖代付请求，商品是"${msg.productInfo}"，金额是 ${msg.amount} 元。请你决策并使用 waimai_response 指令回应。]`;
             }
-            else if (Array.isArray(msg.content) && msg.content[0]?.type === 'image_url') contentStr = '[\u7528\u6237\u53D1\u9001\u4E86\u4E00\u5F20\u56FE\u7247\uFF0C\u56FE\u7247\u6570\u636E\u5DF2\u9644\u5728\u672C\u6B21\u8BF7\u6C42\u4E2D\uFF0C\u8BF7\u67E5\u770B\u5E76\u8BC6\u522B\u56FE\u7247\u5185\u5BB9]';
-            else if (msg.meaning) contentStr = `[\u7528\u6237\u53D1\u9001\u4E86\u4E00\u4E2A\u8868\u60C5\uFF0C\u610F\u601D\u662F\uFF1A'${msg.meaning}']`;
+            else if (Array.isArray(msg.content) && msg.content[0]?.type === 'image_url') {
+                contentStr = _msgIdx > _offlineLastAsstIdx
+                    ? '[用户发送了一张图片，图片数据已附在本次请求中，请查看并识别图片内容]'
+                    : '[用户曾发送了一张图片（你已查看并识别过该图片内容）]';
+            }
+            else if (msg.meaning) contentStr = `[用户发送了一个表情，意思是：'${msg.meaning}']`;
             else if (msg.type === 'xhs-share' && msg.shareData) {
                 const data = msg.shareData;
                 let xhsContent = `[用户分享了一条小红书笔记]\n标题: ${data.title || '无标题'}\n作者: ${data.authorName || '未知'}\n`;
@@ -3369,8 +3382,9 @@ ${offlineLinkedMemCtx}
 
             // [New Logic] Prepare Context Variables for Group Chat
             const groupShowTs = onlineTimeConfig.showTimestampInHistory;
+            const _groupLastAsstIdx = getLastAssistantIndex(historySlice);
             const recentContextSummary = historySlice
-                .map((msg) => {
+                .map((msg, _msgIdx) => {
                     const timestampStr = groupShowTs ? new Date(msg.timestamp).toLocaleString() : '';
                     const tsPrefix = groupShowTs ? `${timestampStr} ` : '';
 
@@ -3436,7 +3450,9 @@ ${offlineLinkedMemCtx}
                         }
                     }
                     else if (Array.isArray(msg.content) && msg.content[0]?.type === 'image_url') {
-                        contentStr = '[\u7528\u6237\u53D1\u9001\u4E86\u4E00\u5F20\u56FE\u7247\uFF0C\u56FE\u7247\u6570\u636E\u5DF2\u9644\u5728\u672C\u6B21\u8BF7\u6C42\u4E2D\uFF0C\u8BF7\u67E5\u770B\u5E76\u8BC6\u522B\u56FE\u7247\u5185\u5BB9]';
+                        contentStr = _msgIdx > _groupLastAsstIdx
+                            ? '[用户发送了一张图片，图片数据已附在本次请求中，请查看并识别图片内容]'
+                            : '[用户曾发送了一张图片（你已查看并识别过该图片内容）]';
                     }
                     else if (msg.type === 'sticker' || msg.meaning || (typeof msg.content === 'string' && STICKER_REGEX.test(msg.content))) {
                         let stickerMeaning = msg.meaning;
@@ -3787,8 +3803,9 @@ ${libraryList}
 
             // 1. History Summary
             const singleShowTs = onlineTimeConfig.showTimestampInHistory;
+            const _singleLastAsstIdx = getLastAssistantIndex(historySlice);
             const recentContextSummary = historySlice
-                .map((msg) => {
+                .map((msg, _msgIdx) => {
                     const myNickname = chat.isGroup ? chat.settings.myNickname || '我' : '我';
 
                     const timestampStr = singleShowTs ? new Date(msg.timestamp).toLocaleString() : '';
@@ -3851,9 +3868,11 @@ ${libraryList}
                             contentStr = `[系统提示：用户发起了外卖代付请求，商品是“${msg.productInfo}”，金额是 ${msg.amount} 元。请你决策并使用 waimai_response 指令回应。]`;
                         }
                     } else if (Array.isArray(msg.content) && msg.content[0]?.type === 'image_url') {
-                        contentStr = '[\u7528\u6237\u53D1\u9001\u4E86\u4E00\u5F20\u56FE\u7247\uFF0C\u56FE\u7247\u6570\u636E\u5DF2\u9644\u5728\u672C\u6B21\u8BF7\u6C42\u4E2D\uFF0C\u8BF7\u67E5\u770B\u5E76\u8BC6\u522B\u56FE\u7247\u5185\u5BB9]';
+                        contentStr = _msgIdx > _singleLastAsstIdx
+                            ? '[用户发送了一张图片，图片数据已附在本次请求中，请查看并识别图片内容]'
+                            : '[用户曾发送了一张图片（你已查看并识别过该图片内容）]';
                     } else if (msg.meaning) {
-                        contentStr = `[\u7528\u6237\u53D1\u9001\u4E86\u4E00\u4E2A\u8868\u60C5\uFF0C\u610F\u601D\u662F\uFF1A'${msg.meaning}']`;
+                        contentStr = `[用户发送了一个表情，意思是：'${msg.meaning}']`;
                     } else if (msg.type === 'xhs-share' && msg.shareData) {
                         // 小红书笔记分享 - 包含完整信息
                         const data = msg.shareData;
