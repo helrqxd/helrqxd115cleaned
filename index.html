@@ -8472,18 +8472,65 @@
 			<div class="header">
 				<span class="back-btn" onclick="showScreen('home-screen')">‹</span>
 				<span>小剧场</span>
-				<div class="header-actions">
-					<span class="action-btn" id="import-studio-script-btn" style="font-size: 14px; margin-right: 5px">导入</span>
-
-					<span class="action-btn" id="add-studio-script-btn">新增剧本</span>
-					<span class="action-btn" id="studio-history-btn">故事记录</span>
+				<span style="width: 30px"></span>
+			</div>
+			<div class="studio-home">
+				<div class="studio-home-hero">
+					<div class="studio-home-hero-deco">🎭</div>
+					<div class="studio-home-hero-title">平行世界小剧场</div>
+					<div class="studio-home-hero-sub">在故事里成为任何人</div>
+				</div>
+				<div class="studio-menu-container">
+					<div class="studio-menu-item studio-menu-scripts" id="studio-menu-scripts">
+						<div class="studio-menu-item-icon">📜</div>
+						<div class="studio-menu-item-body">
+							<div class="studio-menu-item-title">选择剧本</div>
+							<div class="studio-menu-item-desc">浏览已有剧本，开始新的演绎</div>
+						</div>
+						<div class="studio-menu-item-arrow">›</div>
+					</div>
+					<div class="studio-menu-item studio-menu-saves" id="studio-menu-saves">
+						<div class="studio-menu-item-icon">💾</div>
+						<div class="studio-menu-item-body">
+							<div class="studio-menu-item-title">读取存档</div>
+							<div class="studio-menu-item-desc">继续之前未完成的故事</div>
+						</div>
+						<div class="studio-menu-item-arrow">›</div>
+					</div>
+					<div class="studio-menu-item studio-menu-history" id="studio-menu-history">
+						<div class="studio-menu-item-icon">📖</div>
+						<div class="studio-menu-item-body">
+							<div class="studio-menu-item-title">故事记录</div>
+							<div class="studio-menu-item-desc">查看已完成的故事和小说</div>
+						</div>
+						<div class="studio-menu-item-arrow">›</div>
+					</div>
 				</div>
 			</div>
-			<div id="studio-script-list" class="list-container">
-				<!-- 剧本列表将由JS动态生成在这里 -->
-			</div>
+		</div>
 
+		<!-- 1.5 小剧场 - 选择剧本屏幕 -->
+		<div id="studio-scripts-screen" class="screen">
+			<div class="header">
+				<span class="back-btn" id="back-from-studio-scripts">‹</span>
+				<span>选择剧本</span>
+				<div class="header-actions">
+					<span class="action-btn" id="import-studio-script-btn">导入剧本</span>
+					<span class="action-btn" id="add-studio-script-btn">新增剧本</span>
+				</div>
+			</div>
+			<div id="studio-script-list" class="list-container"></div>
 			<input type="file" id="studio-import-input" accept=".json" style="display: none" />
+		</div>
+
+		<!-- 1.6 小剧场 - 读取存档屏幕 -->
+		<div id="studio-saves-screen" class="screen">
+			<div class="header">
+				<span class="back-btn" id="back-from-studio-saves">‹</span>
+				<span>读取存档</span>
+				<span style="width: 30px"></span>
+			</div>
+			<div id="studio-saves-list" class="list-container"></div>
 		</div>
 
 		<!-- 2. 小剧场剧本编辑器 -->
@@ -8498,34 +8545,42 @@
 			</div>
 			<div class="form-container">
 				<div class="form-group">
-					<label for="studio-name-input">剧本名称</label>
+					<div class="studio-field-header">
+						<label for="studio-name-input">剧本名称</label>
+						<button type="button" class="studio-ai-optimize-btn" data-field="name">✦ AI优化</button>
+					</div>
 					<input type="text" id="studio-name-input" placeholder="给你的剧本起个名字..." />
 				</div>
 				<div class="form-group">
-					<label for="studio-background-input">故事背景</label>
+					<div class="studio-field-header">
+						<label for="studio-background-input">故事背景</label>
+						<button type="button" class="studio-ai-optimize-btn" data-field="background">✦ AI优化</button>
+					</div>
 					<textarea id="studio-background-input" rows="4" placeholder="描述故事发生的时代、地点和基本情境..."></textarea>
 				</div>
 				<div class="form-group">
-					<label for="studio-goal-input">故事目标</label>
+					<div class="studio-field-header">
+						<label for="studio-goal-input">故事目标</label>
+						<button type="button" class="studio-ai-optimize-btn" data-field="goal">✦ AI优化</button>
+					</div>
 					<textarea id="studio-goal-input" rows="3" placeholder="描述达成什么条件算演绎成功，例如：找到真凶、成功逃脱..."></textarea>
 				</div>
 				<div class="form-group">
-					<label for="studio-opening-remark-input">开场白 (可选)</label>
+					<div class="studio-field-header">
+						<label for="studio-opening-remark-input">开场白 (可选)</label>
+						<button type="button" class="studio-ai-optimize-btn" data-field="opening">✦ AI优化</button>
+					</div>
 					<textarea id="studio-opening-remark-input" rows="3" placeholder="这是剧本开始时展示的第一段文字，用于营造氛围或引入场景..."></textarea>
 				</div>
-				<div class="form-group">
-					<label for="studio-char1-identity-input">人物1 身份背景</label>
-					<textarea id="studio-char1-identity-input" rows="4" placeholder="描述人物1的身份、与他人的关系、秘密任务等..."></textarea>
+				<div id="studio-characters-container">
+					<!-- 动态人物输入区由JS生成 -->
 				</div>
-				<div class="form-group">
-					<label for="studio-char2-identity-input">人物2 身份背景</label>
-					<textarea id="studio-char2-identity-input" rows="4" placeholder="描述人物2的身份、与他人的关系、秘密任务等..."></textarea>
-				</div>
+				<button type="button" id="add-studio-character-btn" class="form-button form-button-secondary" style="width: 100%; margin-top: 10px;">+ 添加人物</button>
 
 				<div style="display: flex; gap: 10px; margin-top: 20px">
 					<button id="export-studio-script-btn" class="form-button form-button-secondary" style="flex: 1; margin: 0">导出剧本</button>
 
-					<button id="delete-studio-script-btn" class="form-button form-button-secondary" style="background-color: #ff3b30; color: white; border-color: #ff3b30; flex: 1; margin: 0">删除剧本</button>
+					<button id="delete-studio-script-btn" class="form-button form-button-secondary" style="flex: 1; margin: 0">删除剧本</button>
 				</div>
 			</div>
 		</div>
@@ -8543,6 +8598,9 @@
 				<!-- 演绎过程将由JS动态生成在这里 -->
 			</div>
 			<div id="studio-play-input-area" class="chat-input-area">
+				<div id="studio-action-buttons" class="studio-action-buttons-row">
+					<!-- 由JS动态生成：旁白按钮 + 各角色触发按钮 -->
+				</div>
 				<div class="chat-input-main-row">
 					<textarea id="studio-play-input" rows="1" placeholder="你的行动/对话..."></textarea>
 					<button id="send-studio-play-action-btn" class="action-button">发送</button>
@@ -8550,46 +8608,18 @@
 			</div>
 		</div>
 
-		<!-- 4. 角色选择模态框 -->
+		<!-- 4. 角色分配模态框 (动态多人物) -->
 		<div id="studio-role-selection-modal" class="modal">
-			<div class="modal-content" style="height: auto">
+			<div class="modal-content" style="height: auto; max-height: 85%">
 				<div class="modal-header">
-					<span>选择角色与身份</span>
+					<span>角色分配</span>
 				</div>
-				<div class="modal-body">
-					<!-- 角色1 -->
-					<div class="form-group">
-						<label>人物1</label>
-						<p id="studio-role1-desc" class="role-description"></p>
-						<!-- 新增：由谁扮演 -->
-						<div class="player-selection-group">
-							<label><input type="radio" name="player-role1" value="user" checked /> 由我扮演</label>
-							<label><input type="radio" name="player-role1" value="ai" /> 由AI扮演</label>
-						</div>
-						<!-- 修改：下拉框现在只选择身份 -->
-						<label style="font-size: 13px; color: var(--text-secondary); margin-top: 10px">使用此身份:</label>
-						<select id="studio-role1-identity-select"></select>
-					</div>
-
-					<hr style="opacity: 0.2; margin: 15px 0" />
-
-					<!-- 角色2 -->
-					<div class="form-group">
-						<label>人物2</label>
-						<p id="studio-role2-desc" class="role-description"></p>
-						<!-- 新增：由谁扮演 -->
-						<div class="player-selection-group">
-							<label><input type="radio" name="player-role2" value="user" /> 由我扮演</label>
-							<label><input type="radio" name="player-role2" value="ai" /> 由AI扮演</label>
-						</div>
-						<!-- 修改：下拉框现在只选择身份 -->
-						<label style="font-size: 13px; color: var(--text-secondary); margin-top: 10px">使用此身份:</label>
-						<select id="studio-role2-identity-select"></select>
-					</div>
+				<div class="modal-body" id="studio-role-assignment-body" style="overflow-y: auto;">
+					<!-- 由JS动态生成角色分配UI -->
 				</div>
 				<div class="modal-footer">
 					<button class="cancel" id="cancel-role-selection-btn">取消</button>
-					<button class="save" id="confirm-role-selection-btn">进入剧本</button>
+					<button class="save" id="confirm-role-selection-btn">开始故事</button>
 				</div>
 			</div>
 		</div>
@@ -8616,7 +8646,7 @@
 				<div class="modal-header">
 					<span>生成的小说</span>
 				</div>
-				<div class="modal-body" id="studio-novel-content" style="white-space: pre-wrap; line-height: 1.7; text-align: left; background: #f9f9f9; padding: 15px; border-radius: 8px">
+				<div class="modal-body" id="studio-novel-content" style="white-space: pre-wrap; line-height: 1.7; text-align: left; padding: 15px; border-radius: 8px">
 					<!-- 小说内容将由JS动态生成在这里 -->
 				</div>
 				<div class="modal-footer">
