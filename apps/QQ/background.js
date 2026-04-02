@@ -2,28 +2,120 @@
 
 // Background Simulation State
 let simulationIntervalId = null;
+let bgWorker = null;
+let lastTickTimestamp = 0;
+let bgSimulationRunning = false;
+let bgTickInProgress = false;
+
+/**
+ * 创建用于后台计时的 Web Worker（内联 Blob 方式，无需额外文件）。
+ * Web Worker 的 setInterval 在页面进入后台时受到的节流远小于主线程，
+ * 这是在移动端浏览器后台保持心跳的关键手段。
+ */
+function createTimerWorker(intervalMs) {
+    const workerCode = `
+        let timerId = null;
+        self.onmessage = function(e) {
+            if (e.data.command === 'start') {
+                if (timerId) clearInterval(timerId);
+                timerId = setInterval(function() {
+                    self.postMessage('tick');
+                }, e.data.interval);
+            } else if (e.data.command === 'stop') {
+                if (timerId) { clearInterval(timerId); timerId = null; }
+            } else if (e.data.command === 'updateInterval') {
+                if (timerId) clearInterval(timerId);
+                timerId = setInterval(function() {
+                    self.postMessage('tick');
+                }, e.data.interval);
+            }
+        };
+    `;
+    try {
+        const blob = new Blob([workerCode], { type: 'application/javascript' });
+        const worker = new Worker(URL.createObjectURL(blob));
+        worker.onmessage = function () {
+            guardedTick();
+        };
+        worker.postMessage({ command: 'start', interval: intervalMs });
+        return worker;
+    } catch (e) {
+        console.warn('[Background] Web Worker 创建失败，仅使用 setInterval 降级方案:', e);
+        return null;
+    }
+}
+
+/**
+ * 防重入的心跳触发器：合并 Worker / setInterval / visibilitychange 三条触发源，
+ * 保证同一时刻只有一次 tick 在执行，且两次 tick 之间至少间隔 intervalMs 的一半。
+ */
+function guardedTick() {
+    if (!bgSimulationRunning) return;
+    if (bgTickInProgress) return;
+
+    const intervalMs = (state.globalSettings.backgroundActivityInterval || 60) * 1000;
+    const now = Date.now();
+    if (now - lastTickTimestamp < intervalMs * 0.5) return;
+
+    bgTickInProgress = true;
+    lastTickTimestamp = now;
+
+    try {
+        runBackgroundSimulationTick();
+    } catch (e) {
+        console.error('[Background] tick 执行异常:', e);
+    } finally {
+        bgTickInProgress = false;
+    }
+}
 
 /**
  * 启动后台模拟
  */
 window.startBackgroundSimulation = function startBackgroundSimulation() {
-    if (simulationIntervalId) return;
+    if (bgSimulationRunning) return;
+    bgSimulationRunning = true;
     const intervalSeconds = state.globalSettings.backgroundActivityInterval || 60;
-    // 将旧的固定间隔 45000 替换为动态获取
-    simulationIntervalId = setInterval(runBackgroundSimulationTick, intervalSeconds * 1000);
-    console.log(`[Background] Simulation started with interval ${intervalSeconds}s`);
+    const intervalMs = intervalSeconds * 1000;
+
+    bgWorker = createTimerWorker(intervalMs);
+
+    simulationIntervalId = setInterval(guardedTick, intervalMs);
+
+    console.log(`[Background] Simulation started with interval ${intervalSeconds}s (Worker: ${bgWorker ? 'active' : 'unavailable'})`);
 };
 
 /**
  * 停止后台模拟
  */
 window.stopBackgroundSimulation = function stopBackgroundSimulation() {
+    bgSimulationRunning = false;
     if (simulationIntervalId) {
         clearInterval(simulationIntervalId);
         simulationIntervalId = null;
-        console.log('[Background] Simulation stopped');
     }
+    if (bgWorker) {
+        bgWorker.postMessage({ command: 'stop' });
+        bgWorker.terminate();
+        bgWorker = null;
+    }
+    console.log('[Background] Simulation stopped');
 };
+
+/**
+ * visibilitychange 事件：页面从后台恢复到前台时，立即检查是否有遗漏的心跳。
+ * 这是对抗移动端浏览器冻结所有定时器的最后一道保险。
+ */
+document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && bgSimulationRunning) {
+        const intervalMs = (state.globalSettings.backgroundActivityInterval || 60) * 1000;
+        const elapsed = Date.now() - lastTickTimestamp;
+        if (elapsed >= intervalMs * 0.8) {
+            console.log(`[Background] 页面恢复可见，距上次心跳已过 ${(elapsed / 1000).toFixed(0)}s，立即补跑一次`);
+            guardedTick();
+        }
+    }
+});
 
 /**
  * 这是模拟器的“心跳”，每次定时器触发时运行

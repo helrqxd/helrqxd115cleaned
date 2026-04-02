@@ -438,7 +438,7 @@ function renderChatInterface(chatId, unreadCountForBanner = 0) {
         let lockHtml = '';
         switch (chat.relationship.status) {
             case 'blocked_by_user':
-                const isSimulationRunning = simulationIntervalId !== null;
+                const isSimulationRunning = typeof bgSimulationRunning !== 'undefined' ? bgSimulationRunning : simulationIntervalId !== null;
                 const blockedTimestamp = chat.relationship.blockedTimestamp;
                 const cooldownHours = window.state.globalSettings.blockCooldownHours || 1;
                 const cooldownMilliseconds = cooldownHours * 60 * 60 * 1000;
