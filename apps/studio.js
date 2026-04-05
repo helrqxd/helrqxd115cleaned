@@ -9,6 +9,9 @@ document.addEventListener('DOMContentLoaded', () => {
     let currentSaveId = null;
     let editorCharacters = [];
 
+    const CONTEXT_WINDOW_SIZE = 20;
+    const SUMMARY_INTERVAL = 20;
+
     // ===================================================================
     // 1.5 多存档保存系统
     // ===================================================================
@@ -128,6 +131,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function normalizePlayData(playData) {
+        if (!playData.storySummaries) playData.storySummaries = [];
+        if (playData.lastSummarizedCount === undefined) playData.lastSummarizedCount = 0;
         if (playData.characters && playData.characters.length > 0) return playData;
         const chars = [];
         const userIdx = (playData.userRole || 1) === 1 ? 0 : 1;
@@ -741,6 +746,8 @@ ${instruction}
             script, characters, userCharIndex,
             history: [],
             storyGoalReached: false,
+            storySummaries: [],
+            lastSummarizedCount: 0,
         };
 
         activeStudioPlay.history.push({ role: 'system', content: `【故事背景】\n${script.storyBackground}` });
@@ -764,8 +771,8 @@ ${instruction}
         if (!activeStudioPlay) return;
         document.getElementById('studio-play-title').textContent = activeStudioPlay.script.name;
         playMessagesEl.innerHTML = '';
-        activeStudioPlay.history.forEach(msg => {
-            playMessagesEl.appendChild(createPlayMessageElement(msg));
+        activeStudioPlay.history.forEach((msg, idx) => {
+            playMessagesEl.appendChild(createPlayMessageElement(msg, idx));
         });
         playMessagesEl.scrollTop = playMessagesEl.scrollHeight;
     }
@@ -814,8 +821,9 @@ ${instruction}
         return null;
     }
 
-    function createPlayMessageElement(msg) {
+    function createPlayMessageElement(msg, msgIndex) {
         const wrapper = document.createElement('div');
+        if (msgIndex !== undefined) wrapper.dataset.msgIdx = msgIndex;
 
         if (msg.role === 'system') {
             wrapper.className = 'message-wrapper studio-system';
@@ -837,7 +845,46 @@ ${instruction}
                 </div>`;
             wrapper.appendChild(bubble);
         }
+
+        if (msgIndex !== undefined) {
+            const isSetupMsg = msg.role === 'system' &&
+                (msg.content.startsWith('【故事背景】') || msg.content.startsWith('【开场白】'));
+            if (!isSetupMsg) {
+                addLongPressListener(wrapper, () => handleMessageLongPress(msgIndex));
+            }
+        }
+
         return wrapper;
+    }
+
+    async function handleMessageLongPress(msgIndex) {
+        if (!activeStudioPlay || !activeStudioPlay.history[msgIndex]) return;
+        const msg = activeStudioPlay.history[msgIndex];
+
+        const choice = await showChoiceModal('消息操作', [
+            { text: '✏️ 编辑消息', value: 'edit' },
+            { text: '🗑️ 删除消息', value: 'delete' },
+        ]);
+
+        if (choice === 'edit') {
+            const newContent = await window.showCustomPrompt(
+                '编辑消息', '修改消息内容', msg.content, 'textarea'
+            );
+            if (newContent !== null && newContent.trim()) {
+                activeStudioPlay.history[msgIndex].content = newContent.trim();
+                saveStudioPlayProgress();
+                renderStudioPlayScreen();
+            }
+        } else if (choice === 'delete') {
+            const confirmed = await showCustomConfirm(
+                '删除消息', '确定要删除这条消息吗？', { confirmButtonClass: 'btn-danger' }
+            );
+            if (confirmed) {
+                activeStudioPlay.history.splice(msgIndex, 1);
+                saveStudioPlayProgress();
+                renderStudioPlayScreen();
+            }
+        }
     }
 
     // ===================================================================
@@ -856,8 +903,9 @@ ${instruction}
         saveStudioPlayProgress();
         playInput.value = '';
         playInput.style.height = 'auto';
-        playMessagesEl.appendChild(createPlayMessageElement(userMessage));
+        playMessagesEl.appendChild(createPlayMessageElement(userMessage, activeStudioPlay.history.length - 1));
         playMessagesEl.scrollTop = playMessagesEl.scrollHeight;
+        checkAndGenerateSummary();
     }
 
     async function handleRerollPlay() {
@@ -871,7 +919,11 @@ ${instruction}
             saveStudioPlayProgress();
             renderStudioPlayScreen();
             renderActionButtons();
-            if (removedMsg.role === 'system' && (removedMsg.content.includes('【旁白】') || removedMsg.content.includes('【结局】'))) {
+
+            const isNarration = removedMsg.role === 'system' &&
+                (removedMsg.isError || removedMsg.content.includes('【旁白】') || removedMsg.content.includes('【结局】'));
+
+            if (isNarration) {
                 await triggerNarration();
             } else if (removedMsg.charIdx !== undefined) {
                 await triggerCharacterResponse(removedMsg.charIdx);
@@ -888,6 +940,92 @@ ${instruction}
             const name = h.charName || (h.role === 'user' ? '用户' : 'AI');
             return `【${name}】: ${h.content}`;
         }).join('\n');
+    }
+
+    function isSetupMessage(msg) {
+        return msg.role === 'system' &&
+            (msg.content.startsWith('【故事背景】') || msg.content.startsWith('【开场白】'));
+    }
+
+    function formatContextForPrompt(history) {
+        const playMsgs = history.filter(msg => !msg.isError && !isSetupMessage(msg));
+
+        const formatMsg = h => {
+            if (h.role === 'system') return `【旁白/系统】: ${h.content}`;
+            const name = h.charName || (h.role === 'user' ? '用户' : 'AI');
+            return `【${name}】: ${h.content}`;
+        };
+
+        if (playMsgs.length <= CONTEXT_WINDOW_SIZE) {
+            return playMsgs.map(formatMsg).join('\n');
+        }
+
+        const summaries = activeStudioPlay.storySummaries || [];
+        let result = '';
+        if (summaries.length > 0) {
+            result += '【此前剧情回顾】\n' + summaries.map(s => s.content).join('\n---\n') + '\n\n【近期对话】\n';
+        }
+        result += playMsgs.slice(-CONTEXT_WINDOW_SIZE).map(formatMsg).join('\n');
+        return result;
+    }
+
+    function countPlayMessages(history) {
+        return history.filter(msg => !msg.isError && !isSetupMessage(msg)).length;
+    }
+
+    async function checkAndGenerateSummary() {
+        if (!activeStudioPlay) return;
+        if (!activeStudioPlay.storySummaries) activeStudioPlay.storySummaries = [];
+        if (activeStudioPlay.lastSummarizedCount === undefined) activeStudioPlay.lastSummarizedCount = 0;
+
+        const playMsgs = activeStudioPlay.history.filter(msg => !msg.isError && !isSetupMessage(msg));
+        const totalCount = playMsgs.length;
+        const lastCount = activeStudioPlay.lastSummarizedCount;
+
+        if (totalCount - lastCount < SUMMARY_INTERVAL) return;
+
+        const msgsToSummarize = playMsgs.slice(lastCount, lastCount + SUMMARY_INTERVAL);
+        if (msgsToSummarize.length === 0) return;
+
+        const formattedMsgs = msgsToSummarize.map(h => {
+            if (h.role === 'system') return `【旁白/系统】: ${h.content}`;
+            const name = h.charName || (h.role === 'user' ? '用户' : 'AI');
+            return `【${name}】: ${h.content}`;
+        }).join('\n');
+
+        const charListText = activeStudioPlay.characters.map(c => {
+            const roleTag = c.isUser ? '(用户扮演)' : '(AI扮演)';
+            return `- ${c.name}（${c.label}）${roleTag}: ${c.identity}`;
+        }).join('\n');
+
+        const summaryPrompt = `你是一个剧情总结助手。请根据以下对话内容，生成一段简洁的剧情总结（150-300字），保留关键剧情发展、角色行为和重要事件，不要遗漏重要的情节转折。总结中请使用角色的名字来指代他们。
+
+# 剧本信息
+- 剧本名: ${activeStudioPlay.script.name}
+- 故事背景: ${activeStudioPlay.script.storyBackground}
+- 故事目标: ${activeStudioPlay.script.storyGoal}
+
+# 所有角色设定
+${charListText}
+
+# 需要总结的对话内容
+${formattedMsgs}
+
+请直接输出剧情总结，不要添加任何前缀或标记。`;
+
+        try {
+            const summaryContent = await getApiResponse(summaryPrompt);
+            activeStudioPlay.storySummaries.push({
+                content: summaryContent,
+                fromMsg: lastCount,
+                toMsg: lastCount + SUMMARY_INTERVAL,
+                timestamp: Date.now(),
+            });
+            activeStudioPlay.lastSummarizedCount = lastCount + SUMMARY_INTERVAL;
+            saveStudioPlayProgress();
+        } catch (error) {
+            console.error('生成剧情总结失败:', error);
+        }
     }
 
     function buildCharacterListText(characters) {
@@ -911,6 +1049,8 @@ ${instruction}
         const indicator = createTypingIndicator(`${char.name} 正在行动...`);
         playMessagesEl.appendChild(indicator);
         playMessagesEl.scrollTop = playMessagesEl.scrollHeight;
+
+        const contextText = formatContextForPrompt(history);
 
         const systemPrompt = `
     你正在进行一场名为《${script.name}》的戏剧角色扮演。
@@ -937,7 +1077,7 @@ ${instruction}
     ${script.storyGoal}
 
     # 对话历史
-    ${formatHistoryForPrompt(history)}
+    ${contextText}
 
     现在，请以【${char.name}】的身份继续表演。`;
 
@@ -948,13 +1088,16 @@ ${instruction}
                 charIdx, charName: char.name,
             };
             activeStudioPlay.history.push(aiMessage);
-            playMessagesEl.appendChild(createPlayMessageElement(aiMessage));
+            playMessagesEl.appendChild(createPlayMessageElement(aiMessage, activeStudioPlay.history.length - 1));
             saveStudioPlayProgress();
             indicator.remove();
+            checkAndGenerateSummary();
         } catch (error) {
             console.error('小剧场AI回应失败:', error);
-            const errMsg = { role: 'assistant', content: `[AI出错了: ${error.message}]`, charIdx, charName: char.name };
-            playMessagesEl.appendChild(createPlayMessageElement(errMsg));
+            const errMsg = { role: 'assistant', content: `[AI出错了: ${error.message}]`, charIdx, charName: char.name, isError: true };
+            activeStudioPlay.history.push(errMsg);
+            saveStudioPlayProgress();
+            playMessagesEl.appendChild(createPlayMessageElement(errMsg, activeStudioPlay.history.length - 1));
         } finally {
             indicator.remove();
             playMessagesEl.scrollTop = playMessagesEl.scrollHeight;
@@ -982,6 +1125,8 @@ ${instruction}
        {"isEnd": true, "narration": "总结性的结局旁白..."}
     4. 如果【故事目标未达成】或剧情尚在发展中，继续执行旁白生成任务。`;
 
+        const contextText = formatContextForPrompt(history);
+
         const narrationPrompt = `
     # 你的任务
     你是一个掌控故事节奏的"地下城主"(DM)或"旁白"。
@@ -995,7 +1140,7 @@ ${instruction}
     ${buildCharacterListText(characters)}
 
     # 对话历史
-    ${formatHistoryForPrompt(history)}
+    ${contextText}
 
     ${endCheckInstruction}
 
@@ -1018,8 +1163,9 @@ ${instruction}
                     if (parsedResponse.isEnd === true && parsedResponse.narration) {
                         const finalNarration = { role: 'system', content: `【结局】\n${parsedResponse.narration}` };
                         activeStudioPlay.history.push(finalNarration);
-                        playMessagesEl.appendChild(createPlayMessageElement(finalNarration));
+                        playMessagesEl.appendChild(createPlayMessageElement(finalNarration, activeStudioPlay.history.length - 1));
                         saveStudioPlayProgress();
+                        checkAndGenerateSummary();
 
                         setTimeout(async () => {
                             const choice = await showChoiceModal('故事目标已完成', [
@@ -1041,13 +1187,16 @@ ${instruction}
             if (responseText) {
                 const narrationMessage = { role: 'system', content: `【旁白】\n${responseText}` };
                 activeStudioPlay.history.push(narrationMessage);
-                playMessagesEl.appendChild(createPlayMessageElement(narrationMessage));
+                playMessagesEl.appendChild(createPlayMessageElement(narrationMessage, activeStudioPlay.history.length - 1));
                 saveStudioPlayProgress();
+                checkAndGenerateSummary();
             }
         } catch (error) {
             console.error('旁白生成失败:', error);
-            const errMsg = { role: 'system', content: `[旁白生成失败: ${error.message}]` };
-            playMessagesEl.appendChild(createPlayMessageElement(errMsg));
+            const errMsg = { role: 'system', content: `[旁白生成失败: ${error.message}]`, isError: true };
+            activeStudioPlay.history.push(errMsg);
+            saveStudioPlayProgress();
+            playMessagesEl.appendChild(createPlayMessageElement(errMsg, activeStudioPlay.history.length - 1));
         } finally {
             narrationTypingIndicator.remove();
             playMessagesEl.scrollTop = playMessagesEl.scrollHeight;
