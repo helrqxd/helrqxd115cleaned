@@ -40,11 +40,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /**
-     * 生成可写入 localStorage 的演绎快照（避免 Dexie 对象上不可序列化字段导致整段存档写入失败）。
-     * @returns {{ snapshot: object } | { error: Error }}
-     */
-    function buildStudioPlayStorageSnapshot() {
+    function buildPlaySnapshot() {
         if (!activeStudioPlay) return { error: new Error('无进行中的演绎') };
         const script = activeStudioPlay.script;
         if (script && script.id == null && activeStudioScriptId != null) {
@@ -61,13 +57,13 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /** @returns {boolean} 是否已成功写入 localStorage */
+    /** @returns {boolean} */
     function saveStudioPlayProgress() {
         if (!activeStudioPlay) return false;
         if (!currentSaveId) {
             currentSaveId = 'save_' + Date.now();
         }
-        const built = buildStudioPlayStorageSnapshot();
+        const built = buildPlaySnapshot();
         if (built.error) {
             console.error('小剧场存档序列化失败:', built.error);
             return false;
@@ -1318,7 +1314,7 @@ ${instruction}
             if (choice === 'save') {
                 const ok = saveStudioPlayProgress();
                 if (!ok) {
-                    await showCustomAlert('保存失败', '进度未能写入本地存储（可能空间不足或数据异常）。请查看控制台日志，或尝试减少对话长度后重试。');
+                    await showCustomAlert('保存失败', '进度未能写入本地存储（可能空间不足或数据异常），请查看控制台日志。');
                     return;
                 }
                 activeStudioPlay = null;
