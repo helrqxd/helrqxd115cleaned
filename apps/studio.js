@@ -40,17 +40,48 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    /**
+     * 生成可写入 localStorage 的演绎快照（避免 Dexie 对象上不可序列化字段导致整段存档写入失败）。
+     * @returns {{ snapshot: object } | { error: Error }}
+     */
+    function buildStudioPlayStorageSnapshot() {
+        if (!activeStudioPlay) return { error: new Error('无进行中的演绎') };
+        const script = activeStudioPlay.script;
+        if (script && script.id == null && activeStudioScriptId != null) {
+            script.id = activeStudioScriptId;
+        }
+        try {
+            const snapshot = JSON.parse(JSON.stringify(activeStudioPlay));
+            if (snapshot.script && snapshot.script.id == null && activeStudioScriptId != null) {
+                snapshot.script.id = activeStudioScriptId;
+            }
+            return { snapshot };
+        } catch (e) {
+            return { error: e };
+        }
+    }
+
+    /** @returns {boolean} 是否已成功写入 localStorage */
     function saveStudioPlayProgress() {
-        if (!activeStudioPlay || !currentSaveId) return;
+        if (!activeStudioPlay) return false;
+        if (!currentSaveId) {
+            currentSaveId = 'save_' + Date.now();
+        }
+        const built = buildStudioPlayStorageSnapshot();
+        if (built.error) {
+            console.error('小剧场存档序列化失败:', built.error);
+            return false;
+        }
         try {
             const saves = getAllStudioSaves();
+            const scriptId = built.snapshot.script?.id ?? activeStudioScriptId;
             const saveEntry = {
                 id: currentSaveId,
-                scriptName: activeStudioPlay.script.name,
-                scriptId: activeStudioPlay.script.id,
+                scriptName: built.snapshot.script?.name || activeStudioPlay.script?.name || '未知剧本',
+                scriptId,
                 savedAt: Date.now(),
                 messageCount: activeStudioPlay.history.filter(m => m.role !== 'system').length,
-                playData: activeStudioPlay,
+                playData: built.snapshot,
             };
             const existingIndex = saves.findIndex(s => s.id === currentSaveId);
             if (existingIndex >= 0) {
@@ -59,8 +90,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 saves.push(saveEntry);
             }
             localStorage.setItem(STUDIO_SAVES_KEY, JSON.stringify(saves));
+            return true;
         } catch (e) {
             console.error('保存小剧场进度失败:', e);
+            return false;
         }
     }
 
@@ -222,6 +255,8 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!save) { alert('找不到该存档！'); return; }
         activeStudioPlay = normalizePlayData(save.playData);
         currentSaveId = save.id;
+        const sid = save.playData?.script?.id ?? save.scriptId;
+        if (sid != null) activeStudioScriptId = sid;
         renderStudioPlayScreen();
         renderActionButtons();
         showScreen('studio-play-screen');
@@ -328,7 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (activeStudioScriptId) {
             await db.studioScripts.update(activeStudioScriptId, scriptData);
         } else {
-            await db.studioScripts.add(scriptData);
+            activeStudioScriptId = await db.studioScripts.add(scriptData);
         }
         alert('剧本已保存！');
         showStudioScriptsScreen();
@@ -630,6 +665,13 @@ ${instruction}
     // ===================================================================
     async function startStudioPlay() {
         const script = normalizeScriptCharacters(await db.studioScripts.get(activeStudioScriptId));
+        if (!script) {
+            alert('找不到剧本数据，请返回剧本列表重试。');
+            return;
+        }
+        if (script.id == null && activeStudioScriptId != null) {
+            script.id = activeStudioScriptId;
+        }
         const body = document.getElementById('studio-role-assignment-body');
         const selects = body.querySelectorAll('.studio-role-identity-select');
         const customInputs = body.querySelectorAll('.studio-role-custom-name');
@@ -1274,7 +1316,11 @@ ${instruction}
                 { text: '🚪 不保存直接退出', value: 'discard' },
             ]);
             if (choice === 'save') {
-                saveStudioPlayProgress();
+                const ok = saveStudioPlayProgress();
+                if (!ok) {
+                    await showCustomAlert('保存失败', '进度未能写入本地存储（可能空间不足或数据异常）。请查看控制台日志，或尝试减少对话长度后重试。');
+                    return;
+                }
                 activeStudioPlay = null;
                 currentSaveId = null;
                 showStudioScreen();
