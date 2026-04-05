@@ -51,6 +51,12 @@ document.addEventListener('DOMContentLoaded', () => {
             if (snapshot.script && snapshot.script.id == null && activeStudioScriptId != null) {
                 snapshot.script.id = activeStudioScriptId;
             }
+            if (snapshot.characters) {
+                snapshot.characters.forEach(char => {
+                    delete char.avatarSrc;
+                    if (char.chatId) delete char.persona;
+                });
+            }
             return { snapshot };
         } catch (e) {
             return { error: e };
