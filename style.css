@@ -19602,14 +19602,16 @@ body {
 #studio-scripts-screen,
 #studio-saves-screen,
 #studio-editor-screen,
-#studio-history-screen {
+#studio-history-screen,
+#studio-settings-screen {
   background: linear-gradient(165deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%) !important;
   color: #e8e8e8;
 }
 #studio-scripts-screen .header,
 #studio-saves-screen .header,
 #studio-editor-screen .header,
-#studio-history-screen .header {
+#studio-history-screen .header,
+#studio-settings-screen .header {
   background: transparent;
   color: #e8e8e8;
   border-bottom: 1px solid rgba(255, 255, 255, 0.06);
@@ -19617,12 +19619,14 @@ body {
 #studio-scripts-screen .header .back-btn,
 #studio-saves-screen .header .back-btn,
 #studio-editor-screen .header .back-btn,
-#studio-history-screen .header .back-btn {
+#studio-history-screen .header .back-btn,
+#studio-settings-screen .header .back-btn {
   color: #e8e8e8;
 }
 #studio-scripts-screen .header .action-btn,
 #studio-editor-screen .header .action-btn,
-#studio-editor-screen .header .save-btn {
+#studio-editor-screen .header .save-btn,
+#studio-settings-screen .header .action-btn {
   color: rgba(140, 180, 255, 0.9);
 }
 
@@ -20127,6 +20131,203 @@ body {
 }
 
 /* ▲▲▲ 微调结束 ▲▲▲ */
+
+/* ▼▼▼ 小剧场设置页 ▼▼▼ */
+#studio-settings-screen {
+  display: flex;
+  flex-direction: column;
+}
+.studio-settings-body {
+  flex-grow: 1;
+  overflow-y: auto;
+  padding: 16px 18px 30px;
+}
+.studio-settings-group {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  padding: 14px;
+  margin-bottom: 14px;
+}
+.studio-settings-group-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.6);
+  margin-bottom: 12px;
+}
+.studio-settings-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+}
+.studio-settings-item:last-child { border-bottom: none; }
+.studio-settings-label {
+  font-size: 14px;
+  color: #e8e8e8;
+}
+.studio-settings-color-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.studio-settings-color-row input[type="color"] {
+  width: 34px;
+  height: 34px;
+  border: 2px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  cursor: pointer;
+  padding: 2px;
+  background: transparent;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.studio-settings-color-row input[type="color"]::-webkit-color-swatch-wrapper { padding: 2px; }
+.studio-settings-color-row input[type="color"]::-webkit-color-swatch { border: none; border-radius: 4px; }
+.studio-settings-reset-btn {
+  padding: 5px 12px;
+  font-size: 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(255, 255, 255, 0.5);
+  cursor: pointer;
+}
+.studio-settings-reset-btn:active { background: rgba(255, 255, 255, 0.12); }
+.studio-settings-hint {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.35);
+  margin: 0 0 10px;
+  line-height: 1.5;
+}
+
+/* 世界书下拉 */
+.studio-wb-dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.studio-wb-dropdown-header:active { background: rgba(255, 255, 255, 0.12); }
+.studio-wb-dropdown-summary {
+  font-size: 14px;
+  color: rgba(255, 255, 255, 0.55);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.studio-wb-dropdown-arrow {
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.35);
+  transition: transform 0.25s;
+  margin-left: 8px;
+}
+.studio-wb-dropdown-header.open .studio-wb-dropdown-arrow { transform: rotate(180deg); }
+.studio-wb-dropdown-panel {
+  display: none;
+  margin-top: 8px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 10px;
+  padding: 6px 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.studio-wb-dropdown-panel.open { display: block; }
+.studio-wb-dropdown-empty {
+  text-align: center;
+  color: rgba(255, 255, 255, 0.3);
+  padding: 16px 0;
+  font-size: 13px;
+}
+
+/* 世界书分类折叠 */
+.studio-wb-cat-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.1s;
+}
+.studio-wb-cat-header:active { background: rgba(255, 255, 255, 0.06); }
+.studio-wb-cat-arrow {
+  font-size: 9px;
+  color: rgba(255, 255, 255, 0.35);
+  transition: transform 0.2s;
+}
+.studio-wb-cat-header.collapsed .studio-wb-cat-arrow { transform: rotate(-90deg); }
+.studio-wb-cat-header input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: rgba(140, 180, 255, 0.9);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.studio-wb-cat-name {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.7);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.studio-wb-cat-count {
+  font-size: 11px;
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* 世界书条目 */
+.studio-wb-book-container {
+  padding: 2px 0 2px 38px;
+  display: flex;
+  flex-direction: column;
+}
+.studio-wb-book-container.collapsed { display: none; }
+.studio-wb-book-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 8px 0;
+  cursor: pointer;
+  font-size: 13px;
+  color: #e8e8e8;
+  transition: background 0.1s;
+}
+.studio-wb-book-item:active { background: rgba(255, 255, 255, 0.06); }
+.studio-wb-book-item input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: rgba(140, 180, 255, 0.9);
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.studio-wb-book-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.studio-wb-book-item .studio-wb-global-tag {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(140, 180, 255, 0.15);
+  color: rgba(140, 180, 255, 0.8);
+  flex-shrink: 0;
+}
+/* ▲▲▲ 小剧场设置页结束 ▲▲▲ */
+
 /* ▼▼▼ 【全新】兔k记账 App 样式 ▼▼▼ */
 #tukey-accounting-screen .tukey-content {
   flex-grow: 1;

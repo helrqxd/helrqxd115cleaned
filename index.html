@@ -8478,7 +8478,7 @@
 			<div class="header">
 				<span class="back-btn" onclick="showScreen('home-screen')">‹</span>
 				<span>小剧场</span>
-				<span style="width: 30px"></span>
+				<span class="action-btn" id="studio-settings-btn" style="font-size:18px;cursor:pointer;">⚙</span>
 			</div>
 			<div class="studio-home">
 				<div class="studio-home-hero">
@@ -8511,6 +8511,43 @@
 						</div>
 						<div class="studio-menu-item-arrow">›</div>
 					</div>
+				</div>
+			</div>
+		</div>
+
+		<!-- 1.1 小剧场 - 设置屏幕 -->
+		<div id="studio-settings-screen" class="screen">
+			<div class="header">
+				<span class="back-btn" id="back-from-studio-settings">‹</span>
+				<span>小剧场设置</span>
+				<span style="width: 30px"></span>
+			</div>
+			<div class="studio-settings-body">
+				<div class="studio-settings-group">
+					<div class="studio-settings-group-title">气泡颜色</div>
+					<div class="studio-settings-item">
+						<span class="studio-settings-label">自己的气泡颜色</span>
+						<div class="studio-settings-color-row">
+							<input type="color" id="studio-user-bubble-color" value="#32508C">
+							<button class="studio-settings-reset-btn" id="studio-reset-user-color">重置</button>
+						</div>
+					</div>
+					<div class="studio-settings-item">
+						<span class="studio-settings-label">其他角色气泡颜色</span>
+						<div class="studio-settings-color-row">
+							<input type="color" id="studio-ai-bubble-color" value="#64419B">
+							<button class="studio-settings-reset-btn" id="studio-reset-ai-color">重置</button>
+						</div>
+					</div>
+				</div>
+				<div class="studio-settings-group">
+					<div class="studio-settings-group-title">世界书绑定</div>
+					<p class="studio-settings-hint">绑定的世界书内容将作为世界观设定注入到演绎的提示词中。</p>
+					<div id="studio-wb-dropdown-header" class="studio-wb-dropdown-header">
+						<span id="studio-wb-dropdown-summary" class="studio-wb-dropdown-summary">点击选择世界书...</span>
+						<span class="studio-wb-dropdown-arrow">▼</span>
+					</div>
+					<div id="studio-wb-dropdown-panel" class="studio-wb-dropdown-panel"></div>
 				</div>
 			</div>
 		</div>

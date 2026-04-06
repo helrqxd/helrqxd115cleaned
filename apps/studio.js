@@ -13,6 +13,223 @@ document.addEventListener('DOMContentLoaded', () => {
     const SUMMARY_INTERVAL = 20;
 
     // ===================================================================
+    // 1.2 小剧场全局设置
+    // ===================================================================
+    const STUDIO_SETTINGS_KEY = 'studioSettings';
+    const DEFAULT_USER_BUBBLE = '#32508C';
+    const DEFAULT_AI_BUBBLE = '#64419B';
+
+    function getStudioSettings() {
+        try {
+            const saved = localStorage.getItem(STUDIO_SETTINGS_KEY);
+            if (saved) return JSON.parse(saved);
+        } catch (e) { /* ignore */ }
+        return { userBubbleColor: '', aiBubbleColor: '', linkedWorldBookIds: [] };
+    }
+
+    function saveStudioSettings(settings) {
+        localStorage.setItem(STUDIO_SETTINGS_KEY, JSON.stringify(settings));
+    }
+
+    function hexToRgb(hex) {
+        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+        return result ? {
+            r: parseInt(result[1], 16),
+            g: parseInt(result[2], 16),
+            b: parseInt(result[3], 16),
+        } : null;
+    }
+
+    function applyStudioBubbleColors() {
+        let styleEl = document.getElementById('studio-custom-bubble-style');
+        if (!styleEl) {
+            styleEl = document.createElement('style');
+            styleEl.id = 'studio-custom-bubble-style';
+            document.head.appendChild(styleEl);
+        }
+        const settings = getStudioSettings();
+        let css = '';
+        if (settings.userBubbleColor) {
+            const rgb = hexToRgb(settings.userBubbleColor);
+            if (rgb) css += `#studio-play-messages .message-wrapper.user .message-bubble .content { background-color: rgba(${rgb.r},${rgb.g},${rgb.b},0.7) !important; }\n`;
+        }
+        if (settings.aiBubbleColor) {
+            const rgb = hexToRgb(settings.aiBubbleColor);
+            if (rgb) css += `#studio-play-messages .message-wrapper.ai .message-bubble .content { background-color: rgba(${rgb.r},${rgb.g},${rgb.b},0.65) !important; }\n`;
+        }
+        styleEl.textContent = css;
+    }
+
+    async function getStudioWorldBookContent() {
+        const settings = getStudioSettings();
+        const linkedIds = settings.linkedWorldBookIds || [];
+        if (linkedIds.length === 0) return '';
+
+        let allBooks = window.state?.worldBooks || [];
+        if (allBooks.length === 0 && window.db && window.db.worldBooks) {
+            allBooks = await window.db.worldBooks.toArray();
+            if (window.state) window.state.worldBooks = allBooks;
+        }
+
+        let content = '';
+        linkedIds.forEach(id => {
+            const book = allBooks.find(b => String(b.id) === String(id));
+            if (!book) return;
+            content += `\n【世界书: ${book.name}】\n`;
+            if (book.content) content += book.content + '\n';
+            if (book.entries && book.entries.length > 0) {
+                book.entries.forEach(entry => {
+                    if (entry.enabled !== false) {
+                        content += `[${entry.keywords?.join(', ') || '条目'}]\n${entry.content}\n`;
+                    }
+                });
+            }
+        });
+
+        const globalCtx = window.WorldBookModule?.getGlobalWorldBooksContext(linkedIds) || '';
+        if (globalCtx) content += globalCtx;
+
+        return content.trim();
+    }
+
+    async function renderStudioSettingsScreen() {
+        const settings = getStudioSettings();
+
+        const userColorInput = document.getElementById('studio-user-bubble-color');
+        const aiColorInput = document.getElementById('studio-ai-bubble-color');
+        if (userColorInput) userColorInput.value = settings.userBubbleColor || DEFAULT_USER_BUBBLE;
+        if (aiColorInput) aiColorInput.value = settings.aiBubbleColor || DEFAULT_AI_BUBBLE;
+
+        const wbPanel = document.getElementById('studio-wb-dropdown-panel');
+        const wbHeader = document.getElementById('studio-wb-dropdown-header');
+        if (!wbPanel) return;
+
+        wbPanel.classList.remove('open');
+        if (wbHeader) wbHeader.classList.remove('open');
+
+        const allBooks = window.state?.worldBooks || [];
+        const linkedIds = settings.linkedWorldBookIds || [];
+
+        if (allBooks.length === 0) {
+            wbPanel.innerHTML = '<div class="studio-wb-dropdown-empty">暂无世界书，请先在世界书管理中创建。</div>';
+            updateWbSummary();
+            return;
+        }
+
+        let categories = [];
+        try { categories = await db.worldBookCategories.toArray(); } catch (e) { /* ignore */ }
+
+        const hasUncategorized = allBooks.some(wb => !wb.categoryId);
+        if (hasUncategorized) {
+            categories.push({ id: 'uncategorized', name: '未分类' });
+        }
+
+        const booksByCat = allBooks.reduce((acc, wb) => {
+            const catId = wb.categoryId || 'uncategorized';
+            if (!acc[catId]) acc[catId] = [];
+            acc[catId].push(wb);
+            return acc;
+        }, {});
+
+        wbPanel.innerHTML = '';
+        categories.forEach(cat => {
+            const booksInCat = booksByCat[cat.id] || [];
+            if (booksInCat.length === 0) return;
+
+            const allChecked = booksInCat.every(wb =>
+                linkedIds.includes(wb.id) || linkedIds.includes(String(wb.id))
+            );
+
+            const header = document.createElement('div');
+            header.className = 'studio-wb-cat-header collapsed';
+            header.innerHTML = `
+                <span class="studio-wb-cat-arrow">▼</span>
+                <input type="checkbox" class="studio-wb-cat-cb" data-cat-id="${cat.id}" ${allChecked ? 'checked' : ''}>
+                <span class="studio-wb-cat-name">${cat.name}</span>
+                <span class="studio-wb-cat-count">(${booksInCat.length})</span>`;
+
+            const container = document.createElement('div');
+            container.className = 'studio-wb-book-container collapsed';
+            container.dataset.catId = cat.id;
+
+            booksInCat.forEach(wb => {
+                const isChecked = linkedIds.includes(wb.id) || linkedIds.includes(String(wb.id));
+                const item = document.createElement('label');
+                item.className = 'studio-wb-book-item';
+                const globalTag = wb.isGlobal ? '<span class="studio-wb-global-tag">全局</span>' : '';
+                item.innerHTML = `<input type="checkbox" class="studio-wb-book-cb" value="${wb.id}" data-cat-id="${cat.id}" ${isChecked ? 'checked' : ''}> <span>${wb.name || '未命名'}</span> ${globalTag}`;
+                container.appendChild(item);
+            });
+
+            wbPanel.appendChild(header);
+            wbPanel.appendChild(container);
+        });
+
+        wbPanel.querySelectorAll('.studio-wb-cat-header').forEach(h => {
+            h.addEventListener('click', (e) => {
+                if (e.target.tagName === 'INPUT') return;
+                h.classList.toggle('collapsed');
+                const catId = h.querySelector('.studio-wb-cat-cb').dataset.catId;
+                const cont = wbPanel.querySelector(`.studio-wb-book-container[data-cat-id="${catId}"]`);
+                if (cont) cont.classList.toggle('collapsed');
+            });
+        });
+
+        wbPanel.querySelectorAll('.studio-wb-cat-cb').forEach(catCb => {
+            catCb.addEventListener('change', () => {
+                const catId = catCb.dataset.catId;
+                const cont = wbPanel.querySelector(`.studio-wb-book-container[data-cat-id="${catId}"]`);
+                if (cont) cont.querySelectorAll('.studio-wb-book-cb').forEach(cb => { cb.checked = catCb.checked; });
+                saveWorldBookSelection();
+            });
+        });
+
+        wbPanel.querySelectorAll('.studio-wb-book-cb').forEach(bookCb => {
+            bookCb.addEventListener('change', () => {
+                const catId = bookCb.dataset.catId;
+                const catCheckbox = wbPanel.querySelector(`.studio-wb-cat-cb[data-cat-id="${catId}"]`);
+                const cont = wbPanel.querySelector(`.studio-wb-book-container[data-cat-id="${catId}"]`);
+                if (catCheckbox && cont) {
+                    const allInCat = cont.querySelectorAll('.studio-wb-book-cb');
+                    catCheckbox.checked = [...allInCat].every(cb => cb.checked);
+                }
+                saveWorldBookSelection();
+            });
+        });
+
+        updateWbSummary();
+    }
+
+    function updateWbSummary() {
+        const summaryEl = document.getElementById('studio-wb-dropdown-summary');
+        if (!summaryEl) return;
+        const panel = document.getElementById('studio-wb-dropdown-panel');
+        const checked = panel ? panel.querySelectorAll('.studio-wb-book-cb:checked') : [];
+        if (checked.length === 0) {
+            summaryEl.textContent = '点击选择世界书...';
+        } else {
+            const names = [...checked].map(cb => {
+                const span = cb.parentElement?.querySelector('span');
+                return span ? span.textContent : '';
+            }).filter(Boolean);
+            summaryEl.textContent = `已选择 ${names.length} 本: ${names.join(', ')}`;
+        }
+    }
+
+    function saveWorldBookSelection() {
+        const settings = getStudioSettings();
+        const panel = document.getElementById('studio-wb-dropdown-panel');
+        settings.linkedWorldBookIds = [];
+        if (panel) {
+            panel.querySelectorAll('.studio-wb-book-cb:checked').forEach(cb => {
+                settings.linkedWorldBookIds.push(cb.value);
+            });
+        }
+        saveStudioSettings(settings);
+        updateWbSummary();
+    }
+
+    // ===================================================================
     // 1.5 多存档保存系统
     // ===================================================================
     const STUDIO_SAVES_KEY = 'studioPlaySaves';
@@ -1051,13 +1268,17 @@ ${formattedMsgs}
         playMessagesEl.scrollTop = playMessagesEl.scrollHeight;
 
         const contextText = formatContextForPrompt(history);
+        const worldBookContent = await getStudioWorldBookContent();
+        const worldBookBlock = worldBookContent
+            ? `\n    # 世界观设定 (必须严格遵守)\n    ${worldBookContent}\n`
+            : '';
 
         const systemPrompt = `
     你正在进行一场名为《${script.name}》的戏剧角色扮演。
 
     # 故事背景
     ${script.storyBackground}
-
+    ${worldBookBlock}
     # 所有角色
     ${buildCharacterListText(characters)}
 
@@ -1126,6 +1347,10 @@ ${formattedMsgs}
     4. 如果【故事目标未达成】或剧情尚在发展中，继续执行旁白生成任务。`;
 
         const contextText = formatContextForPrompt(history);
+        const worldBookContent = await getStudioWorldBookContent();
+        const worldBookBlock = worldBookContent
+            ? `\n    # 世界观设定 (必须严格遵守)\n    ${worldBookContent}\n`
+            : '';
 
         const narrationPrompt = `
     # 你的任务
@@ -1135,7 +1360,7 @@ ${formattedMsgs}
     - 剧本名: ${script.name}
     - 故事背景: ${script.storyBackground}
     - 故事目标: ${script.storyGoal}
-
+    ${worldBookBlock}
     # 所有角色
     ${buildCharacterListText(characters)}
 
@@ -1436,6 +1661,67 @@ ${formattedMsgs}
     if (backFromSavesBtn) backFromSavesBtn.addEventListener('click', showStudioScreen);
     const backFromHistoryBtn = document.getElementById('back-from-studio-history');
     if (backFromHistoryBtn) backFromHistoryBtn.addEventListener('click', showStudioScreen);
+
+    // --- 设置页 ---
+    const studioSettingsBtn = document.getElementById('studio-settings-btn');
+    if (studioSettingsBtn) {
+        studioSettingsBtn.addEventListener('click', () => {
+            renderStudioSettingsScreen();
+            showScreen('studio-settings-screen');
+        });
+    }
+    const backFromSettingsBtn = document.getElementById('back-from-studio-settings');
+    if (backFromSettingsBtn) backFromSettingsBtn.addEventListener('click', showStudioScreen);
+
+    const wbDropdownHeader = document.getElementById('studio-wb-dropdown-header');
+    if (wbDropdownHeader) {
+        wbDropdownHeader.addEventListener('click', () => {
+            wbDropdownHeader.classList.toggle('open');
+            const panel = document.getElementById('studio-wb-dropdown-panel');
+            if (panel) panel.classList.toggle('open');
+        });
+    }
+
+    const userColorInput = document.getElementById('studio-user-bubble-color');
+    const aiColorInput = document.getElementById('studio-ai-bubble-color');
+    if (userColorInput) {
+        userColorInput.addEventListener('input', () => {
+            const settings = getStudioSettings();
+            settings.userBubbleColor = userColorInput.value;
+            saveStudioSettings(settings);
+            applyStudioBubbleColors();
+        });
+    }
+    if (aiColorInput) {
+        aiColorInput.addEventListener('input', () => {
+            const settings = getStudioSettings();
+            settings.aiBubbleColor = aiColorInput.value;
+            saveStudioSettings(settings);
+            applyStudioBubbleColors();
+        });
+    }
+    const resetUserColorBtn = document.getElementById('studio-reset-user-color');
+    const resetAiColorBtn = document.getElementById('studio-reset-ai-color');
+    if (resetUserColorBtn) {
+        resetUserColorBtn.addEventListener('click', () => {
+            const settings = getStudioSettings();
+            settings.userBubbleColor = '';
+            saveStudioSettings(settings);
+            if (userColorInput) userColorInput.value = DEFAULT_USER_BUBBLE;
+            applyStudioBubbleColors();
+        });
+    }
+    if (resetAiColorBtn) {
+        resetAiColorBtn.addEventListener('click', () => {
+            const settings = getStudioSettings();
+            settings.aiBubbleColor = '';
+            saveStudioSettings(settings);
+            if (aiColorInput) aiColorInput.value = DEFAULT_AI_BUBBLE;
+            applyStudioBubbleColors();
+        });
+    }
+
+    applyStudioBubbleColors();
 
     if (addScriptBtn) addScriptBtn.addEventListener('click', () => openStudioEditor(null));
     if (backFromEditorBtn) backFromEditorBtn.addEventListener('click', showStudioScriptsScreen);
