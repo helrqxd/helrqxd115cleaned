@@ -20118,16 +20118,22 @@ body {
 
 /* ▼▼▼ 【小剧场终极微调 v1.2】▼▼▼ */
 
-/* --- 1. 解决AI新消息气泡重叠问题 --- */
-/* 为演绎界面中的每一个消息包裹器（无论用户、AI还是系统）都增加一个固定的下外边距 */
+/* --- 1. 气泡对齐 + 间距 --- */
 #studio-play-messages .message-wrapper {
-  margin-bottom: 10px; /* 这会确保每个气泡下方都有10px的“安全距离”，防止重叠 */
+  max-width: 100%;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+#studio-play-messages .message-wrapper.studio-system {
+  width: auto;
 }
 
 /* --- 2. 强制让AI加载提示（例如“正在行动...”）水平居中 --- */
 .message-wrapper.studio-indicator {
   justify-content: center;
   align-self: center;
+  width: auto !important;
 }
 
 /* ▲▲▲ 微调结束 ▲▲▲ */
