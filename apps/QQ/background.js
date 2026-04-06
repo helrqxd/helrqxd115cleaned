@@ -103,21 +103,6 @@ window.stopBackgroundSimulation = function stopBackgroundSimulation() {
 };
 
 /**
- * visibilitychange 事件：页面从后台恢复到前台时，立即检查是否有遗漏的心跳。
- * 这是对抗移动端浏览器冻结所有定时器的最后一道保险。
- */
-document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible' && bgSimulationRunning) {
-        const intervalMs = (state.globalSettings.backgroundActivityInterval || 60) * 1000;
-        const elapsed = Date.now() - lastTickTimestamp;
-        if (elapsed >= intervalMs * 0.8) {
-            console.log(`[Background] 页面恢复可见，距上次心跳已过 ${(elapsed / 1000).toFixed(0)}s，立即补跑一次`);
-            guardedTick();
-        }
-    }
-});
-
-/**
  * 这是模拟器的“心跳”，每次定时器触发时运行
  */
 /**
