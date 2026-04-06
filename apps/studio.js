@@ -1270,7 +1270,7 @@ ${formattedMsgs}
         const contextText = formatContextForPrompt(history);
         const worldBookContent = await getStudioWorldBookContent();
         const worldBookBlock = worldBookContent
-            ? `\n    # 世界观设定 (必须严格遵守)\n    ${worldBookContent}\n`
+            ? `\n    # 世界观或文风设定 (必须严格遵守)\n    ${worldBookContent}\n`
             : '';
 
         const systemPrompt = `
@@ -1349,7 +1349,7 @@ ${formattedMsgs}
         const contextText = formatContextForPrompt(history);
         const worldBookContent = await getStudioWorldBookContent();
         const worldBookBlock = worldBookContent
-            ? `\n    # 世界观设定 (必须严格遵守)\n    ${worldBookContent}\n`
+            ? `\n    # 世界观或文风设定 (必须严格遵守)\n    ${worldBookContent}\n`
             : '';
 
         const narrationPrompt = `
@@ -1444,6 +1444,11 @@ ${formattedMsgs}
         const charListText = buildCharacterListText(characters);
         const nameListText = characters.map(c => c.name).join('、');
 
+        const worldBookContent = await getStudioWorldBookContent();
+        const worldBookBlock = worldBookContent
+            ? `\n    # 世界观或文风设定 (写作时必须严格遵守)\n    ${worldBookContent}\n`
+            : '';
+
         const systemPrompt = `
     # 你的任务
     你是一位出色的小说家。请根据下面的剧本设定和对话历史，将这段角色扮演改编成一篇引人入胜的短篇小说。
@@ -1452,7 +1457,7 @@ ${formattedMsgs}
     - 剧本名: ${script.name}
     - 故事背景: ${script.storyBackground}
     - 故事目标: ${script.storyGoal}
-
+    ${worldBookBlock}
     # 所有角色
     ${charListText}
 
@@ -1464,7 +1469,8 @@ ${formattedMsgs}
     2. 请在小说中使用角色的具体名字（${nameListText}）来称呼他们。
     3. 保持故事的连贯性和逻辑性。
     4. 丰富人物的心理活动和环境描写。
-    5. 小说内容要完整、精彩，字数在1000字以上。`;
+    5. 小说内容要完整、精彩，字数在1000字以上。
+    6. 文笔风格和世界观设定必须与剧本背景一致。`;
 
         try {
             const { proxyUrl, apiKey, model } = window.getApiConfigForFunction('studio');
@@ -1762,9 +1768,7 @@ ${formattedMsgs}
                 currentSaveId = null;
                 showStudioScreen();
             } else if (choice === 'discard') {
-                if (currentSaveId) { deleteStudioSave(currentSaveId); currentSaveId = null; }
-                activeStudioPlay = null;
-                showStudioScreen();
+                endStudioPlay(false);
             }
         });
     }
