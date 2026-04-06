@@ -849,7 +849,7 @@ ${instruction}
                 <span class="studio-role-assign-label">选择角色身份:</span>
                 <select class="studio-role-identity-select" data-idx="${idx}">
                     <option value="" disabled selected>请选择...</option>
-                    <option value="__user__" data-persona="${escape(userPersona)}">${userNickname} (我)</option>
+                    <option value="__user__" data-persona="${escape(userPersona)}">${userNickname}</option>
                     ${aiOptions}
                     <option value="__custom__">自定义姓名</option>
                 </select>
