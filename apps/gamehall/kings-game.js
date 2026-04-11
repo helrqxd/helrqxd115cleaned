@@ -1009,16 +1009,27 @@ ${targetProfiles}
         modal.classList.add('visible');
     }
 
+    function findChatForPlayer(playerId) {
+        const directChat = state.chats[playerId];
+        if (directChat) return directChat;
+        for (const c of Object.values(state.chats)) {
+            if ((c.npcLibrary || []).some(npc => npc.id === playerId)) return c;
+        }
+        return null;
+    }
+
     async function sendSummaryToPlayers(summaryText, targetIds) {
         document.getElementById('kg-summary-modal').classList.remove('visible');
         document.getElementById('kg-target-picker-modal').classList.remove('visible');
         let sentCount = 0;
+        const sentChatIds = new Set();
 
         const aiContext = `[系统指令：刚刚结束了一轮"国王游戏"，这是本轮的回顾。请根据这个内容，以你的角色人设，和用户聊聊刚才的游戏。]\n\n${summaryText}`;
 
-        for (const chatId of targetIds) {
-            const chat = state.chats[chatId];
-            if (chat) {
+        for (const playerId of targetIds) {
+            const chat = findChatForPlayer(playerId);
+            if (chat && !sentChatIds.has(chat.id)) {
+                sentChatIds.add(chat.id);
                 const visibleMessage = {
                     role: 'user',
                     type: 'share_link',
