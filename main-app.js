@@ -665,6 +665,19 @@ window.toGeminiRequestData = function (model, apiKey, systemInstruction, message
 };
 document.addEventListener('DOMContentLoaded', async () => {
     // ===================================================================
+    // 0. 禁止非输入区域的浏览器默认复制/选择/长按菜单
+    // ===================================================================
+    const isEditableTarget = (el) =>
+        el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable;
+
+    document.addEventListener('contextmenu', (e) => {
+        if (!isEditableTarget(e.target)) e.preventDefault();
+    });
+    document.addEventListener('selectstart', (e) => {
+        if (!isEditableTarget(e.target)) e.preventDefault();
+    });
+
+    // ===================================================================
     // 1. 所有变量和常量定义
     // ===================================================================
 
@@ -2215,10 +2228,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             const streak = chat.settings.streak;
             let isExtinguished = false;
             if (streak.lastInteractionDate && streak.extinguishThreshold !== -1) {
-                const lastDate = new Date(streak.lastInteractionDate);
-                const todayDate = new Date();
-                todayDate.setHours(0, 0, 0, 0);
-                const daysDiff = (todayDate - lastDate) / (1000 * 3600 * 24);
+                const today = window.getLocalDateString();
+                const daysDiff = window.getLocalDaysDiff(streak.lastInteractionDate, today);
                 if (daysDiff >= streak.extinguishThreshold) {
                     isExtinguished = true;
                 }
@@ -2243,7 +2254,6 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         }
 
-        // 使用 <img> 标签来显示佩戴的徽章图片
         if (!chat.isGroup && chat.settings.selectedIntimacyBadge) {
             selectedBadgeHtml = `<span class="intimacy-badge-display"><img src="${chat.settings.selectedIntimacyBadge}" alt="badge"></span>`;
         }
@@ -3299,6 +3309,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     window.buildModelParams = buildModelParams;
 
+    window.translatePromptToEnglish = async function (text) {
+        if (!text || !text.trim()) return text;
+        if (/^[\x00-\x7F\s.,!?;:'"()\-+/*=<>[\]{}@#$%^&_~`|\\]+$/.test(text)) return text;
+        try {
+            const url = 'https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=' + encodeURIComponent(text);
+            const res = await fetch(url);
+            if (!res.ok) return text;
+            const data = await res.json();
+            const translated = data[0].map(seg => seg[0]).join('');
+            return (translated && translated.trim()) || text;
+        } catch (e) {
+            console.warn('翻译失败，使用原始文本:', e);
+            return text;
+        }
+    };
+
     function renderSecondaryApiPresetSelector() {
         const selectEl = document.getElementById('secondary-api-preset-select');
         if (!selectEl) return;
@@ -4024,67 +4050,66 @@ document.addEventListener('DOMContentLoaded', async () => {
 
         return hours * 60 + minutes;
     }
+    function getLocalDateString(date) {
+        const d = date || new Date();
+        const y = d.getFullYear();
+        const m = String(d.getMonth() + 1).padStart(2, '0');
+        const day = String(d.getDate()).padStart(2, '0');
+        return `${y}-${m}-${day}`;
+    }
+
+    function getLocalDaysDiff(dateStrA, dateStrB) {
+        const a = new Date(dateStrA + 'T00:00:00');
+        const b = new Date(dateStrB + 'T00:00:00');
+        return Math.floor((b - a) / (1000 * 60 * 60 * 24));
+    }
+
+    window.getLocalDateString = getLocalDateString;
+    window.getLocalDaysDiff = getLocalDaysDiff;
+
     /**
-     * 检查并更新火花天数 (已修复熄灭后从1开始的问题)
-     * @param {string} chatId - 要更新火花的聊天ID
-     * @returns {Promise<boolean>} - 如果火花天数有变化，则返回true
+     * 检查并更新火花天数 — 简化为：每个自然日有一轮完整对话即+1
      */
-    window.updateStreak = updateStreak; // Expose to global
+    window.updateStreak = updateStreak;
     async function updateStreak(chatId) {
         const chat = state.chats[chatId];
-        // 如果不是单聊，或者功能未开启，直接返回
         if (!chat || chat.isGroup || !chat.settings.streak?.enabled) {
             return false;
         }
 
         const streak = chat.settings.streak;
-        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD格式
+        const today = getLocalDateString();
 
-        // 如果今天已经互动过了，就什么都不做
         if (streak.lastInteractionDate === today) {
             return false;
         }
 
         let changed = false;
 
-        // 检查火花是否已熄灭
         if (streak.lastInteractionDate && streak.extinguishThreshold !== -1) {
-            const lastDate = new Date(streak.lastInteractionDate);
-            const todayDate = new Date(today);
-            // 为了精确计算天数差异，我们将两个日期都设置为UTC时间的午夜
-            const lastDateUTC = Date.UTC(lastDate.getFullYear(), lastDate.getMonth(), lastDate.getDate());
-            const todayDateUTC = Date.UTC(todayDate.getFullYear(), todayDate.getMonth(), todayDate.getDate());
-
-            const daysDiff = (todayDateUTC - lastDateUTC) / (1000 * 60 * 60 * 24);
+            const daysDiff = getLocalDaysDiff(streak.lastInteractionDate, today);
 
             if (daysDiff >= streak.extinguishThreshold) {
-                // 如果断联天数达到了你设置的阈值，就将当前火花天数归零。
                 streak.currentDays = 0;
                 console.log(`🔥 与 ${chat.name} 的火花因超过 ${streak.extinguishThreshold} 天未联系而熄灭，将重新从 1 开始计算。`);
                 changed = true;
             }
         }
 
-        // 今天是新的互动日，天数+1
-        // 如果是永不熄灭模式，currentDays 为 -1, 不应该增加
         if (streak.currentDays >= 0) {
             streak.currentDays++;
             changed = true;
         }
 
-        // 无论火花是否熄灭，只要今天互动了，就把“最后互动日期”更新为今天。
         streak.lastInteractionDate = today;
-
         await db.chats.put(chat);
 
         if (changed) {
             console.log(`🔥 与 ${chat.name} 的火花天数更新为: ${streak.currentDays}`);
         }
 
-        return changed; // 返回是否发生了变化
+        return changed;
     }
-
-
 
     /**
      * 发送一条居中显示的系统消息到当前聊天
@@ -4153,15 +4178,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         const lastInteractionDate = streak.lastInteractionDate;
         let isExtinguished = false;
 
-        // 2. 判断火花是否已熄灭
         if (lastInteractionDate && extinguishThreshold !== -1) {
-            const lastDate = new Date(lastInteractionDate);
-            const todayDate = new Date();
-            todayDate.setHours(0, 0, 0, 0); // 将时间设为当日零点，以精确计算天数
-
-            // 计算最后一次互动到今天过了多少天
-            const daysDiff = (todayDate.getTime() - lastDate.getTime()) / (1000 * 60 * 60 * 24);
-
+            const today = getLocalDateString();
+            const daysDiff = getLocalDaysDiff(lastInteractionDate, today);
             if (daysDiff >= extinguishThreshold) {
                 isExtinguished = true;
             }

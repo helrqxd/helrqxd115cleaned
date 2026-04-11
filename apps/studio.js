@@ -8,9 +8,11 @@ document.addEventListener('DOMContentLoaded', () => {
     let activeStudioPlay = null;
     let currentSaveId = null;
     let editorCharacters = [];
+    let studioDisplayedMsgCount = 20;
 
     const CONTEXT_WINDOW_SIZE = 20;
     const SUMMARY_INTERVAL = 20;
+    const STUDIO_PAGE_SIZE = 20;
 
     // ===================================================================
     // 1.2 小剧场全局设置
@@ -477,6 +479,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const saves = getAllStudioSaves();
         const save = saves.find(s => s.id === saveId);
         if (!save) { alert('找不到该存档！'); return; }
+        studioDisplayedMsgCount = STUDIO_PAGE_SIZE;
         activeStudioPlay = normalizePlayData(save.playData);
         currentSaveId = save.id;
         const sid = save.playData?.script?.id ?? save.scriptId;
@@ -959,6 +962,7 @@ ${instruction}
         const nameSet = new Set(characters.map(c => c.name));
         if (nameSet.size !== characters.length) { alert('角色名称不能重复！'); return; }
 
+        studioDisplayedMsgCount = STUDIO_PAGE_SIZE;
         activeStudioPlay = {
             script, characters, userCharIndex,
             history: [],
@@ -988,9 +992,26 @@ ${instruction}
         if (!activeStudioPlay) return;
         document.getElementById('studio-play-title').textContent = activeStudioPlay.script.name;
         playMessagesEl.innerHTML = '';
-        activeStudioPlay.history.forEach((msg, idx) => {
-            playMessagesEl.appendChild(createPlayMessageElement(msg, idx));
-        });
+
+        const totalMsgs = activeStudioPlay.history.length;
+        const startIdx = Math.max(0, totalMsgs - studioDisplayedMsgCount);
+
+        if (startIdx > 0) {
+            const loadMoreBtn = document.createElement('div');
+            loadMoreBtn.className = 'studio-load-more-btn';
+            loadMoreBtn.textContent = `加载更早的消息 (${startIdx} 条)`;
+            loadMoreBtn.addEventListener('click', () => {
+                studioDisplayedMsgCount += STUDIO_PAGE_SIZE;
+                const oldScrollHeight = playMessagesEl.scrollHeight;
+                renderStudioPlayScreen();
+                playMessagesEl.scrollTop = playMessagesEl.scrollHeight - oldScrollHeight;
+            });
+            playMessagesEl.appendChild(loadMoreBtn);
+        }
+
+        for (let idx = startIdx; idx < totalMsgs; idx++) {
+            playMessagesEl.appendChild(createPlayMessageElement(activeStudioPlay.history[idx], idx));
+        }
         playMessagesEl.scrollTop = playMessagesEl.scrollHeight;
     }
 
@@ -1067,7 +1088,12 @@ ${instruction}
             const isSetupMsg = msg.role === 'system' &&
                 (msg.content.startsWith('【故事背景】') || msg.content.startsWith('【开场白】'));
             if (!isSetupMsg) {
-                addLongPressListener(wrapper, () => handleMessageLongPress(msgIndex));
+                if (studioPlaySelectMode) {
+                    wrapper.classList.toggle('studio-msg-selected', studioPlaySelectedIdxs.has(msgIndex));
+                    wrapper.addEventListener('click', () => togglePlayMsgSelect(msgIndex));
+                } else {
+                    addLongPressListener(wrapper, () => handleMessageLongPress(msgIndex));
+                }
             }
         }
 
@@ -1079,11 +1105,14 @@ ${instruction}
         const msg = activeStudioPlay.history[msgIndex];
 
         const choice = await showChoiceModal('消息操作', [
+            { text: '☑️ 多选模式', value: 'select' },
             { text: '✏️ 编辑消息', value: 'edit' },
             { text: '🗑️ 删除消息', value: 'delete' },
         ]);
 
-        if (choice === 'edit') {
+        if (choice === 'select') {
+            enterPlaySelectMode(msgIndex);
+        } else if (choice === 'edit') {
             const newContent = await window.showCustomPrompt(
                 '编辑消息', '修改消息内容', msg.content, 'textarea'
             );
@@ -1572,7 +1601,6 @@ ${formattedMsgs}
             const participantsText = Array.isArray(record.participants)
                 ? record.participants.join(', ')
                 : `${record.participants?.role1 || '?'}, ${record.participants?.role2 || '?'}`;
-
             item.innerHTML = `
                 <div class="title">${record.scriptName}</div>
                 <div class="goal" style="margin-top:5px;">🎭 参与者: ${participantsText}</div>
@@ -1601,6 +1629,191 @@ ${formattedMsgs}
         await db.studioHistory.delete(recordId);
         await renderStudioHistoryList();
         alert('故事记录已删除。');
+    }
+
+    // ===================================================================
+    // 15.5 演绎消息多选 & 收藏
+    // ===================================================================
+    const STUDIO_FAVS_KEY = 'studioMessageFavorites';
+    let studioPlaySelectMode = false;
+    let studioPlaySelectedIdxs = new Set();
+
+    function getStudioFavorites() {
+        try {
+            const favs = JSON.parse(localStorage.getItem(STUDIO_FAVS_KEY)) || [];
+            if (favs.length > 0 && !favs[0].messages) {
+                const grouped = {};
+                favs.forEach(f => {
+                    const key = f.scriptName || '未命名';
+                    if (!grouped[key]) grouped[key] = [];
+                    grouped[key].push(f);
+                });
+                const batches = Object.entries(grouped).map(([scriptName, msgs]) => ({
+                    id: msgs[0].timestamp || Date.now(),
+                    scriptName,
+                    timestamp: msgs[0].timestamp || Date.now(),
+                    messages: msgs.map(m => ({ charName: m.charName, role: m.role, content: m.content, avatarSrc: m.avatarSrc })),
+                }));
+                saveStudioFavorites(batches);
+                return batches;
+            }
+            return favs;
+        } catch (e) { return []; }
+    }
+    function saveStudioFavorites(favs) {
+        localStorage.setItem(STUDIO_FAVS_KEY, JSON.stringify(favs));
+    }
+
+    function enterPlaySelectMode(firstIdx) {
+        studioPlaySelectMode = true;
+        studioPlaySelectedIdxs.clear();
+        if (firstIdx !== undefined) studioPlaySelectedIdxs.add(firstIdx);
+        const bar = document.getElementById('studio-play-select-bar');
+        if (bar) bar.style.display = 'flex';
+        updatePlaySelectCount();
+        document.getElementById('studio-play-input-area').style.display = 'none';
+        renderStudioPlayScreen();
+    }
+
+    function exitPlaySelectMode() {
+        studioPlaySelectMode = false;
+        studioPlaySelectedIdxs.clear();
+        const bar = document.getElementById('studio-play-select-bar');
+        if (bar) bar.style.display = 'none';
+        document.getElementById('studio-play-input-area').style.display = '';
+        renderStudioPlayScreen();
+    }
+
+    function updatePlaySelectCount() {
+        const el = document.getElementById('studio-play-select-count');
+        if (el) el.textContent = `已选 ${studioPlaySelectedIdxs.size} 条`;
+    }
+
+    function togglePlayMsgSelect(idx) {
+        if (studioPlaySelectedIdxs.has(idx)) {
+            studioPlaySelectedIdxs.delete(idx);
+        } else {
+            studioPlaySelectedIdxs.add(idx);
+        }
+        updatePlaySelectCount();
+        const wrapper = playMessagesEl.querySelector(`[data-msg-idx="${idx}"]`);
+        if (wrapper) wrapper.classList.toggle('studio-msg-selected', studioPlaySelectedIdxs.has(idx));
+    }
+
+    function batchDeletePlayMessages() {
+        if (!activeStudioPlay || studioPlaySelectedIdxs.size === 0) return;
+        const sorted = [...studioPlaySelectedIdxs].sort((a, b) => b - a);
+        sorted.forEach(idx => {
+            if (idx >= 0 && idx < activeStudioPlay.history.length) {
+                activeStudioPlay.history.splice(idx, 1);
+            }
+        });
+        saveStudioPlayProgress();
+        exitPlaySelectMode();
+    }
+
+    function batchFavoritePlayMessages() {
+        if (!activeStudioPlay || studioPlaySelectedIdxs.size === 0) return;
+        const favs = getStudioFavorites();
+        const scriptName = activeStudioPlay.script?.name || '未命名剧本';
+        const sorted = [...studioPlaySelectedIdxs].sort((a, b) => a - b);
+        const messages = sorted.map(idx => {
+            const msg = activeStudioPlay.history[idx];
+            if (!msg) return null;
+            const char = getCharacterFromMessage(msg);
+            return {
+                charName: msg.charName || char?.name || (msg.role === 'user' ? '你' : 'AI'),
+                role: msg.role,
+                content: msg.content,
+                avatarSrc: getCharacterAvatar(char),
+            };
+        }).filter(Boolean);
+        if (messages.length === 0) return;
+        favs.push({
+            id: Date.now(),
+            scriptName,
+            timestamp: Date.now(),
+            messages,
+        });
+        saveStudioFavorites(favs);
+        exitPlaySelectMode();
+        alert(`已收藏 ${messages.length} 条消息`);
+    }
+
+    function renderStudioFavoritesScreen() {
+        const listEl = document.getElementById('studio-favorites-list');
+        if (!listEl) return;
+        const favs = getStudioFavorites();
+        listEl.innerHTML = '';
+
+        if (favs.length === 0) {
+            listEl.innerHTML = '<p style="text-align:center; color: var(--text-secondary); padding: 50px 0;">还没有收藏过任何内容哦。<br><span style="font-size:12px;">在故事演绎中长按消息即可多选收藏</span></p>';
+            return;
+        }
+
+        favs.slice().reverse().forEach((batch, rIdx) => {
+            const realIdx = favs.length - 1 - rIdx;
+            const item = document.createElement('div');
+            item.className = 'studio-script-item';
+            const batchDate = new Date(batch.timestamp);
+            const msgCount = batch.messages ? batch.messages.length : 0;
+            const preview = batch.messages && batch.messages.length > 0
+                ? batch.messages[0].content.substring(0, 40).replace(/\n/g, ' ') + (batch.messages[0].content.length > 40 ? '…' : '')
+                : '';
+            item.innerHTML = `
+                <div class="title">⭐ ${batch.scriptName}</div>
+                <div class="goal" style="margin-top:5px;">📝 ${msgCount} 条消息${preview ? '　' + preview : ''}</div>
+                <div class="goal" style="font-size:12px;margin-top:8px;">收藏于: ${batchDate.toLocaleString()}</div>
+            `;
+            item.addEventListener('click', () => viewFavoriteBatchDetail(batch));
+            addLongPressListener(item, async () => {
+                const confirmed = await showCustomConfirm('取消收藏', '确定要移除这条收藏记录吗？', { confirmButtonClass: 'btn-danger' });
+                if (confirmed) {
+                    const allFavs = getStudioFavorites();
+                    allFavs.splice(realIdx, 1);
+                    saveStudioFavorites(allFavs);
+                    renderStudioFavoritesScreen();
+                }
+            });
+            listEl.appendChild(item);
+        });
+    }
+
+    function viewFavoriteBatchDetail(batch) {
+        const contentEl = document.getElementById('studio-novel-content');
+        const headerSpan = novelModal.querySelector('.modal-header span');
+        const origHeader = headerSpan.textContent;
+        headerSpan.textContent = '⭐ ' + batch.scriptName;
+        contentEl.style.whiteSpace = 'normal';
+        contentEl.style.padding = '0';
+
+        let html = '';
+        (batch.messages || []).forEach(msg => {
+            if (msg.role === 'system') {
+                html += `<div class="studio-fav-detail-system">${msg.content.replace(/\n/g, '<br>')}</div>`;
+            } else {
+                const avatarHtml = msg.avatarSrc ? `<img src="${msg.avatarSrc}" class="studio-fav-detail-avatar">` : '';
+                const roleClass = msg.role === 'user' ? ' fav-msg-user' : '';
+                html += `<div class="studio-fav-detail-msg${roleClass}">
+                    ${avatarHtml}
+                    <div class="studio-fav-detail-body">
+                        <div class="studio-fav-detail-name">${msg.charName}</div>
+                        <div class="studio-fav-detail-text">${msg.content.replace(/\n/g, '<br>')}</div>
+                    </div>
+                </div>`;
+            }
+        });
+
+        contentEl.innerHTML = html;
+        const footer = novelModal.querySelector('.modal-footer');
+        footer.innerHTML = '<button class="save" id="close-fav-detail-btn" style="width:100%">关闭</button>';
+        document.getElementById('close-fav-detail-btn').addEventListener('click', () => {
+            novelModal.classList.remove('visible');
+            contentEl.style.whiteSpace = 'pre-wrap';
+            contentEl.style.padding = '15px';
+            headerSpan.textContent = origHeader;
+        });
+        novelModal.classList.add('visible');
     }
 
     // ===================================================================
@@ -1657,9 +1870,14 @@ ${formattedMsgs}
     const studioMenuScripts = document.getElementById('studio-menu-scripts');
     const studioMenuSaves = document.getElementById('studio-menu-saves');
     const studioMenuHistory = document.getElementById('studio-menu-history');
+    const studioMenuFavorites = document.getElementById('studio-menu-favorites');
     if (studioMenuScripts) studioMenuScripts.addEventListener('click', showStudioScriptsScreen);
     if (studioMenuSaves) studioMenuSaves.addEventListener('click', showStudioSavesScreen);
     if (studioMenuHistory) studioMenuHistory.addEventListener('click', openStudioHistoryScreen);
+    if (studioMenuFavorites) studioMenuFavorites.addEventListener('click', () => {
+        renderStudioFavoritesScreen();
+        showScreen('studio-favorites-screen');
+    });
 
     const backFromScriptsBtn = document.getElementById('back-from-studio-scripts');
     if (backFromScriptsBtn) backFromScriptsBtn.addEventListener('click', showStudioScreen);
@@ -1667,6 +1885,18 @@ ${formattedMsgs}
     if (backFromSavesBtn) backFromSavesBtn.addEventListener('click', showStudioScreen);
     const backFromHistoryBtn = document.getElementById('back-from-studio-history');
     if (backFromHistoryBtn) backFromHistoryBtn.addEventListener('click', showStudioScreen);
+    const backFromFavoritesBtn = document.getElementById('back-from-studio-favorites');
+    if (backFromFavoritesBtn) backFromFavoritesBtn.addEventListener('click', showStudioScreen);
+
+    const playSelectFavBtn = document.getElementById('studio-play-select-fav');
+    if (playSelectFavBtn) playSelectFavBtn.addEventListener('click', batchFavoritePlayMessages);
+    const playSelectDelBtn = document.getElementById('studio-play-select-del');
+    if (playSelectDelBtn) playSelectDelBtn.addEventListener('click', async () => {
+        const confirmed = await showCustomConfirm('批量删除', `确定要删除选中的 ${studioPlaySelectedIdxs.size} 条消息吗？`, { confirmButtonClass: 'btn-danger' });
+        if (confirmed) batchDeletePlayMessages();
+    });
+    const playSelectCancelBtn = document.getElementById('studio-play-select-cancel');
+    if (playSelectCancelBtn) playSelectCancelBtn.addEventListener('click', exitPlaySelectMode);
 
     // --- 设置页 ---
     const studioSettingsBtn = document.getElementById('studio-settings-btn');

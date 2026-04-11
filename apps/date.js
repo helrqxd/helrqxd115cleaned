@@ -380,8 +380,20 @@ function createDatingSceneCard(scene) {
     return card;
 }
 
-// 生成并加载图片
+function hasDatePollinationsKey() {
+    const key = window.state?.apiConfig?.pollinationsApiKey;
+    return !!key;
+}
+
+function getDatePlaceholderImage() {
+    return 'https://i.postimg.cc/KYr2qRCK/1.jpg';
+}
+
 async function generateAndLoadImage(prompt) {
+    if (!hasDatePollinationsKey()) {
+        console.log('[Date] 无 Pollinations API Key，使用占位图');
+        return getDatePlaceholderImage();
+    }
     return await window.generatePollinationsImage(prompt, {
         width: 1024,
         height: 640,
@@ -1254,14 +1266,14 @@ ${recentChatHistory}
                 if (spriteContainer) spriteContainer.style.display = 'none';
             }
 
-            // 记录故事并显示
             datingGameState.storyHistory.push(`【旁白】: ${gameData.story}`);
-            displayStoryText(gameData.story, gameData.choices);
 
-            // 检查是否触发NSFW剧情
             if (datingGameState.lust >= 100 && !datingGameState.isNsfwMode) {
-                await triggerNsfwScene();
+                datingGameState.isNsfwMode = true;
+                console.log('NSFW模式已标记，将在下一次用户选择时生效。');
             }
+
+            displayStoryText(gameData.story, gameData.choices);
         } else {
             throw new Error('AI返回的数据格式不正确。');
         }

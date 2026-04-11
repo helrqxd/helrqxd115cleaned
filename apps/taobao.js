@@ -178,9 +178,21 @@ function selectGenericImagePrompt(productName) {
  * @param {string} prompt - 用于生成图片的英文提示词
  * @returns {Promise<string>} - 返回一个Promise，它最终会resolve为一个有效的图片URL
  */
+function hasTaobaoPollinationsKey() {
+    const key = window.state?.apiConfig?.pollinationsApiKey;
+    return !!key;
+}
+
+function getTaobaoPlaceholderImage() {
+    return 'https://i.postimg.cc/KYr2qRCK/1.jpg';
+}
+
 async function generateTaobaoImage(prompt) {
     console.log(`[Debug] generateTaobaoImage 被调用 (已切换至全局函数)，Prompt:`, prompt);
-    // 直接调用全局函数，保持原有 Taobao 尺寸配置
+    if (!hasTaobaoPollinationsKey()) {
+        console.log('[Taobao] 无 Pollinations API Key，使用占位图');
+        return getTaobaoPlaceholderImage();
+    }
     return await window.generatePollinationsImage(prompt, {
         width: 1024,
         height: 640,
@@ -437,10 +449,8 @@ function createChatListItem(chat) {
 
         let isExtinguished = false;
         if (streak.lastInteractionDate && streak.extinguishThreshold !== -1) {
-            const lastDate = new Date(streak.lastInteractionDate);
-            const todayDate = new Date();
-            todayDate.setHours(0, 0, 0, 0);
-            const daysDiff = (todayDate - lastDate) / (1000 * 3600 * 24);
+            const today = window.getLocalDateString();
+            const daysDiff = window.getLocalDaysDiff(streak.lastInteractionDate, today);
             if (daysDiff >= streak.extinguishThreshold) {
                 isExtinguished = true;
             }

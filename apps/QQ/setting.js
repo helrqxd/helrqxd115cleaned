@@ -2284,7 +2284,19 @@ window.initQQSettings = function (dependencies) {
             throw new Error('API未配置，无法生成精简摘要。');
         }
 
-        const systemPrompt = `请你将以下内容精简为一句话的核心摘要，保留最关键的人物、事件和结论，字数控制在20字以内：\n\n--- 内容开始 ---\n${originalText}\n--- 内容结束 ---`;
+        const systemPrompt = `请你将以下长期记忆内容进行精简压缩，但必须保留关键信息。
+
+【精简规则】：
+1. 保留所有重要的人物关系、事件经过、情感变化和关键结论
+2. 保留具体的时间节点、地点、数字等关键细节
+3. 去除重复表述和冗余修饰语，合并相似内容
+4. 精简后字数应为原文的30%左右，不得压缩为一句话
+5. 使用简洁的条目式或短句式表达，保持信息密度
+6. 禁止进行任何角色扮演或添加原文没有的内容
+
+--- 内容开始 ---
+${originalText}
+--- 内容结束 ---`;
 
         try {
             const response = await fetch(`${proxyUrl}/v1/chat/completions`, {

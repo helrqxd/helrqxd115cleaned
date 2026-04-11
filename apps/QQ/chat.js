@@ -284,10 +284,8 @@ function createChatListItem(chat) {
         const streak = chat.settings.streak;
         let isExtinguished = false;
         if (streak.lastInteractionDate && streak.extinguishThreshold !== -1) {
-            const lastDate = new Date(streak.lastInteractionDate);
-            const todayDate = new Date();
-            todayDate.setHours(0, 0, 0, 0);
-            const daysDiff = (todayDate - lastDate) / (1000 * 3600 * 24);
+            const today = window.getLocalDateString();
+            const daysDiff = window.getLocalDaysDiff(streak.lastInteractionDate, today);
             if (daysDiff >= streak.extinguishThreshold) {
                 isExtinguished = true;
             }

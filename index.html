@@ -614,11 +614,13 @@
 										<path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
 									</svg>
 								</div>
-								<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2" style="padding: 8px">
-									<circle cx="12" cy="12" r="1"></circle>
-									<circle cx="19" cy="12" r="1"></circle>
-									<circle cx="5" cy="12" r="1"></circle>
-								</svg>
+								<div class="xhs-user-settings-btn" id="xhs-user-settings-btn" style="padding: 8px; cursor: pointer">
+									<svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#333" stroke-width="2">
+										<circle cx="12" cy="12" r="1"></circle>
+										<circle cx="19" cy="12" r="1"></circle>
+										<circle cx="5" cy="12" r="1"></circle>
+									</svg>
+								</div>
 							</div>
 						</div>
 
@@ -8635,6 +8637,14 @@
 						</div>
 						<div class="studio-menu-item-arrow">›</div>
 					</div>
+					<div class="studio-menu-item studio-menu-favorites" id="studio-menu-favorites">
+						<div class="studio-menu-item-icon">⭐</div>
+						<div class="studio-menu-item-body">
+							<div class="studio-menu-item-title">我的收藏</div>
+							<div class="studio-menu-item-desc">演绎中收藏的精彩片段</div>
+						</div>
+						<div class="studio-menu-item-arrow">›</div>
+					</div>
 				</div>
 			</div>
 		</div>
@@ -8761,6 +8771,14 @@
 					<span class="action-btn" id="reroll-studio-play-btn">刷新</span>
 				</div>
 			</div>
+			<div id="studio-play-select-bar" class="studio-play-select-bar" style="display:none;">
+				<span id="studio-play-select-count">已选 0 条</span>
+				<div class="studio-play-select-actions">
+					<button id="studio-play-select-fav" class="studio-play-select-btn fav">⭐ 收藏</button>
+					<button id="studio-play-select-del" class="studio-play-select-btn del">🗑 删除</button>
+					<button id="studio-play-select-cancel" class="studio-play-select-btn cancel">✕</button>
+				</div>
+			</div>
 			<div id="studio-play-messages" class="chat-messages">
 				<!-- 演绎过程将由JS动态生成在这里 -->
 			</div>
@@ -8829,10 +8847,18 @@
 				<span class="back-btn" id="back-from-studio-history">‹</span>
 				<span>故事记录</span>
 				<span style="width: 30px"></span>
-				<!-- 占位符 -->
 			</div>
 			<div id="studio-history-list" class="list-container">
-				<!-- 故事记录列表将由JS动态生成在这里 -->
+			</div>
+		</div>
+
+		<div id="studio-favorites-screen" class="screen">
+			<div class="header">
+				<span class="back-btn" id="back-from-studio-favorites">‹</span>
+				<span>我的收藏</span>
+				<span style="width: 30px"></span>
+			</div>
+			<div id="studio-favorites-list" class="list-container">
 			</div>
 		</div>
 

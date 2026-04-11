@@ -2574,7 +2574,8 @@ function initPhotoFunctions() {
                 const model = localStorage.getItem('novelai-model') || 'nai-diffusion-4-5-full';
                 const [width, height] = (naiSettings.resolution || '1024x1024').split('x').map(Number);
 
-                const positivePrompt = text;
+                if (window.showCustomAlert) window.showCustomAlert('翻译中', '正在将提示词翻译为英语...');
+                const positivePrompt = window.translatePromptToEnglish ? await window.translatePromptToEnglish(text) : text;
                 const negativePrompt = naiSettings.default_negative || 'lowres, bad anatomy, text, error, worst quality, low quality, jpeg artifacts, watermark, blurry';
 
                 const commonParams = {

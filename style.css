@@ -28,6 +28,20 @@ body {
   background-color: #f0f2f5;
   height: 100%;
   overflow: hidden;
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+}
+input,
+textarea,
+[contenteditable="true"] {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
 }
 #phone-screen {
   width: 100%;
@@ -19603,6 +19617,7 @@ body {
 #studio-saves-screen,
 #studio-editor-screen,
 #studio-history-screen,
+#studio-favorites-screen,
 #studio-settings-screen {
   background: linear-gradient(165deg, #1a1a2e 0%, #16213e 40%, #0f3460 100%) !important;
   color: #e8e8e8;
@@ -19611,6 +19626,7 @@ body {
 #studio-saves-screen .header,
 #studio-editor-screen .header,
 #studio-history-screen .header,
+#studio-favorites-screen .header,
 #studio-settings-screen .header {
   background: transparent;
   color: #e8e8e8;
@@ -19620,6 +19636,7 @@ body {
 #studio-saves-screen .header .back-btn,
 #studio-editor-screen .header .back-btn,
 #studio-history-screen .header .back-btn,
+#studio-favorites-screen .header .back-btn,
 #studio-settings-screen .header .back-btn {
   color: #e8e8e8;
 }
@@ -19633,7 +19650,8 @@ body {
 /* ====== 剧本列表 / 存档列表 / 故事记录列表 ====== */
 #studio-script-list,
 #studio-saves-list,
-#studio-history-list {
+#studio-history-list,
+#studio-favorites-list {
   padding: 15px;
   display: flex;
   flex-direction: column;
@@ -19667,7 +19685,8 @@ body {
 /* 列表空状态文字 */
 #studio-script-list p,
 #studio-saves-list p,
-#studio-history-list p {
+#studio-history-list p,
+#studio-favorites-list p {
   color: rgba(255, 255, 255, 0.35) !important;
 }
 
@@ -19966,6 +19985,132 @@ body {
   padding: 5px 20px;
   margin: 8px 0;
 }
+/* ===== 演绎多选工具栏 ===== */
+.studio-play-select-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  background: linear-gradient(135deg, rgba(100,65,155,0.35), rgba(50,80,140,0.35));
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid rgba(255,255,255,0.06);
+}
+.studio-play-select-bar > span {
+  font-size: 13px;
+  color: rgba(255,255,255,0.8);
+  font-weight: 500;
+}
+.studio-play-select-actions {
+  display: flex;
+  gap: 8px;
+}
+.studio-play-select-btn {
+  padding: 5px 14px;
+  border: none;
+  border-radius: 16px;
+  font-size: 12px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: all 0.15s;
+}
+.studio-play-select-btn.fav {
+  background: rgba(255,193,7,0.2);
+  color: #ffd54f;
+}
+.studio-play-select-btn.del {
+  background: rgba(244,67,54,0.2);
+  color: #ef9a9a;
+}
+.studio-play-select-btn.cancel {
+  background: rgba(255,255,255,0.1);
+  color: rgba(255,255,255,0.6);
+}
+.studio-play-select-btn:active {
+  transform: scale(0.95);
+  opacity: 0.8;
+}
+/* 选中消息高亮 */
+.message-wrapper.studio-msg-selected {
+  background: rgba(138,180,248,0.12);
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1.5px rgba(138,180,248,0.35);
+}
+
+/* ===== 我的收藏页面 ===== */
+/* ===== 收藏详情弹窗内消息样式 ===== */
+.studio-fav-detail-msg {
+  display: flex;
+  gap: 10px;
+  padding: 10px 12px;
+  margin: 6px 0;
+  background: rgba(255,255,255,0.08);
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.06);
+}
+.studio-fav-detail-msg.fav-msg-user {
+  background: rgba(80,120,200,0.15);
+  border-color: rgba(80,120,200,0.2);
+}
+.studio-fav-detail-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(255,255,255,0.15);
+}
+.studio-fav-detail-body {
+  flex: 1;
+  min-width: 0;
+}
+.studio-fav-detail-name {
+  font-size: 12px;
+  font-weight: 600;
+  color: rgba(255,255,255,0.6);
+  margin-bottom: 4px;
+}
+.studio-fav-detail-text {
+  font-size: 14px;
+  line-height: 1.6;
+  color: #e8e8e8;
+  word-break: break-word;
+}
+.studio-fav-detail-system {
+  text-align: center;
+  padding: 10px 14px;
+  margin: 6px 0;
+  font-size: 13px;
+  color: rgba(255,255,255,0.55);
+  font-style: italic;
+  background: rgba(255,255,255,0.04);
+  border-radius: 10px;
+}
+
+/* ===== 首页收藏按钮 ===== */
+.studio-menu-favorites {
+  background: linear-gradient(135deg, rgba(255, 193, 7, 0.2) 0%, rgba(255, 193, 7, 0.05) 100%);
+  border-color: rgba(255, 193, 7, 0.2);
+}
+.studio-menu-favorites .studio-menu-item-icon {
+  background: rgba(255, 193, 7, 0.18);
+}
+
+.studio-load-more-btn {
+  text-align: center;
+  padding: 10px 20px;
+  margin: 8px auto 12px;
+  color: #8ab4f8;
+  font-size: 13px;
+  cursor: pointer;
+  border-radius: 16px;
+  background: rgba(138, 180, 248, 0.1);
+  width: fit-content;
+}
+.studio-load-more-btn:active {
+  background: rgba(138, 180, 248, 0.2);
+}
+
 .message-bubble.studio-system-bubble {
   background-color: rgba(18, 18, 20, 0.55);
   backdrop-filter: blur(5px);
@@ -32879,6 +33024,25 @@ input:checked + .slider::after {
     width: 100%;
     height: auto;
     display: block;
+}
+.xhs-regen-img-btn {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.45);
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.2s;
+    z-index: 5;
+}
+.xhs-regen-img-btn:active {
+    background: rgba(0, 0, 0, 0.7);
 }
 .xhs-no-pointer {
     pointer-events: none;
