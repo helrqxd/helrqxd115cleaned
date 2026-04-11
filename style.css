@@ -39650,3 +39650,328 @@ input:checked + .slider::after {
 .lofter-update-submit-btn:hover {
     background: #00aae5;
 }
+
+/* ▼▼▼ 国王游戏样式 ▼▼▼ */
+
+/* === 设置页面美化 === */
+
+#kings-game-setup-screen .form-container {
+    gap: 4px;
+}
+
+#kings-game-setup-screen .form-group {
+    background: var(--secondary-bg);
+    border-radius: 12px;
+    padding: 14px 16px;
+    border: 1px solid var(--border-color);
+}
+
+#kings-game-setup-screen .form-group label {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 10px;
+}
+
+#kings-game-setup-screen .form-group input[type="radio"] {
+    accent-color: #ffc107;
+    width: 16px;
+    height: 16px;
+}
+
+#kings-game-setup-screen #kg-player-selection {
+    background: var(--primary-bg);
+}
+
+#kings-game-setup-screen #start-kings-game-btn {
+    background: linear-gradient(135deg, #ffc107, #ff9800);
+    color: #000;
+    border: none;
+    border-radius: 12px;
+    padding: 14px;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    box-shadow: 0 4px 15px rgba(255, 152, 0, 0.3);
+    transition: all 0.2s;
+}
+
+#kings-game-setup-screen #start-kings-game-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 152, 0, 0.4);
+}
+
+#kings-game-setup-screen #start-kings-game-btn:active {
+    transform: translateY(0) scale(0.98);
+}
+
+#kings-game-setup-screen #start-kings-game-btn:disabled {
+    background: #ccc;
+    color: #888;
+    box-shadow: none;
+    transform: none;
+}
+
+#kings-game-setup-screen #kg-custom-bank-area textarea {
+    background: var(--primary-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    transition: border-color 0.2s;
+}
+
+#kings-game-setup-screen #kg-custom-bank-area textarea:focus {
+    outline: none;
+    border-color: #ffc107;
+    box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.15);
+}
+
+/* === 游戏主界面美化 === */
+
+#kings-game-screen .header {
+    background: linear-gradient(135deg, #1a1a2e, #16213e);
+    color: #ffd54f;
+}
+
+#kings-game-screen .header .back-btn {
+    color: #ffd54f;
+}
+
+#kings-game-screen #kings-game-content {
+    background: var(--primary-bg);
+}
+
+#kg-players-grid {
+    background: var(--secondary-bg);
+    border-radius: 12px;
+    padding: 12px !important;
+    border: 1px solid var(--border-color);
+}
+
+#kg-players-grid .player-seat .player-name {
+    max-width: 65px;
+}
+
+#kg-log-container {
+    background: rgba(0, 0, 0, 0.03) !important;
+    border: 1px solid var(--border-color);
+}
+
+/* === 日志条目 === */
+
+.kg-log-entry {
+    padding: 6px 10px;
+    margin-bottom: 4px;
+    font-size: 14px;
+    line-height: 1.6;
+    border-radius: 6px;
+    animation: kgFadeIn 0.3s ease;
+}
+
+@keyframes kgFadeIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+.kg-log-system {
+    color: var(--text-secondary);
+    font-size: 13px;
+}
+
+.kg-log-highlight {
+    background: linear-gradient(135deg, rgba(255, 193, 7, 0.15), rgba(255, 152, 0, 0.10));
+    border-left: 3px solid #ffc107;
+    font-weight: 500;
+    color: var(--text-primary);
+    padding: 8px 12px;
+    margin: 6px 0;
+}
+
+.kg-log-result {
+    background: var(--secondary-bg);
+    border-radius: 10px;
+    padding: 12px 14px;
+    margin: 8px 0;
+    line-height: 1.8;
+    font-size: 14px;
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+}
+
+.kg-log-result p {
+    margin: 0 0 8px 0;
+}
+.kg-log-result p:last-child {
+    margin-bottom: 0;
+}
+
+.kg-log-user-action {
+    background: linear-gradient(135deg, rgba(33, 150, 243, 0.08), rgba(33, 150, 243, 0.04));
+    border-left: 3px solid #2196f3;
+    padding: 8px 12px;
+    margin: 6px 0;
+    font-style: italic;
+    color: var(--text-primary);
+}
+
+/* === 纸牌样式 === */
+
+.kg-card {
+    display: inline-block;
+    background: #fff;
+    border: 1.5px solid #ccc;
+    border-radius: 4px;
+    padding: 1px 5px;
+    font-weight: 700;
+    font-size: 14px;
+    margin: 0 2px;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.1);
+}
+
+.kg-card-red {
+    color: #e53935;
+    border-color: #ef9a9a;
+}
+
+.kg-card-black {
+    color: #212121;
+    border-color: #bdbdbd;
+}
+
+#phone-screen.dark-mode .kg-card {
+    background: #2c2c2e;
+    border-color: #555;
+}
+
+#phone-screen.dark-mode .kg-card-red {
+    color: #ef5350;
+    border-color: #c62828;
+}
+
+#phone-screen.dark-mode .kg-card-black {
+    color: #e0e0e0;
+    border-color: #666;
+}
+
+/* === 牌号选择按钮 === */
+
+.kg-card-pick-btn {
+    transition: all 0.2s;
+    border-radius: 8px !important;
+    padding: 6px 10px !important;
+    font-weight: 600 !important;
+}
+
+.kg-card-pick-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+}
+
+.kg-card-pick-btn.kg-card-selected {
+    background-color: #ffc107 !important;
+    color: #000 !important;
+    border-color: #ffa000 !important;
+    transform: scale(1.1);
+    box-shadow: 0 2px 8px rgba(255, 193, 7, 0.4);
+}
+
+/* === 操作区域按钮 === */
+
+#kg-action-area {
+    padding: 12px 10px !important;
+}
+
+#kg-action-area h5 {
+    color: var(--text-primary);
+    margin: 0;
+}
+
+#kg-action-area .form-button {
+    max-width: 300px;
+    background: linear-gradient(135deg, #ffc107, #ff9800);
+    color: #000;
+    border: none;
+    border-radius: 22px;
+    padding: 10px 24px;
+    font-size: 15px;
+    font-weight: 600;
+    box-shadow: 0 3px 10px rgba(255, 152, 0, 0.3);
+    transition: all 0.2s;
+    width: auto;
+    margin: 0;
+}
+
+#kg-action-area .form-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(255, 152, 0, 0.4);
+}
+
+#kg-action-area .form-button:active {
+    transform: translateY(0) scale(0.97);
+}
+
+#kg-action-area .form-button-secondary {
+    min-width: 80px;
+    border-radius: 22px;
+    padding: 10px 18px;
+    font-weight: 500;
+    transition: all 0.2s;
+    border: 1px solid var(--border-color);
+    background: var(--secondary-bg);
+}
+
+#kg-action-area .form-button-secondary:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+}
+
+#kg-action-area .form-button-secondary:active {
+    transform: translateY(0) scale(0.97);
+}
+
+#kg-action-area textarea {
+    background: var(--secondary-bg);
+    color: var(--text-primary);
+    border: 1px solid var(--border-color);
+    border-radius: 10px !important;
+    transition: border-color 0.2s;
+}
+
+#kg-action-area textarea:focus {
+    outline: none;
+    border-color: #ffc107;
+    box-shadow: 0 0 0 2px rgba(255, 193, 7, 0.15);
+}
+
+/* === 结算弹窗 === */
+
+#kg-summary-modal .modal-footer button.save {
+    background: linear-gradient(135deg, #ffc107, #ff9800);
+    color: #000;
+    font-weight: 600;
+    border: none;
+}
+
+/* === 夜间模式适配 === */
+
+#phone-screen.dark-mode #kings-game-setup-screen .form-group {
+    background: #1c1c1e;
+    border-color: #333;
+}
+
+#phone-screen.dark-mode #kg-log-container {
+    background: rgba(255, 255, 255, 0.03) !important;
+    border-color: #333;
+}
+
+#phone-screen.dark-mode #kg-players-grid {
+    background: #1c1c1e;
+    border-color: #333;
+}
+
+#phone-screen.dark-mode #kg-action-area .form-button-secondary {
+    background: #2c2c2e;
+    border-color: #444;
+    color: var(--text-primary);
+}
+
+/* ▲▲▲ 国王游戏样式结束 ▲▲▲ */

@@ -2348,7 +2348,6 @@ window.triggerAiResponse = async function triggerAiResponse() {
 
 **1. 角色基本设定:**
 - **核心人设**: ${chat.settings.aiPersona}
-- **总结**:${summaryContext}
 - **世界观/NPC**: ${offlineNpcCtx}
 ${offlinePetCtx}
 
@@ -2404,9 +2403,6 @@ ${finalStyle}
 - **对话者(用户)角色设定**:
 ${chat.settings.myPersona || '（未设定）'}
 
-- **当前情景**:
-${offlineTimeContext}
-${offlineStreakCtx}
 - **当前音乐情景**:
 ${offlineMusicCtx}
 
@@ -2419,6 +2415,8 @@ ${worldBookContext}
 - **当前对话历史记录**
 ${recentContextSummary}
 **紧接【此处】继续行动。如果上方最后一条消息是【旁白】，则需要在回复中对旁白内容进行衔接前文的演绎和推进。**
+
+${summaryContext}
 
 - **其他相关聊天记录**:
 - 以下聊天记录只能用于【剧情参考】，【绝对不能】在当前聊天中接续行动。

@@ -108,6 +108,8 @@ document.addEventListener('DOMContentLoaded', () => {
             GH.ludo.openSetup();
         } else if (gameId === 'undercover') {
             GH.undercover.openSetup();
+        } else if (gameId === 'kings-game') {
+            GH.kingsGame.openSetup();
         } else {
             alert(`"${gameCard.querySelector('.game-title').textContent}"还在开发中，敬请期待！`);
         }
@@ -119,6 +121,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (GH.guessWhat) GH.guessWhat.initEvents();
     if (GH.ludo) GH.ludo.initEvents();
     if (GH.undercover) GH.undercover.initEvents();
+    if (GH.kingsGame) GH.kingsGame.initEvents();
 
     if (GH.ludo && GH.ludo.migrateDefaultQuestions) {
         GH.ludo.migrateDefaultQuestions();

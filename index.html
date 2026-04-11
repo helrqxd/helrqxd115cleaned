@@ -31,7 +31,7 @@
 		<title>兔k-lrq版EPhone</title>
 
 		<link rel="stylesheet" href="style.css" />
-		<script src="https://unpkg.com/dexie/dist/dexie.js"></script>
+		<script src="https://cdn.jsdelivr.net/npm/dexie@4/dist/dexie.min.js"></script>
 		<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 		<script src="https://cdn.jsdelivr.net/npm/dompurify/dist/purify.min.js"></script>
 		<script src="https://phoebeboo.github.io/mewoooo/pp.js" defer></script>
@@ -55,6 +55,7 @@
 		<script src="apps/gamehall/guess-what.js" defer></script>
 		<script src="apps/gamehall/ludo.js" defer></script>
 		<script src="apps/gamehall/undercover.js" defer></script>
+		<script src="apps/gamehall/kings-game.js" defer></script>
 		<script src="apps/forum.js" defer></script>
 		<script src="apps/lovers-space.js" defer></script>
 		<script src="apps/taobao.js" defer></script>
@@ -6001,6 +6002,14 @@
 						</div>
 					</div>
 
+					<div class="game-card" data-game="kings-game">
+						<div class="game-icon">👑</div>
+						<div class="game-info">
+							<div class="game-title">国王游戏</div>
+							<div class="game-desc">抽牌定命运，国王说了算</div>
+						</div>
+					</div>
+
 					<p style="grid-column: 1 / -1; text-align: center; color: var(--text-secondary); font-size: 14px; margin-top: 20px">更多游戏正在火速开发中...</p>
 				</div>
 			</div>
@@ -7449,6 +7458,121 @@
 				<div class="modal-footer">
 					<button class="cancel" id="uc-cancel-share-btn">取消</button>
 					<button class="save" id="uc-confirm-share-btn">确认发送</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- ========== 国王游戏 设置屏幕 ========== -->
+		<div id="kings-game-setup-screen" class="screen">
+			<div class="header">
+				<span class="back-btn" onclick="showScreen('game-hall-screen')">‹</span>
+				<span>国王游戏 - 游戏设置</span>
+			</div>
+			<div class="form-container">
+				<div class="form-group">
+					<label>选择参与角色（最多13人）</label>
+					<div id="kg-player-selection" class="list-container" style="height: 260px; border: 1px solid var(--border-color); border-radius: 8px; overflow-y: auto"></div>
+				</div>
+
+				<div class="form-group">
+					<label>出题模式</label>
+					<div style="display: flex; gap: 20px">
+						<label style="cursor: pointer"><input type="radio" name="kg_questioner_mode" value="random" checked /> 随机角色出题（抽到K的人）</label>
+						<label style="cursor: pointer"><input type="radio" name="kg_questioner_mode" value="user" /> 你始终出题</label>
+					</div>
+				</div>
+
+				<div id="kg-user-participate-option" class="form-group" style="display: none">
+					<label>你是否参与抽牌</label>
+					<div style="display: flex; gap: 20px">
+						<label style="cursor: pointer"><input type="radio" name="kg_user_participate" value="no" checked /> 不参与（你仅出题）</label>
+						<label style="cursor: pointer"><input type="radio" name="kg_user_participate" value="yes" /> 参与（你也抽牌）</label>
+					</div>
+				</div>
+
+				<div class="form-group">
+					<label>游戏类型</label>
+					<div style="display: flex; gap: 20px; flex-wrap: wrap">
+						<label style="cursor: pointer"><input type="radio" name="kg_game_type" value="both" checked /> 真心话+大冒险</label>
+						<label style="cursor: pointer"><input type="radio" name="kg_game_type" value="truth" /> 仅真心话</label>
+						<label style="cursor: pointer"><input type="radio" name="kg_game_type" value="dare" /> 仅大冒险</label>
+					</div>
+				</div>
+
+				<div class="form-group">
+					<label>题目来源</label>
+					<div style="display: flex; gap: 20px">
+						<label style="cursor: pointer"><input type="radio" name="kg_question_source" value="ai" checked /> AI出题</label>
+						<label style="cursor: pointer"><input type="radio" name="kg_question_source" value="custom" /> 自定义题库</label>
+					</div>
+				</div>
+
+				<div id="kg-custom-bank-area" style="display: none">
+					<div class="form-group">
+						<label>真心话题库（每行一题）</label>
+						<textarea id="kg-truth-bank" rows="4" placeholder="在这里输入真心话题目，每行一题...&#10;例如：你最尴尬的一次经历是什么？" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 14px; resize: vertical"></textarea>
+					</div>
+					<div class="form-group">
+						<label>大冒险题库（每行一题）</label>
+						<textarea id="kg-dare-bank" rows="4" placeholder="在这里输入大冒险题目，每行一题...&#10;例如：模仿一个动物叫声30秒" style="width: 100%; box-sizing: border-box; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); font-size: 14px; resize: vertical"></textarea>
+					</div>
+				</div>
+
+				<button id="start-kings-game-btn" class="form-button" style="margin-top: 15px">开始游戏</button>
+				<p style="text-align: center; color: var(--text-secondary); font-size: 13px; margin-top: 10px">
+					抽到K的人是国王，可以指定纸牌号码执行行动。<br/>
+					所有人不知道彼此的牌，命运全靠运气！
+				</p>
+			</div>
+		</div>
+
+		<!-- ========== 国王游戏 主界面 ========== -->
+		<div id="kings-game-screen" class="screen">
+			<div class="header">
+				<span class="back-btn" id="exit-kings-game-btn">‹</span>
+				<span id="kings-game-title">国王游戏</span>
+				<span style="width: 30px"></span>
+			</div>
+			<div id="kings-game-content" style="display: flex; flex-direction: column; height: 100%; overflow: hidden; padding: 10px; box-sizing: border-box">
+				<div id="kg-players-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(70px, 1fr)); gap: 10px; padding: 10px; flex-shrink: 0"></div>
+				<div id="kg-log-container" style="flex-grow: 1; background-color: rgba(0, 0, 0, 0.05); border-radius: 10px; padding: 10px; overflow-y: auto; margin: 10px 0; min-height: 0">
+					<div id="kg-game-log"></div>
+				</div>
+				<div id="kg-action-area" style="flex-shrink: 0; padding: 10px; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 10px; min-height: 50px"></div>
+			</div>
+		</div>
+
+		<!-- 国王游戏 结算弹窗 -->
+		<div id="kg-summary-modal" class="modal">
+			<div class="modal-content" style="height: auto; max-height: 80%">
+				<div class="modal-header">
+					<span>本轮结算</span>
+				</div>
+				<div class="modal-body" id="kg-summary-content" style="white-space: pre-wrap; line-height: 1.7"></div>
+				<div class="modal-footer">
+					<button class="cancel" id="kg-share-summary-btn">分享到单聊</button>
+					<button class="save" id="kg-next-round-btn">下一轮</button>
+				</div>
+				<div class="modal-footer">
+					<button class="cancel" id="kg-back-to-hall-btn">返回大厅</button>
+				</div>
+			</div>
+		</div>
+
+		<!-- 国王游戏 分享目标选择器 -->
+		<div id="kg-target-picker-modal" class="modal">
+			<div class="modal-content" style="height: 60%">
+				<div class="modal-header">
+					<span>选择要发送的玩家</span>
+				</div>
+				<div class="modal-body" id="kg-target-list" style="padding: 0"></div>
+				<div class="modal-footer">
+					<button id="kg-select-all-btn" class="form-button-secondary" style="width: 45%; margin: 0">全选</button>
+					<button id="kg-deselect-all-btn" class="form-button-secondary" style="width: 45%; margin: 0">全不选</button>
+				</div>
+				<div class="modal-footer">
+					<button class="cancel" id="kg-cancel-share-btn">取消</button>
+					<button class="save" id="kg-confirm-share-btn">确认发送</button>
 				</div>
 			</div>
 		</div>
