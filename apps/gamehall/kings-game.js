@@ -678,12 +678,19 @@ ${availableCards.join(', ')}
         ).join('\n');
         const userName = kgState.userPlayer ? kgState.userPlayer.name : '用户';
 
+        const cardReveal = kgState.cardAssignments.map(a =>
+            `- ${a.player.name}: ${a.card.suit}${a.card.label}${a.card.isKing ? '（国王）' : ''}`
+        ).join('\n');
+
         return { kingName, typeLabel, allPlayerProfiles, userName, header: `
 # 场景
 这是一场国王游戏。国王（出题者）是：${kingName}。本轮类型：${typeLabel}。
 
 # 所有参与者人设
 ${allPlayerProfiles}
+
+# 本轮牌面分配
+${cardReveal}
 
 # 本轮题目/指令
 ${question}` };
