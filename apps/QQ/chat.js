@@ -4326,29 +4326,16 @@ ${contextSummaryForApproval}
         if (!response.ok) {
             let errorMsg = `API Error: ${response.status}`;
             try {
-                // 尝试解析错误信息体为JSON
-                const errorData = await response.json();
-                // 安全地获取错误信息，如果结构不符合预期，就将整个错误对象转为字符串
-                errorMsg += ` - ${errorData?.error?.message || JSON.stringify(errorData)}`;
-            } catch (jsonError) {
-                // 如果连JSON都不是，就直接读取文本
-                errorMsg += ` - ${await response.text()}`;
+                const errorText = await response.text();
+                try {
+                    const errorData = JSON.parse(errorText);
+                    errorMsg += ` - ${errorData?.error?.message || JSON.stringify(errorData)}`;
+                } catch (jsonError) {
+                    errorMsg += ` - ${errorText}`;
+                }
+            } catch (readError) {
+                errorMsg += ' - (无法读取错误详情)';
             }
-            // 抛出一个包含了详细信息的错误，这样就不会在catch块里再次出错了
-            throw new Error(errorMsg);
-        }
-        if (!response.ok) {
-            let errorMsg = `API Error: ${response.status}`;
-            try {
-                // 尝试解析错误信息体为JSON
-                const errorData = await response.json();
-                // 安全地获取错误信息，如果结构不符合预期，就将整个错误对象转为字符串
-                errorMsg += ` - ${errorData?.error?.message || JSON.stringify(errorData)}`;
-            } catch (jsonError) {
-                // 如果连JSON都不是，就直接读取文本
-                errorMsg += ` - ${await response.text()}`;
-            }
-            // 抛出一个包含了详细信息的错误，这样就不会在catch块里再次出错了
             throw new Error(errorMsg);
         }
         const data = await response.json();

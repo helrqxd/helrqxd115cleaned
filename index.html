@@ -5953,8 +5953,7 @@
 			<div class="header">
 				<span class="back-btn" onclick="showScreen('home-screen')">‹</span>
 				<span>游戏大厅</span>
-				<span style="width: 30px"></span>
-				<!-- 占位符 -->
+				<span class="action-btn" id="game-hall-wb-settings-btn" title="世界书设置" style="font-size:20px;cursor:pointer;">📖</span>
 			</div>
 			<div class="list-container" style="padding: 20px">
 				<p style="text-align: center; color: var(--text-secondary)">选择一个游戏开始吧！</p>
@@ -6013,6 +6012,39 @@
 					</div>
 
 					<p style="grid-column: 1 / -1; text-align: center; color: var(--text-secondary); font-size: 14px; margin-top: 20px">更多游戏正在火速开发中...</p>
+				</div>
+			</div>
+		</div>
+
+		<!-- 游戏大厅 - 世界书绑定设置屏幕 -->
+		<div id="game-hall-wb-screen" class="screen">
+			<div class="header">
+				<span class="back-btn" onclick="showScreen('game-hall-screen')">‹</span>
+				<span>游戏大厅 - 世界书绑定</span>
+			</div>
+			<div class="form-container" style="padding:16px;">
+				<div class="form-group">
+					<label>绑定范围</label>
+					<p class="gh-wb-hint">选择将世界书绑定到所有游戏，还是仅绑定到指定游戏。</p>
+					<select id="gh-wb-bind-scope">
+						<option value="all">所有游戏</option>
+						<option value="werewolf">狼人杀</option>
+						<option value="sea-turtle-soup">海龟汤</option>
+						<option value="script-kill">剧本杀</option>
+						<option value="guess-what">你说我猜</option>
+						<option value="ludo">心动飞行棋</option>
+						<option value="undercover">谁是卧底</option>
+						<option value="kings-game">国王游戏</option>
+					</select>
+				</div>
+				<div class="form-group">
+					<label>选择世界书</label>
+					<p class="gh-wb-hint">绑定的世界书内容将作为世界观设定注入到游戏的提示词中。</p>
+					<div id="gh-wb-dropdown-header" class="gh-wb-dropdown-header">
+						<span id="gh-wb-dropdown-summary">点击选择世界书...</span>
+						<span class="gh-wb-arrow">▼</span>
+					</div>
+					<div id="gh-wb-dropdown-panel" class="gh-wb-panel"></div>
 				</div>
 			</div>
 		</div>
@@ -7784,6 +7816,15 @@
 								<path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"></path>
 							</svg>
 						</span>
+						<span class="action-btn" id="dating-game-history-btn" title="历史前文">
+							<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+								<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+								<polyline points="14 2 14 8 20 8"></polyline>
+								<line x1="16" y1="13" x2="8" y2="13"></line>
+								<line x1="16" y1="17" x2="8" y2="17"></line>
+								<polyline points="10 9 9 9 8 9"></polyline>
+							</svg>
+						</span>
 					</div>
 				</div>
 
@@ -8671,6 +8712,54 @@
 						<div class="studio-settings-color-row">
 							<input type="color" id="studio-ai-bubble-color" value="#64419B">
 							<button class="studio-settings-reset-btn" id="studio-reset-ai-color">重置</button>
+						</div>
+					</div>
+				</div>
+				<div class="studio-settings-group">
+					<div class="studio-settings-group-title">文字字体</div>
+					<p class="studio-settings-hint">从字体卡槽中已加入的字体进行选择。</p>
+					<div class="studio-settings-item">
+						<span class="studio-settings-label">行动字体（【行动】）</span>
+						<select id="studio-action-font" class="studio-settings-text-input">
+							<option value="">默认字体</option>
+						</select>
+					</div>
+					<div class="studio-settings-item">
+						<span class="studio-settings-label">对话字体</span>
+						<select id="studio-dialogue-font" class="studio-settings-text-input">
+							<option value="">默认字体</option>
+						</select>
+					</div>
+				</div>
+				<div class="studio-settings-group">
+					<div class="studio-settings-group-title">文字颜色</div>
+					<p class="studio-settings-hint">分别设置角色(char)和用户(user)的行动与对话文字颜色。</p>
+					<div class="studio-settings-item">
+						<span class="studio-settings-label">角色 - 行动文字颜色</span>
+						<div class="studio-settings-color-row">
+							<input type="color" id="studio-char-action-color" value="#cccccc">
+							<button class="studio-settings-reset-btn" id="studio-reset-char-action-color">重置</button>
+						</div>
+					</div>
+					<div class="studio-settings-item">
+						<span class="studio-settings-label">角色 - 对话文字颜色</span>
+						<div class="studio-settings-color-row">
+							<input type="color" id="studio-char-dialogue-color" value="#ffffff">
+							<button class="studio-settings-reset-btn" id="studio-reset-char-dialogue-color">重置</button>
+						</div>
+					</div>
+					<div class="studio-settings-item">
+						<span class="studio-settings-label">用户 - 行动文字颜色</span>
+						<div class="studio-settings-color-row">
+							<input type="color" id="studio-user-action-color" value="#cccccc">
+							<button class="studio-settings-reset-btn" id="studio-reset-user-action-color">重置</button>
+						</div>
+					</div>
+					<div class="studio-settings-item">
+						<span class="studio-settings-label">用户 - 对话文字颜色</span>
+						<div class="studio-settings-color-row">
+							<input type="color" id="studio-user-dialogue-color" value="#ffffff">
+							<button class="studio-settings-reset-btn" id="studio-reset-user-dialogue-color">重置</button>
 						</div>
 					</div>
 				</div>

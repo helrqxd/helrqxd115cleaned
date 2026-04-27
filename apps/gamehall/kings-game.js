@@ -544,9 +544,10 @@
             ? `\n你正在扮演国王"${kgState.kingPlayer.name}"，人设：${kgState.kingPlayer.persona || '无'}。请以该角色的性格风格出题。`
             : '';
 
+        const kgWorldBook = await GH.getGameWorldBookContent('kings-game');
         const prompt = `
 # 任务
-你是一个国王游戏的出题AI。现在需要你作为国王出一个${roundType === 'truth' ? '真心话问题' : '大冒险指令'}。${kingInfo}
+${kgWorldBook ? `# 世界观设定\n${kgWorldBook}\n` : ''}你是一个国王游戏的出题AI。现在需要你作为国王出一个${roundType === 'truth' ? '真心话问题' : '大冒险指令'}。${kingInfo}
 
 # 参与角色（含用户和所有AI角色的人设）
 ${playerProfiles}

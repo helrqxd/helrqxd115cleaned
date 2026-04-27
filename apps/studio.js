@@ -26,7 +26,12 @@ document.addEventListener('DOMContentLoaded', () => {
             const saved = localStorage.getItem(STUDIO_SETTINGS_KEY);
             if (saved) return JSON.parse(saved);
         } catch (e) { /* ignore */ }
-        return { userBubbleColor: '', aiBubbleColor: '', linkedWorldBookIds: [] };
+        return {
+            userBubbleColor: '', aiBubbleColor: '', linkedWorldBookIds: [],
+            actionFont: '', dialogueFont: '',
+            charActionColor: '', charDialogueColor: '',
+            userActionColor: '', userDialogueColor: '',
+        };
     }
 
     function saveStudioSettings(settings) {
@@ -58,6 +63,24 @@ document.addEventListener('DOMContentLoaded', () => {
         if (settings.aiBubbleColor) {
             const rgb = hexToRgb(settings.aiBubbleColor);
             if (rgb) css += `#studio-play-messages .message-wrapper.ai .message-bubble .content { background-color: rgba(${rgb.r},${rgb.g},${rgb.b},0.65) !important; }\n`;
+        }
+        if (settings.actionFont) {
+            css += `#studio-play-messages .studio-action-text { font-family: '${settings.actionFont}', serif !important; }\n`;
+        }
+        if (settings.dialogueFont) {
+            css += `#studio-play-messages .studio-dialogue-text { font-family: '${settings.dialogueFont}', sans-serif !important; }\n`;
+        }
+        if (settings.charActionColor) {
+            css += `#studio-play-messages .message-wrapper.ai .studio-action-text { color: ${settings.charActionColor} !important; }\n`;
+        }
+        if (settings.charDialogueColor) {
+            css += `#studio-play-messages .message-wrapper.ai .studio-dialogue-text { color: ${settings.charDialogueColor} !important; }\n`;
+        }
+        if (settings.userActionColor) {
+            css += `#studio-play-messages .message-wrapper.user .studio-action-text { color: ${settings.userActionColor} !important; }\n`;
+        }
+        if (settings.userDialogueColor) {
+            css += `#studio-play-messages .message-wrapper.user .studio-dialogue-text { color: ${settings.userDialogueColor} !important; }\n`;
         }
         styleEl.textContent = css;
     }
@@ -101,6 +124,36 @@ document.addEventListener('DOMContentLoaded', () => {
         const aiColorInput = document.getElementById('studio-ai-bubble-color');
         if (userColorInput) userColorInput.value = settings.userBubbleColor || DEFAULT_USER_BUBBLE;
         if (aiColorInput) aiColorInput.value = settings.aiBubbleColor || DEFAULT_AI_BUBBLE;
+
+        const actionFontSelect = document.getElementById('studio-action-font');
+        const dialogueFontSelect = document.getElementById('studio-dialogue-font');
+        if (actionFontSelect || dialogueFontSelect) {
+            let fontPresets = [];
+            try { fontPresets = await db.fontPresets.toArray(); } catch (e) { /* ignore */ }
+            [actionFontSelect, dialogueFontSelect].forEach(sel => {
+                if (!sel) return;
+                sel.innerHTML = '<option value="">默认字体</option>';
+                fontPresets.forEach(fp => {
+                    const opt = document.createElement('option');
+                    opt.value = fp.name;
+                    opt.textContent = fp.name;
+                    sel.appendChild(opt);
+                });
+            });
+            if (actionFontSelect) actionFontSelect.value = settings.actionFont || '';
+            if (dialogueFontSelect) dialogueFontSelect.value = settings.dialogueFont || '';
+        }
+
+        const colorFields = [
+            ['studio-char-action-color', 'charActionColor', '#cccccc'],
+            ['studio-char-dialogue-color', 'charDialogueColor', '#ffffff'],
+            ['studio-user-action-color', 'userActionColor', '#cccccc'],
+            ['studio-user-dialogue-color', 'userDialogueColor', '#ffffff'],
+        ];
+        colorFields.forEach(([elId, key, def]) => {
+            const el = document.getElementById(elId);
+            if (el) el.value = settings[key] || def;
+        });
 
         const wbPanel = document.getElementById('studio-wb-dropdown-panel');
         const wbHeader = document.getElementById('studio-wb-dropdown-header');
@@ -234,16 +287,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // ===================================================================
     // 1.5 多存档保存系统
     // ===================================================================
-    const STUDIO_SAVES_KEY = 'studioPlaySaves';
+    let _studioSavesMigrated = false;
 
-    function getAllStudioSaves() {
+    async function migrateStudioSavesToDB() {
+        if (_studioSavesMigrated) return;
+        _studioSavesMigrated = true;
         try {
-            const saved = localStorage.getItem(STUDIO_SAVES_KEY);
-            if (saved) return JSON.parse(saved);
-            const legacySaved = localStorage.getItem('studioPlaySavedProgress');
-            if (legacySaved) {
-                const legacyData = JSON.parse(legacySaved);
-                const migrated = [{
+            const raw = localStorage.getItem('studioPlaySaves');
+            const legacy = localStorage.getItem('studioPlaySavedProgress');
+            let entries = [];
+            if (raw) {
+                entries = JSON.parse(raw);
+            } else if (legacy) {
+                const legacyData = JSON.parse(legacy);
+                entries = [{
                     id: 'migrated_' + Date.now(),
                     scriptName: legacyData.script?.name || '未知剧本',
                     scriptId: legacyData.script?.id,
@@ -251,11 +308,22 @@ document.addEventListener('DOMContentLoaded', () => {
                     messageCount: legacyData.history?.filter(m => m.role !== 'system').length || 0,
                     playData: legacyData,
                 }];
-                localStorage.setItem(STUDIO_SAVES_KEY, JSON.stringify(migrated));
-                localStorage.removeItem('studioPlaySavedProgress');
-                return migrated;
             }
-            return [];
+            if (entries.length > 0) {
+                await db.studioSaves.bulkPut(entries);
+                localStorage.removeItem('studioPlaySaves');
+                localStorage.removeItem('studioPlaySavedProgress');
+                console.log(`[Studio] 已将 ${entries.length} 个存档从 localStorage 迁移至 IndexedDB`);
+            }
+        } catch (e) {
+            console.error('迁移小剧场存档失败:', e);
+        }
+    }
+
+    async function getAllStudioSaves() {
+        await migrateStudioSavesToDB();
+        try {
+            return await db.studioSaves.toArray();
         } catch (e) {
             console.error('加载小剧场存档失败:', e);
             return [];
@@ -285,8 +353,8 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    /** @returns {boolean} */
-    function saveStudioPlayProgress() {
+    /** @returns {Promise<boolean>} */
+    async function saveStudioPlayProgress() {
         if (!activeStudioPlay) return false;
         if (!currentSaveId) {
             currentSaveId = 'save_' + Date.now();
@@ -297,7 +365,6 @@ document.addEventListener('DOMContentLoaded', () => {
             return false;
         }
         try {
-            const saves = getAllStudioSaves();
             const scriptId = built.snapshot.script?.id ?? activeStudioScriptId;
             const saveEntry = {
                 id: currentSaveId,
@@ -307,13 +374,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 messageCount: activeStudioPlay.history.filter(m => m.role !== 'system').length,
                 playData: built.snapshot,
             };
-            const existingIndex = saves.findIndex(s => s.id === currentSaveId);
-            if (existingIndex >= 0) {
-                saves[existingIndex] = saveEntry;
-            } else {
-                saves.push(saveEntry);
-            }
-            localStorage.setItem(STUDIO_SAVES_KEY, JSON.stringify(saves));
+            await db.studioSaves.put(saveEntry);
             return true;
         } catch (e) {
             console.error('保存小剧场进度失败:', e);
@@ -321,11 +382,9 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    function deleteStudioSave(saveId) {
+    async function deleteStudioSave(saveId) {
         try {
-            const saves = getAllStudioSaves();
-            const filtered = saves.filter(s => s.id !== saveId);
-            localStorage.setItem(STUDIO_SAVES_KEY, JSON.stringify(filtered));
+            await db.studioSaves.delete(saveId);
         } catch (e) {
             console.error('删除小剧场存档失败:', e);
         }
@@ -416,8 +475,8 @@ document.addEventListener('DOMContentLoaded', () => {
         showScreen('studio-scripts-screen');
     }
 
-    function showStudioSavesScreen() {
-        renderStudioSavesList();
+    async function showStudioSavesScreen() {
+        await renderStudioSavesList();
         showScreen('studio-saves-screen');
     }
 
@@ -448,9 +507,9 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function renderStudioSavesList() {
+    async function renderStudioSavesList() {
         if (!studioSavesListEl) return;
-        const saves = getAllStudioSaves();
+        const saves = await getAllStudioSaves();
         studioSavesListEl.innerHTML = '';
         if (saves.length === 0) {
             studioSavesListEl.innerHTML = '<p style="text-align:center; color: var(--text-secondary); padding: 50px 0;">暂无存档，开始一段新的演绎吧！</p>';
@@ -469,14 +528,14 @@ document.addEventListener('DOMContentLoaded', () => {
             item.addEventListener('click', () => resumeStudioSave(save.id));
             addLongPressListener(item, async () => {
                 const confirmed = await showCustomConfirm('删除存档', `确定要删除剧本《${save.scriptName}》的存档吗？`, { confirmButtonClass: 'btn-danger' });
-                if (confirmed) { deleteStudioSave(save.id); renderStudioSavesList(); }
+                if (confirmed) { await deleteStudioSave(save.id); await renderStudioSavesList(); }
             });
             studioSavesListEl.appendChild(item);
         });
     }
 
-    function resumeStudioSave(saveId) {
-        const saves = getAllStudioSaves();
+    async function resumeStudioSave(saveId) {
+        const saves = await getAllStudioSaves();
         const save = saves.find(s => s.id === saveId);
         if (!save) { alert('找不到该存档！'); return; }
         studioDisplayedMsgCount = STUDIO_PAGE_SIZE;
@@ -977,7 +1036,7 @@ ${instruction}
         }
 
         currentSaveId = 'save_' + Date.now();
-        saveStudioPlayProgress();
+        await saveStudioPlayProgress();
 
         roleSelectionModal.classList.remove('visible');
         renderStudioPlayScreen();
@@ -1059,6 +1118,16 @@ ${instruction}
         return null;
     }
 
+    function formatStudioContent(text) {
+        const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+        const parts = text.split(/(【[^】]*】)/g);
+        return parts.map(p => {
+            if (!p) return '';
+            if (/^【[^】]*】$/.test(p)) return '<span class="studio-action-text">' + esc(p) + '</span>';
+            return '<span class="studio-dialogue-text">' + esc(p) + '</span>';
+        }).join('');
+    }
+
     function createPlayMessageElement(msg, msgIndex) {
         const wrapper = document.createElement('div');
         if (msgIndex !== undefined) wrapper.dataset.msgIdx = msgIndex;
@@ -1079,7 +1148,7 @@ ${instruction}
                 <img src="${avatarSrc}" class="avatar">
                 <div class="content">
                     <div class="studio-char-name">${charName}</div>
-                    ${msg.content.replace(/\n/g, '<br>')}
+                    ${formatStudioContent(msg.content)}
                 </div>`;
             wrapper.appendChild(bubble);
         }
@@ -1118,7 +1187,7 @@ ${instruction}
             );
             if (newContent !== null && newContent.trim()) {
                 activeStudioPlay.history[msgIndex].content = newContent.trim();
-                saveStudioPlayProgress();
+                await saveStudioPlayProgress();
                 renderStudioPlayScreen();
             }
         } else if (choice === 'delete') {
@@ -1127,7 +1196,7 @@ ${instruction}
             );
             if (confirmed) {
                 activeStudioPlay.history.splice(msgIndex, 1);
-                saveStudioPlayProgress();
+                await saveStudioPlayProgress();
                 renderStudioPlayScreen();
             }
         }
@@ -1146,7 +1215,7 @@ ${instruction}
             charName: userChar.name,
         };
         activeStudioPlay.history.push(userMessage);
-        saveStudioPlayProgress();
+        await saveStudioPlayProgress();
         playInput.value = '';
         playInput.style.height = 'auto';
         playMessagesEl.appendChild(createPlayMessageElement(userMessage, activeStudioPlay.history.length - 1));
@@ -1162,7 +1231,7 @@ ${instruction}
         const lastMsg = activeStudioPlay.history[activeStudioPlay.history.length - 1];
         if (lastMsg && lastMsg.role !== 'user') {
             const removedMsg = activeStudioPlay.history.pop();
-            saveStudioPlayProgress();
+            await saveStudioPlayProgress();
             renderStudioPlayScreen();
             renderActionButtons();
 
@@ -1268,7 +1337,7 @@ ${formattedMsgs}
                 timestamp: Date.now(),
             });
             activeStudioPlay.lastSummarizedCount = lastCount + SUMMARY_INTERVAL;
-            saveStudioPlayProgress();
+            await saveStudioPlayProgress();
         } catch (error) {
             console.error('生成剧情总结失败:', error);
         }
@@ -1339,14 +1408,14 @@ ${formattedMsgs}
             };
             activeStudioPlay.history.push(aiMessage);
             playMessagesEl.appendChild(createPlayMessageElement(aiMessage, activeStudioPlay.history.length - 1));
-            saveStudioPlayProgress();
+            await saveStudioPlayProgress();
             indicator.remove();
             checkAndGenerateSummary();
         } catch (error) {
             console.error('小剧场AI回应失败:', error);
             const errMsg = { role: 'assistant', content: `[AI出错了: ${error.message}]`, charIdx, charName: char.name, isError: true };
             activeStudioPlay.history.push(errMsg);
-            saveStudioPlayProgress();
+            await saveStudioPlayProgress();
             playMessagesEl.appendChild(createPlayMessageElement(errMsg, activeStudioPlay.history.length - 1));
         } finally {
             indicator.remove();
@@ -1418,7 +1487,7 @@ ${formattedMsgs}
                         const finalNarration = { role: 'system', content: `【结局】\n${parsedResponse.narration}` };
                         activeStudioPlay.history.push(finalNarration);
                         playMessagesEl.appendChild(createPlayMessageElement(finalNarration, activeStudioPlay.history.length - 1));
-                        saveStudioPlayProgress();
+                        await saveStudioPlayProgress();
                         checkAndGenerateSummary();
 
                         setTimeout(async () => {
@@ -1427,10 +1496,10 @@ ${formattedMsgs}
                                 { text: '▶️ 继续演绎', value: 'continue' },
                             ]);
                             if (choice === 'end') {
-                                endStudioPlay(true);
+                                await endStudioPlay(true);
                             } else if (choice === 'continue') {
                                 activeStudioPlay.storyGoalReached = true;
-                                saveStudioPlayProgress();
+                                await saveStudioPlayProgress();
                             }
                         }, 800);
                         return;
@@ -1442,14 +1511,14 @@ ${formattedMsgs}
                 const narrationMessage = { role: 'system', content: `【旁白】\n${responseText}` };
                 activeStudioPlay.history.push(narrationMessage);
                 playMessagesEl.appendChild(createPlayMessageElement(narrationMessage, activeStudioPlay.history.length - 1));
-                saveStudioPlayProgress();
+                await saveStudioPlayProgress();
                 checkAndGenerateSummary();
             }
         } catch (error) {
             console.error('旁白生成失败:', error);
             const errMsg = { role: 'system', content: `[旁白生成失败: ${error.message}]`, isError: true };
             activeStudioPlay.history.push(errMsg);
-            saveStudioPlayProgress();
+            await saveStudioPlayProgress();
             playMessagesEl.appendChild(createPlayMessageElement(errMsg, activeStudioPlay.history.length - 1));
         } finally {
             narrationTypingIndicator.remove();
@@ -1460,8 +1529,8 @@ ${formattedMsgs}
     // ===================================================================
     // 14. 结束 / 小说 / 分享
     // ===================================================================
-    function endStudioPlay(isSuccess = false) {
-        if (currentSaveId) { deleteStudioSave(currentSaveId); currentSaveId = null; }
+    async function endStudioPlay(isSuccess = false) {
+        if (currentSaveId) { await deleteStudioSave(currentSaveId); currentSaveId = null; }
         document.getElementById('studio-summary-title').textContent = isSuccess ? '演绎成功！' : '演绎结束';
         document.getElementById('studio-summary-content').textContent = `故事目标：${activeStudioPlay.script.storyGoal}`;
         summaryModal.classList.add('visible');
@@ -1700,7 +1769,7 @@ ${formattedMsgs}
         if (wrapper) wrapper.classList.toggle('studio-msg-selected', studioPlaySelectedIdxs.has(idx));
     }
 
-    function batchDeletePlayMessages() {
+    async function batchDeletePlayMessages() {
         if (!activeStudioPlay || studioPlaySelectedIdxs.size === 0) return;
         const sorted = [...studioPlaySelectedIdxs].sort((a, b) => b - a);
         sorted.forEach(idx => {
@@ -1708,7 +1777,7 @@ ${formattedMsgs}
                 activeStudioPlay.history.splice(idx, 1);
             }
         });
-        saveStudioPlayProgress();
+        await saveStudioPlayProgress();
         exitPlaySelectMode();
     }
 
@@ -1957,6 +2026,53 @@ ${formattedMsgs}
         });
     }
 
+    const actionFontSel = document.getElementById('studio-action-font');
+    const dialogueFontSel = document.getElementById('studio-dialogue-font');
+    if (actionFontSel) {
+        actionFontSel.addEventListener('change', () => {
+            const settings = getStudioSettings();
+            settings.actionFont = actionFontSel.value;
+            saveStudioSettings(settings);
+            applyStudioBubbleColors();
+        });
+    }
+    if (dialogueFontSel) {
+        dialogueFontSel.addEventListener('change', () => {
+            const settings = getStudioSettings();
+            settings.dialogueFont = dialogueFontSel.value;
+            saveStudioSettings(settings);
+            applyStudioBubbleColors();
+        });
+    }
+
+    const textColorFields = [
+        ['studio-char-action-color', 'charActionColor', '#cccccc'],
+        ['studio-char-dialogue-color', 'charDialogueColor', '#ffffff'],
+        ['studio-user-action-color', 'userActionColor', '#cccccc'],
+        ['studio-user-dialogue-color', 'userDialogueColor', '#ffffff'],
+    ];
+    textColorFields.forEach(([elId, key, def]) => {
+        const input = document.getElementById(elId);
+        if (input) {
+            input.addEventListener('input', () => {
+                const settings = getStudioSettings();
+                settings[key] = input.value;
+                saveStudioSettings(settings);
+                applyStudioBubbleColors();
+            });
+        }
+        const resetBtn = document.getElementById(elId.replace('studio-', 'studio-reset-'));
+        if (resetBtn) {
+            resetBtn.addEventListener('click', () => {
+                const settings = getStudioSettings();
+                settings[key] = '';
+                saveStudioSettings(settings);
+                if (input) input.value = def;
+                applyStudioBubbleColors();
+            });
+        }
+    });
+
     applyStudioBubbleColors();
 
     if (addScriptBtn) addScriptBtn.addEventListener('click', () => openStudioEditor(null));
@@ -1989,16 +2105,16 @@ ${formattedMsgs}
                 { text: '🚪 不保存直接退出', value: 'discard' },
             ]);
             if (choice === 'save') {
-                const ok = saveStudioPlayProgress();
+                const ok = await saveStudioPlayProgress();
                 if (!ok) {
-                    await showCustomAlert('保存失败', '进度未能写入本地存储（可能空间不足或数据异常），请查看控制台日志。');
+                    await showCustomAlert('保存失败', '进度保存异常，请查看控制台日志。');
                     return;
                 }
                 activeStudioPlay = null;
                 currentSaveId = null;
                 showStudioScreen();
             } else if (choice === 'discard') {
-                endStudioPlay(false);
+                await endStudioPlay(false);
             }
         });
     }

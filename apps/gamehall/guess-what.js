@@ -373,7 +373,8 @@
             )
             .slice(-10)
             .join('\n');
-        let systemPrompt = `# 你的任务\n你正在扮演角色"${opponent.name}"，人设是："${opponent.persona}"。\n你正在和"${state.qzoneSettings.nickname || '我'
+        const gwWorldBook = await GH.getGameWorldBookContent('guess-what');
+        let systemPrompt = `# 你的任务\n${gwWorldBook ? `# 世界观设定\n${gwWorldBook}\n` : ''}你正在扮演角色"${opponent.name}"，人设是："${opponent.persona}"。\n你正在和"${state.qzoneSettings.nickname || '我'
             }"玩"你说我猜"游戏。\n你的所有发言都【必须】严格符合你的人设和口吻，让整个过程像一次真实的聊天互动。\n\n# 游戏历史 (最近的对话)\n${historyText}\n`;
         switch (actionType) {
             case 'generate_word':

@@ -1234,12 +1234,7 @@ ${recentChatHistory}
             }
 
             const isDateOver = gameData.isDateOver || false;
-            // 检查约会是否结束且完成度达到100%
-            if (isDateOver && datingGameState.completion >= 100) {
-                // 显示结算卡片
-                showDatingSummaryCard(gameData.story);
-                return;
-            }
+            const dateCompleted = isDateOver && datingGameState.completion >= 100;
 
             // 更新立绘
             const spriteContainer = document.getElementById('dating-game-sprite-container');
@@ -1274,6 +1269,13 @@ ${recentChatHistory}
             }
 
             displayStoryText(gameData.story, gameData.choices);
+
+            if (dateCompleted) {
+                datingGameState.dateCompletedStory = gameData.story;
+                setTimeout(() => {
+                    showDatingCompletePopup();
+                }, 1500);
+            }
         } else {
             throw new Error('AI返回的数据格式不正确。');
         }
@@ -1419,10 +1421,7 @@ async function triggerNsfwScene(userAction = '故事自然发展') {
 
             // 根据 AI 的 `isDateOver` 标志决定是否结束
             const isDateOver = gameData.isDateOver || false;
-            if (isDateOver) {
-                showDatingSummaryCard(gameData.story);
-                return;
-            }
+            const nsfwDateCompleted = isDateOver;
 
             // 更新立绘
             const spriteContainer = document.getElementById('dating-game-sprite-container');
@@ -1452,6 +1451,13 @@ async function triggerNsfwScene(userAction = '故事自然发展') {
             // 记录故事并显示
             datingGameState.storyHistory.push(`【旁白】: ${gameData.story}`);
             displayStoryText(gameData.story, gameData.choices);
+
+            if (nsfwDateCompleted) {
+                datingGameState.dateCompletedStory = gameData.story;
+                setTimeout(() => {
+                    showDatingCompletePopup();
+                }, 1500);
+            }
         } else {
             throw new Error('AI返回的数据格式不正确。');
         }
@@ -2366,6 +2372,60 @@ async function deleteSpriteGroup(groupId) {
 }
 /* 约会立绘功能核心函数结束 */
 
+function showDatingHistoryPopup() {
+    const overlay = document.createElement('div');
+    overlay.id = 'dating-history-popup-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:9999;animation:fadeIn 0.3s ease;';
+    const popup = document.createElement('div');
+    popup.style.cssText = 'background:linear-gradient(135deg,#1a1a2e,#16213e);border:1px solid rgba(255,255,255,0.15);border-radius:16px;padding:20px;max-width:380px;width:90%;max-height:75vh;display:flex;flex-direction:column;box-shadow:0 12px 40px rgba(0,0,0,0.5);';
+    const header = document.createElement('div');
+    header.style.cssText = 'display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;';
+    header.innerHTML = `<span style="font-size:17px;font-weight:bold;color:#fff;">历史前文</span><span id="dating-history-popup-close" style="font-size:22px;color:rgba(255,255,255,0.6);cursor:pointer;padding:4px 8px;">&times;</span>`;
+    const content = document.createElement('div');
+    content.style.cssText = 'overflow-y:auto;flex:1;color:rgba(255,255,255,0.85);font-size:14px;line-height:1.7;padding-right:4px;';
+    const historyHtml = datingGameState.storyHistory.map(entry => {
+        const isNarration = entry.startsWith('【旁白】');
+        const isUser = entry.startsWith('【用户】') || entry.startsWith('【我】');
+        let style = 'margin-bottom:12px;padding:10px 12px;border-radius:10px;';
+        if (isNarration) style += 'background:rgba(255,255,255,0.05);border-left:3px solid rgba(140,180,255,0.5);';
+        else if (isUser) style += 'background:rgba(100,180,255,0.08);border-left:3px solid rgba(100,180,255,0.6);';
+        else style += 'background:rgba(180,140,255,0.06);border-left:3px solid rgba(180,140,255,0.5);';
+        return `<div style="${style}">${entry.replace(/\n/g, '<br>')}</div>`;
+    }).join('');
+    content.innerHTML = historyHtml || '<p style="text-align:center;color:rgba(255,255,255,0.4);">暂无历史记录</p>';
+    popup.appendChild(header);
+    popup.appendChild(content);
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+    content.scrollTop = content.scrollHeight;
+    document.getElementById('dating-history-popup-close').addEventListener('click', () => overlay.remove());
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+}
+
+async function showDatingCompletePopup() {
+    const character = state.chats[datingGameState.characterId];
+    const charName = character ? character.name : '对方';
+    const overlay = document.createElement('div');
+    overlay.id = 'dating-complete-popup-overlay';
+    overlay.style.cssText = 'position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.6);display:flex;align-items:center;justify-content:center;z-index:9999;animation:fadeIn 0.3s ease;';
+    const popup = document.createElement('div');
+    popup.style.cssText = 'background:linear-gradient(135deg,#1a1a2e,#16213e);border:1px solid rgba(255,255,255,0.15);border-radius:16px;padding:32px 28px;text-align:center;max-width:320px;width:85%;box-shadow:0 12px 40px rgba(0,0,0,0.5);';
+    popup.innerHTML = `
+        <div style="font-size:48px;margin-bottom:12px;">🎉</div>
+        <div style="font-size:20px;font-weight:bold;color:#fff;margin-bottom:8px;">约会完成！</div>
+        <div style="font-size:14px;color:rgba(255,255,255,0.7);margin-bottom:24px;">与${charName}的约会目标已达成。<br>你仍然可以查看回复或重新生成，结束后请手动退出。</div>
+        <button id="dating-complete-popup-close" style="padding:10px 32px;border:none;border-radius:10px;background:linear-gradient(135deg,#667eea,#764ba2);color:#fff;font-size:15px;cursor:pointer;font-weight:600;">我知道了</button>
+    `;
+    overlay.appendChild(popup);
+    document.body.appendChild(overlay);
+    document.getElementById('dating-complete-popup-close').addEventListener('click', () => {
+        overlay.remove();
+    });
+    overlay.addEventListener('click', (e) => {
+        if (e.target === overlay) overlay.remove();
+    });
+}
+
 /**
  * 当约会结束时，显示结算卡片，并自动保存到历史记录
  * @param {string} [finalStory=""] - 约会的最后一段剧情文本
@@ -2789,6 +2849,13 @@ document.addEventListener('DOMContentLoaded', () => {
     // 约会大作战-文游模式UI事件绑定
     document.getElementById('dating-game-settings-btn').addEventListener('click', openDatingSettingsModal);
     document.getElementById('dating-game-reroll-btn').addEventListener('click', handleDatingReroll);
+    document.getElementById('dating-game-history-btn').addEventListener('click', () => {
+        if (!datingGameState.isActive || datingGameState.storyHistory.length === 0) {
+            showCustomAlert('提示', '暂无历史记录。');
+            return;
+        }
+        showDatingHistoryPopup();
+    });
 
     // 设置弹窗内的按钮事件
     document.getElementById('cancel-dating-settings-btn').addEventListener('click', () => {

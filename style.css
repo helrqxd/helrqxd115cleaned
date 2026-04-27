@@ -12767,6 +12767,120 @@ textarea,
   color: var(--text-secondary);
   margin-top: 4px;
 }
+/* === 游戏大厅 - 世界书绑定页 === */
+.gh-wb-hint {
+  font-size: 13px;
+  color: var(--text-secondary);
+  margin: 4px 0 10px;
+}
+.gh-wb-dropdown-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 11px 14px;
+  background-color: var(--secondary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  cursor: pointer;
+}
+#gh-wb-dropdown-summary {
+  font-size: 14px;
+  color: var(--text-secondary);
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gh-wb-arrow {
+  font-size: 10px;
+  color: var(--text-secondary);
+  transition: transform 0.25s;
+  margin-left: 8px;
+}
+.gh-wb-dropdown-header.open .gh-wb-arrow { transform: rotate(180deg); }
+.gh-wb-panel {
+  display: none;
+  margin-top: 8px;
+  background-color: var(--secondary-bg);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 6px 0;
+  max-height: 320px;
+  overflow-y: auto;
+}
+.gh-wb-panel.open { display: block; }
+.gh-wb-panel .gh-wb-empty {
+  text-align: center;
+  color: var(--text-secondary);
+  padding: 16px 0;
+  font-size: 13px;
+}
+.gh-wb-panel .gh-wb-cat-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  cursor: pointer;
+  user-select: none;
+}
+.gh-wb-panel .gh-wb-cat-header:active { background: rgba(128,128,128,0.08); }
+.gh-wb-panel .gh-wb-cat-arrow {
+  font-size: 9px;
+  color: var(--text-secondary);
+  transition: transform 0.2s;
+}
+.gh-wb-panel .gh-wb-cat-header.collapsed .gh-wb-cat-arrow { transform: rotate(-90deg); }
+.gh-wb-panel .gh-wb-cat-name {
+  flex: 1;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-primary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gh-wb-panel .gh-wb-cat-count {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+.gh-wb-panel .gh-wb-book-container {
+  padding: 2px 0 2px 38px;
+  display: flex;
+  flex-direction: column;
+}
+.gh-wb-panel .gh-wb-book-container.collapsed { display: none; }
+.gh-wb-panel .gh-wb-book-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px 8px 0;
+  cursor: pointer;
+  font-size: 13px;
+  color: var(--text-primary);
+}
+.gh-wb-panel .gh-wb-book-item:active { background: rgba(128,128,128,0.06); }
+.gh-wb-panel .gh-wb-book-item input[type="checkbox"],
+.gh-wb-panel .gh-wb-cat-header input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  accent-color: #5b8def;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+.gh-wb-panel .gh-wb-book-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.gh-wb-panel .gh-wb-global-tag {
+  font-size: 10px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: rgba(91,141,239,0.12);
+  color: #5b8def;
+  flex-shrink: 0;
+}
 /* ▲▲▲ 新样式粘贴结束 ▲▲▲ */
 /* ▼▼▼ 【全新】狼人杀游戏样式 ▼▼▼ */
 
@@ -20477,6 +20591,40 @@ textarea,
   color: rgba(140, 180, 255, 0.8);
   flex-shrink: 0;
 }
+.studio-settings-text-input,
+select.studio-settings-text-input {
+  width: 100%;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #fff;
+  font-size: 14px;
+  margin-top: 6px;
+  box-sizing: border-box;
+  outline: none;
+  transition: border-color 0.2s;
+  -webkit-appearance: none;
+  appearance: none;
+}
+select.studio-settings-text-input {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='rgba(255,255,255,0.5)' stroke-width='2.5'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  padding-right: 32px;
+}
+select.studio-settings-text-input option {
+  background: #1a1a2e;
+  color: #fff;
+}
+.studio-settings-text-input:focus {
+  border-color: rgba(140, 180, 255, 0.5);
+}
+.studio-settings-text-input::placeholder {
+  color: rgba(255, 255, 255, 0.3);
+}
+.studio-action-text { font-style: italic; }
+.studio-dialogue-text { }
 /* ▲▲▲ 小剧场设置页结束 ▲▲▲ */
 
 /* ▼▼▼ 【全新】兔k记账 App 样式 ▼▼▼ */

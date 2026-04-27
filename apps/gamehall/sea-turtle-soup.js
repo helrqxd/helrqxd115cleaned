@@ -177,9 +177,10 @@
         // 增加"优先选择经典谜题"的指令
         const typePrompt = riddleType ? `请创作一个【${riddleType}】类型的` : '请创作一个';
 
+        const worldBookContent = await GH.getGameWorldBookContent('sea-turtle-soup');
         const systemPrompt = `
 # 任务
-你现在是角色"${provider.name}"，你的人设是："${provider.persona}"。
+${worldBookContent ? `# 世界观设定\n${worldBookContent}\n` : ''}你现在是角色"${provider.name}"，你的人设是："${provider.persona}"。
 你的任务是扮演这个角色，${typePrompt}经典的海龟汤谜题。
 
 # 核心规则
@@ -526,6 +527,8 @@
         if (!proxyUrl || !apiKey || !model) return { type: 'question', content: '我不知道该问什么了。' };
 
         let systemPrompt = '';
+        const stsWorldBook = await GH.getGameWorldBookContent('sea-turtle-soup');
+        const stsWbPrefix = stsWorldBook ? `\n# 世界观设定\n${stsWorldBook}\n` : '';
         const gameLogText = seaTurtleSoupState.gameLog
             .map(log => `${log.speaker}: ${log.message}`)
             .slice(-15)
@@ -534,7 +537,7 @@
         if (actionType === 'answer') {
             // 人设加强版 V3 Prompt
             systemPrompt = `
-# 任务: 海龟汤出题人 (高级人格版)
+# 任务: 海龟汤出题人 (高级人格版)${stsWbPrefix}
 你现在【就是】角色"${player.name}"，你的人设是："${player.persona}"。
 你是海龟汤的出题人，你的谜底是："${seaTurtleSoupState.answer}"。
 现在，玩家"${contextPayload.askerName}"向你提问："${contextPayload.question}"。
@@ -579,7 +582,7 @@
         } else {
             // 'guess'
             systemPrompt = `
-# 任务: 海龟汤猜测者
+# 任务: 海龟汤猜测者${stsWbPrefix}
 你正在扮演角色"${player.name}"，人设是："${player.persona}"。
 你正在玩海龟汤游戏，需要根据已知信息提问或猜测谜底。
 

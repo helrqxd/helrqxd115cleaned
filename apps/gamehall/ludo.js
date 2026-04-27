@@ -594,9 +594,10 @@
         else if (eventType === 'reroll_comment') {
             eventPrompt = `你之前说了："${context.originalSpeech}"。请换一种说法，但表达类似的情绪或意思。`;
         }
+        const ludoWorldBook = await GH.getGameWorldBookContent('ludo');
         const systemPrompt = `
 # 角色扮演指令
-你正在和你的伴侣(${userPlayer.name})玩一场心动的线上飞行棋游戏。
+${ludoWorldBook ? `# 世界观设定\n${ludoWorldBook}\n` : ''}你正在和你的伴侣(${userPlayer.name})玩一场心动的线上飞行棋游戏。
 你的名字是"${aiPlayer.name}"，你的人设是：${aiPlayer.persona}
 你的回复必须完全符合你的人设，自然地表达你的情绪。
 

@@ -954,7 +954,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     function initDatabase(userId) {
         // 数据库名带上用户ID，实现每个人数据隔离
         db = new Dexie('GeminiChatDB');
-        db.version(62).stores({
+        db.version(63).stores({
             chats: '&id, isGroup, groupId, ownerId, isPinned, characterPhoneData, latestInnerVoice, innerVoiceHistory, loversSpaceData.emotionDiaries, settings.summary, settings.weiboNickname, settings.innerVoiceHideHeaderBorder, settings.innerVoiceAdopterLabelFormat, interactionStats, unlockedSymbols, settings.selectedIntimacyBadge',
             apiConfig: '&id',
             globalSettings: '&id, activeThemeId',
@@ -1006,6 +1006,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             elemeOrders: '++id, recipientId, timestamp',
             studioScripts: '++id, name',
             studioHistory: '++id, timestamp',
+            studioSaves: '&id, scriptId, savedAt',
             tukeyAccounts: '++id, category, type', // 这是你已有的，保持不变
             tukeyAccountingGroups: '&id', // 记账群聊设置 (id, name, members, replySettings)
             tukeyAccountingRecords: '++id, groupId, timestamp, isRepliedTo, accountId',

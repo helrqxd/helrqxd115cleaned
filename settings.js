@@ -3691,7 +3691,7 @@ window.exportChunkedData = async function () {
             },
 
             studio: {
-                tables: ['studioScripts', 'studioHistory'],
+                tables: ['studioScripts', 'studioHistory', 'studioSaves'],
             },
 
             xhs: {
@@ -4644,7 +4644,7 @@ window.openAdvancedTransferModal = async function () {
         {
             id: 'studio',
             name: '小剧场 (所有剧本/演绎记录)',
-            tables: ['studioScripts', 'studioHistory'],
+            tables: ['studioScripts', 'studioHistory', 'studioSaves'],
         },
 
         {

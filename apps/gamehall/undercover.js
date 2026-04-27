@@ -673,9 +673,10 @@
             roleDescription = `你是【白板】，你没有词语。你的任务是【伪装和猜测】！在轮到你发言之前，【仔细听】前面所有人的描述，【猜出】他们的词语大概是什么，然后给出一个【非常模糊】的描述，让自己听起来和他们是一伙的。`;
         }
 
+        const ucWorldBook = await GH.getGameWorldBookContent('undercover');
         const systemPrompt = `
 # 游戏背景: 谁是卧底
-你正在扮演玩家"${player.name}"，你的人设是："${player.persona}"。
+${ucWorldBook ? `# 世界观设定\n${ucWorldBook}\n` : ''}你正在扮演玩家"${player.name}"，你的人设是："${player.persona}"。
 
 # 你的身份和任务
 ${roleDescription}

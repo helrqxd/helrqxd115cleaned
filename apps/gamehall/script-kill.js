@@ -760,9 +760,10 @@
 
         let jsonFormat = '';
         let extraContext = '';
+        const skWorldBook = await GH.getGameWorldBookContent('script-kill');
         let systemPrompt = `
 # 任务: 剧本杀角色扮演
-# 你的双重身份 (必须严格遵守)
+${skWorldBook ? `# 世界观设定\n${skWorldBook}\n` : ''}# 你的双重身份 (必须严格遵守)
 1.  **你的本体**: 你的真实身份是 **${player.name}**，你的核心性格是：**${player.persona}**。
 2.  **你的剧本角色**: 在这场游戏中，你需要扮演角色 **【${player.role.name}】**。
     -   **剧本身份设定**: ${player.role.description}

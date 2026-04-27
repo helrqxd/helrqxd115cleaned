@@ -1043,9 +1043,10 @@ ${formattedLog}
                 break;
         }
 
+        const worldBookContent = await GH.getGameWorldBookContent('werewolf');
         const systemPrompt = `
 # 游戏背景: 狼人杀
-# 你的身份和人设
+${worldBookContent ? `# 世界观设定\n${worldBookContent}\n` : ''}# 你的身份和人设
 - **你的名字**: ${player.name}
 - **你的角色**: ${player.role}
 - **你的性格人设**: ${player.persona}
